@@ -118,6 +118,16 @@ class ChatViewModel(
 ) : ViewModel() {
     
     val listState = LazyListState()
+    val messageHeights = androidx.compose.runtime.mutableStateMapOf<String, Int>()
+
+    private val _scrollToLastMessage = MutableSharedFlow<Unit>(replay = 0)
+    val scrollToLastMessage = _scrollToLastMessage.asSharedFlow()
+
+    fun triggerScrollToLastMessage() {
+        viewModelScope.launch {
+            _scrollToLastMessage.emit(Unit)
+        }
+    }
 
     val provider = settingsManager.provider.stateIn(viewModelScope, SharingStarted.Eagerly, "Google")
     val selectedModel = settingsManager.selectedModel.stateIn(viewModelScope, SharingStarted.Eagerly, "models/gemini-1.5-flash")
@@ -193,6 +203,19 @@ class ChatViewModel(
 
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
+
+    private val _isSwitching = MutableStateFlow(false)
+    val isSwitching: StateFlow<Boolean> = _isSwitching.asStateFlow()
+
+    private var switchingJob: Job? = null
+
+    fun setSwitching(switching: Boolean) {
+        _isSwitching.value = switching
+    }
+
+    fun clearMessageHeights() {
+        messageHeights.clear()
+    }
 
     private val _isNewChatMode = MutableStateFlow(true)
     val isNewChatMode: StateFlow<Boolean> = _isNewChatMode.asStateFlow()
@@ -289,15 +312,29 @@ class ChatViewModel(
     fun setGoogleSearchEnabled(enabled: Boolean) { viewModelScope.launch { settingsManager.saveGoogleSearchEnabled(enabled) } }
 
     fun createNewChat() {
-        _isNewChatMode.value = true
-        _currentConversationId.value = null
-        _allMessages.value = emptyList()
-        _selectedChildren.value = emptyMap()
+        switchingJob?.cancel()
+        _isSwitching.value = true
+        switchingJob = viewModelScope.launch {
+            kotlinx.coroutines.delay(200) // Allow overlay to fade in
+            clearMessageHeights()
+            _isNewChatMode.value = true
+            _currentConversationId.value = null
+            _allMessages.value = emptyList()
+            _selectedChildren.value = emptyMap()
+            _isSwitching.value = false
+        }
     }
 
     fun selectConversation(id: String) {
-        _isNewChatMode.value = false
-        _currentConversationId.value = id
+        switchingJob?.cancel()
+        _isSwitching.value = true
+        switchingJob = viewModelScope.launch {
+            kotlinx.coroutines.delay(200) // Allow overlay to fade in
+            clearMessageHeights()
+            _isNewChatMode.value = false
+            _currentConversationId.value = id
+            triggerScrollToLastMessage()
+        }
     }
 
     fun renameConversation(id: String, newTitle: String) {
@@ -307,6 +344,9 @@ class ChatViewModel(
     }
 
     fun deleteConversation(id: String) {
+        if (_currentConversationId.value == id) {
+            stopGeneration()
+        }
         viewModelScope.launch {
             chatDao.deleteConversation(id)
             if (_currentConversationId.value == id) createNewChat()
@@ -523,7 +563,7 @@ class ChatViewModel(
                                             }
                                             
                                             // 3. Status Transition
-                                            if (isPartOfThought && totalText.isEmpty()) {
+                                            if (isPartOfThought && totalText.isEmpty() && currentStatus != MessageStatus.SENDING) {
                                                 currentStatus = MessageStatus.THINKING
                                             }
                                             
@@ -555,7 +595,7 @@ class ChatViewModel(
                                         }
                                         response.usageMetadata?.let { metadata ->
                                             metadata.totalTokenCount?.let { totalTokenCount = it }
-                                            if (totalText.isEmpty() && (metadata.thoughtsTokenCount ?: 0) > 0) {
+                                            if (totalText.isEmpty() && (metadata.thoughtsTokenCount ?: 0) > 0 && currentStatus != MessageStatus.SENDING) {
                                                 currentStatus = MessageStatus.THINKING
                                                 if (totalThoughts.isEmpty()) {
                                                     totalThoughts = "Model is reasoning..."
@@ -606,10 +646,14 @@ class ChatViewModel(
         } finally {
             currentConnection?.disconnect()
             currentConnection = null
-            _streamingMessage.value?.let { finalMsg ->
-                chatDao.upsertMessage(MessageEntity(id = finalMsg.id, conversationId = currentId, parentId = finalMsg.parentId, text = finalMsg.text, thoughts = finalMsg.thoughts, tokenCount = finalMsg.tokenCount, status = currentStatus, participant = finalMsg.participant, timestamp = finalMsg.timestamp))
-            } ?: run {
-                chatDao.upsertMessage(MessageEntity(id = modelMessageId, conversationId = currentId, parentId = parentId, text = totalText, thoughts = totalThoughts.ifBlank { null }, tokenCount = totalTokenCount, status = currentStatus, participant = Participant.MODEL, timestamp = startTime))
+            // Only persist if the conversation still exists to avoid FK constraint crashes on deletion
+            val conversationExists = chatDao.getConversation(currentId) != null
+            if (conversationExists) {
+                _streamingMessage.value?.let { finalMsg ->
+                    chatDao.upsertMessage(MessageEntity(id = finalMsg.id, conversationId = currentId, parentId = finalMsg.parentId, text = finalMsg.text, thoughts = finalMsg.thoughts, tokenCount = finalMsg.tokenCount, status = currentStatus, participant = finalMsg.participant, timestamp = finalMsg.timestamp))
+                } ?: run {
+                    chatDao.upsertMessage(MessageEntity(id = modelMessageId, conversationId = currentId, parentId = parentId, text = totalText, thoughts = totalThoughts.ifBlank { null }, tokenCount = totalTokenCount, status = currentStatus, participant = Participant.MODEL, timestamp = startTime))
+                }
             }
             _isLoading.value = false
             _streamingMessage.value = null

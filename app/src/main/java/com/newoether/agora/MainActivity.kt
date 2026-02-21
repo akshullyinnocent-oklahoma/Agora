@@ -17,6 +17,7 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.animateScrollBy
+import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -69,7 +70,13 @@ import com.newoether.agora.ui.screens.SettingsScreen
 import com.newoether.agora.ui.theme.AgoraTheme
 import com.newoether.agora.viewmodel.ChatViewModel
 import com.newoether.agora.viewmodel.ChatViewModelFactory
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeout
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -97,39 +104,56 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun MainNavigation(viewModel: ChatViewModel) {
-    val navController = rememberNavController()
+    var showSettings by rememberSaveable { mutableStateOf(false) }
     
     Surface(
         modifier = Modifier.fillMaxSize(),
         color = MaterialTheme.colorScheme.background
     ) {
-        NavHost(
-            navController = navController, 
-            startDestination = "chat",
-            enterTransition = { slideInHorizontally(animationSpec = tween(400)) { it } + fadeIn(animationSpec = tween(400)) },
-            exitTransition = { slideOutHorizontally(animationSpec = tween(400)) { -it / 3 } + fadeOut(animationSpec = tween(400)) },
-            popEnterTransition = { slideInHorizontally(animationSpec = tween(400)) { -it / 3 } + fadeIn(animationSpec = tween(400)) },
-            popExitTransition = { slideOutHorizontally(animationSpec = tween(400)) { it } + fadeOut(animationSpec = tween(400)) }
-        ) {
-            composable("chat") {
-                ChatApp(
-                    viewModel = viewModel,
-                    onOpenSettings = { 
-                        if (navController.currentDestination?.route == "chat") {
-                            navController.navigate("settings")
+        Box(modifier = Modifier.fillMaxSize()) {
+            ChatApp(
+                viewModel = viewModel,
+                onOpenSettings = {
+                    showSettings = true
+                }
+            )
+
+            // Scrim that fades in behind the settings page
+            AnimatedVisibility(
+                visible = showSettings,
+                enter = fadeIn(animationSpec = tween(400)),
+                exit = fadeOut(animationSpec = tween(400))
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = 0.45f))
+                        .pointerInput(Unit) {
+                            detectTapGestures { showSettings = false }
                         }
-                    }
                 )
             }
-            composable("settings") {
-                SettingsScreen(
-                    viewModel = viewModel,
-                    onBack = { 
-                        if (navController.currentDestination?.route == "settings") {
-                            navController.popBackStack()
+
+            AnimatedVisibility(
+                visible = showSettings,
+                enter = slideInHorizontally(animationSpec = tween(400)) { it },
+                exit = slideOutHorizontally(animationSpec = tween(400)) { it }
+            ) {
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = MaterialTheme.colorScheme.background
+                ) {
+                    SettingsScreen(
+                        viewModel = viewModel,
+                        onBack = {
+                            showSettings = false
                         }
+                    )
+
+                    BackHandler {
+                        showSettings = false
                     }
-                )
+                }
             }
         }
     }
@@ -153,6 +177,7 @@ fun ChatApp(
     val enabledModels by viewModel.enabledModels.collectAsState()
     val modelAliases by viewModel.modelAliases.collectAsState()
     val isNewChatMode by viewModel.isNewChatMode.collectAsState()
+    val isSwitching by viewModel.isSwitching.collectAsState()
     val totalTokens by viewModel.totalTokens.collectAsState()
     val visualizeContextRollout by viewModel.visualizeContextRollout.collectAsState()
     val maxContextWindow by viewModel.maxContextWindow.collectAsState()
@@ -170,13 +195,95 @@ fun ChatApp(
     val bottomBarHeight = with(density) { bottomBarHeightPx.toDp() }
     val listState = viewModel.listState
 
-    // Persistent layout state to prevent jumps during transitions
-    val messageHeights = remember { mutableStateMapOf<String, Int>() }
+    // Shared layout state in ViewModel to prevent jumps during transitions
+    val messageHeights = viewModel.messageHeights
     var viewportHeightPx by remember { mutableIntStateOf(0) }
 
-    // Clear heights when switching conversations to ensure fresh calculations
+    // Logic to scroll to the last user message
+    suspend fun scrollToLastUserMessage(animate: Boolean = true) {
+        if (messages.isEmpty() || viewportHeightPx == 0) return
+        
+        val lastUserIndex = messages.indexOfLast { it.participant == Participant.USER }
+        if (lastUserIndex == -1) return
+
+        with(density) {
+            val targetTopPx = 180.dp.toPx()
+            val topPaddingPx = 140.dp.toPx()
+            
+            // Calculate absolute pixel offset of the target position
+            var totalHeightBeforePx = 0
+            for (i in 0 until lastUserIndex) {
+                totalHeightBeforePx += messageHeights[messages[i].id] ?: 0
+            }
+            
+            val targetScrollPx = (topPaddingPx + totalHeightBeforePx - targetTopPx).coerceAtLeast(0f)
+            
+            if (animate) {
+                var currentOffsetPx = listState.firstVisibleItemScrollOffset.toFloat()
+                for (i in 0 until listState.firstVisibleItemIndex) {
+                    if (i < messages.size) {
+                        currentOffsetPx += (messageHeights[messages[i].id] ?: 0)
+                    }
+                }
+                
+                val diff = targetScrollPx - currentOffsetPx
+                if (kotlin.math.abs(diff) > 2) {
+                    listState.animateScrollBy(diff, tween(600, easing = FastOutSlowInEasing))
+                }
+            } else {
+                // Use the exact same target pixel offset for jumping
+                listState.scrollToItem(0, targetScrollPx.toInt())
+            }
+        }
+    }
+
+    // Trigger scroll when conversation changes or requested
     LaunchedEffect(currentConversationId) {
-        messageHeights.clear()
+        if (currentConversationId != null) {
+            // 1. Wait for messages to populate
+            snapshotFlow { messages }.filter { it.isNotEmpty() }.first()
+            
+            val lastUserIndex = messages.indexOfLast { it.participant == Participant.USER }
+            if (lastUserIndex != -1) {
+                val targetTopPx = with(density) { 180.dp.toPx() }
+
+                // 2. PIN the list reactively using snapshotFlow for maximum robustness
+                // collectLatest ensures that every time the state changes, we re-scroll and reset the stability delay
+                try {
+                    withTimeout(4000) {
+                        snapshotFlow { 
+                            val sum = messageHeights.values.sum()
+                            Triple(messages, sum, viewportHeightPx) 
+                        }.collectLatest { data ->
+                            val currentMsgs = data.component1()
+                            val vHeight = data.component3()
+                            
+                            val currentLastIndex = currentMsgs.indexOfLast { it.participant == Participant.USER }
+                            if (currentLastIndex != -1 && vHeight > 0) {
+                                val offsetDp = with(density) { 160.dp.toPx() }
+                                val immediateSwipeUpOffset = (vHeight / 2f - offsetDp).coerceAtLeast(0f)
+                                listState.scrollToItem(currentLastIndex, (-targetTopPx + immediateSwipeUpOffset).toInt())
+                            }
+                            
+                            // Wait for 500ms of no changes to consider the layout stable
+                            delay(500)
+                            this@withTimeout.cancel() // Stable - stop the flow
+                        }
+                    }
+                } catch (e: Exception) {
+                    // Timeout or intended cancellation
+                }
+            }
+            viewModel.setSwitching(false)
+        } else {
+            viewModel.setSwitching(false)
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        viewModel.scrollToLastMessage.collect {
+            scrollToLastUserMessage(animate = true)
+        }
     }
 
     BackHandler(enabled = drawerState.currentValue != DrawerValue.Closed || drawerState.targetValue != DrawerValue.Closed) {
@@ -213,6 +320,7 @@ fun ChatApp(
                             scope.launch { drawerState.close() }
                         },
                         modifier = Modifier.fillMaxWidth(),
+                        enabled = !isSwitching,
                         shape = CircleShape
                     ) {
                         Icon(Icons.Default.Add, contentDescription = null)
@@ -247,6 +355,7 @@ fun ChatApp(
                                             }
                                         }
                                         .combinedClickable(
+                                            enabled = !isSwitching,
                                             onClick = {
                                                 viewModel.selectConversation(conversation.id)
                                                 scope.launch { drawerState.close() }
@@ -281,6 +390,7 @@ fun ChatApp(
                                     DropdownMenuItem(
                                         text = { Text("Rename") },
                                         leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) },
+                                        enabled = !isSwitching,
                                         onClick = {
                                             showMenu = false
                                             showRenameDialog = conversation.id
@@ -288,8 +398,9 @@ fun ChatApp(
                                         }
                                     )
                                     DropdownMenuItem(
-                                        text = { Text("Delete", color = MaterialTheme.colorScheme.error) },
-                                        leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
+                                        text = { Text("Delete", color = if (!isSwitching) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.error.copy(alpha = 0.5f)) },
+                                        leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = if (!isSwitching) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.error.copy(alpha = 0.5f)) },
+                                        enabled = !isSwitching,
                                         onClick = {
                                             showMenu = false
                                             showDeleteConfirmDialog = conversation.id
@@ -386,51 +497,71 @@ fun ChatApp(
                 }
             ) { padding ->
                 Box(modifier = Modifier.fillMaxSize()) {
-                    AnimatedContent(
-                        targetState = isNewChatMode,
-                        transitionSpec = {
-                            val enterEasing = LinearOutSlowInEasing
-                            val exitEasing = FastOutLinearInEasing
-                            (fadeIn(animationSpec = tween(400, easing = enterEasing)) + scaleIn(initialScale = 0.97f, animationSpec = tween(400, easing = enterEasing)))
-                                .togetherWith(fadeOut(animationSpec = tween(200, easing = exitEasing)))
-                        },
-                        label = "MainContentTransition",
-                        modifier = Modifier.fillMaxSize()
-                    ) { targetKey ->
-                        if (targetKey) {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .offset(y = (-40).dp), 
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    "Ask Agora Anything...",
-                                    style = MaterialTheme.typography.headlineMedium,
-                                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f),
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
-                        } else {
-                            MessageList(
-                                messages = messages,
-                                allMessages = allMessages,
-                                modifier = Modifier.fillMaxSize(),
-                                state = listState,
-                                isLoading = isLoading,
-                                visualizeContextRollout = visualizeContextRollout,
-                                maxContextWindow = maxContextWindow,
-                                bottomBarHeight = bottomBarHeight,
-                                viewportHeight = viewportHeightPx,
-                                messageHeights = messageHeights,
-                                onEditMessage = { id, text -> viewModel.editMessage(id, text) },
-                                onSwitchBranch = { parentId, direction -> viewModel.switchBranch(parentId, direction) },
-                                contentPadding = PaddingValues(
-                                    start = 8.dp, 
-                                    end = 8.dp, 
-                                    top = 140.dp, 
-                                    bottom = bottomBarHeight + 8.dp
-                                )
+                    // Chat content - Keep it always present to allow heights calculation in background
+                    if (!isNewChatMode) {
+                        MessageList(
+                            messages = messages,
+                            allMessages = allMessages,
+                            modifier = Modifier.fillMaxSize(),
+                            state = listState,
+                            isLoading = isLoading,
+                            isSwitching = isSwitching,
+                            visualizeContextRollout = visualizeContextRollout,
+                            maxContextWindow = maxContextWindow,
+                            bottomBarHeight = bottomBarHeight,
+                            viewportHeight = viewportHeightPx,
+                            messageHeights = messageHeights,
+                            onEditMessage = { id, text ->
+                                val isFirstMessage = messages.isEmpty()
+                                viewModel.editMessage(id, text)
+                                scope.launch {
+                                    if (!isFirstMessage) {
+                                        kotlinx.coroutines.delay(200)
+                                        scrollToLastUserMessage(animate = true)
+                                    }
+                                }
+                            },
+                            onSwitchBranch = { parentId, direction -> viewModel.switchBranch(parentId, direction) },
+                            contentPadding = PaddingValues(
+                                start = 8.dp, 
+                                end = 8.dp, 
+                                top = 140.dp, 
+                                bottom = bottomBarHeight + 8.dp
+                            )
+                        )
+                    } else if (!isSwitching) {
+                        // Show "Ask Agora" prompt ONLY when not switching and in new chat mode
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .offset(y = (-40).dp), 
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                "Ask Agora Anything...",
+                                style = MaterialTheme.typography.headlineMedium,
+                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f),
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+
+                    // Loading overlay for chat switching
+                    AnimatedVisibility(
+                        visible = isSwitching,
+                        enter = fadeIn(animationSpec = tween(200)),
+                        exit = fadeOut(animationSpec = tween(200))
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(MaterialTheme.colorScheme.background),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(48.dp),
+                                strokeWidth = 3.dp,
+                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f)
                             )
                         }
                     }
@@ -462,51 +593,15 @@ fun ChatApp(
                             scope.launch {
                                 // Only scroll if it's not the first message in the chat
                                 if (!isFirstMessage) {
-                                    // Wait for keyboard/layout to start moving (200ms)
+                                    // Wait for layout to start moving (200ms)
                                     kotlinx.coroutines.delay(200)
-                                    
-                                    val totalMessagesHeightPx = messages.sumOf { messageHeights[it.id] ?: 0 }
-                                    
-                                    with(density) {
-                                        val topPaddingPx = 140.dp.toPx()
-                                        val bottomPaddingPx = (bottomBarHeight + 8.dp).toPx()
-                                        
-                                        // Re-calculate extraPadding in Px as it's defined in MessageList
-                                        val lastUserMessageIndex = messages.indexOfLast { it.participant == Participant.USER }
-                                        var contentBelowUserPx = 0
-                                        if (lastUserMessageIndex != -1) {
-                                            for (i in lastUserMessageIndex until messages.size) {
-                                                contentBelowUserPx += messageHeights[messages[i].id] ?: 0
-                                            }
-                                        }
-                                        val targetTopPx = 180.dp.toPx() // targetTopDp from MessageList
-                                        val availableSpacePx = viewportHeightPx - targetTopPx - bottomPaddingPx
-                                        val extraPaddingPx = (availableSpacePx - contentBelowUserPx).coerceAtLeast(0f)
-                                        
-                                        val totalContentHeightPx = totalMessagesHeightPx + topPaddingPx + bottomPaddingPx + extraPaddingPx
-                                        
-                                        // Calculate current offset by summing heights of items before the first visible one
-                                        var currentOffsetPx = listState.firstVisibleItemScrollOffset.toFloat()
-                                        for (i in 0 until listState.firstVisibleItemIndex) {
-                                            if (i < messages.size) {
-                                                currentOffsetPx += (messageHeights[messages[i].id] ?: 0)
-                                            }
-                                        }
-                                        
-                                        val remainingScrollPx = (totalContentHeightPx - viewportHeightPx - currentOffsetPx).coerceAtLeast(0f)
-
-                                        if (remainingScrollPx > 0f) {
-                                            listState.animateScrollBy(
-                                                value = remainingScrollPx, 
-                                                animationSpec = tween(durationMillis = 800, easing = FastOutSlowInEasing)
-                                            )
-                                        }
-                                    }
+                                    scrollToLastUserMessage(animate = true)
                                 }
                             }
                         },
                         onStopGeneration = { viewModel.stopGeneration() },
                         isLoading = isLoading,
+                        isSwitching = isSwitching,
                         enabledModels = enabledModels,
                         selectedModel = selectedModel,
                         modelAliases = modelAliases,

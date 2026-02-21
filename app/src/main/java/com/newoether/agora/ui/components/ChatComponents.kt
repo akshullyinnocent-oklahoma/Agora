@@ -35,6 +35,7 @@ import androidx.compose.material.icons.filled.Terminal
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -67,6 +68,7 @@ fun MessageList(
     contentPadding: PaddingValues = PaddingValues(8.dp),
     state: LazyListState = rememberLazyListState(),
     isLoading: Boolean = false,
+    isSwitching: Boolean = false,
     visualizeContextRollout: Boolean = false,
     maxContextWindow: Int = 20,
     bottomBarHeight: androidx.compose.ui.unit.Dp = 0.dp,
@@ -125,6 +127,7 @@ fun MessageList(
                     isStreaming = isLastMessage && isLoading && message.participant == Participant.MODEL,
                     isEditingAllowed = !isLoading && (editingMessageId == null || editingMessageId == message.id),
                     isEditing = editingMessageId == message.id,
+                    isSwitching = isSwitching,
                     isInContext = isInContext,
                     visualizeContextRollout = visualizeContextRollout,
                     onStartEdit = { editingMessageId = message.id },
@@ -149,6 +152,7 @@ fun MessageItem(
     isStreaming: Boolean = false,
     isEditingAllowed: Boolean = true,
     isEditing: Boolean = false,
+    isSwitching: Boolean = false,
     isInContext: Boolean = false,
     visualizeContextRollout: Boolean = false,
     onStartEdit: () -> Unit = {},
@@ -209,17 +213,19 @@ fun MessageItem(
     
     // Dedicated compact typography for thoughts
     val thoughtTypography = markdownTypography(
-        text = currentTypography.bodySmall.copy(fontSize = 12.sp, lineHeight = 16.sp),
-        h1 = currentTypography.titleSmall.copy(fontSize = 14.sp),
-        h2 = currentTypography.titleSmall.copy(fontSize = 13.sp),
-        h3 = currentTypography.titleSmall.copy(fontSize = 12.sp),
-        h4 = currentTypography.titleSmall.copy(fontSize = 12.sp),
-        h5 = currentTypography.titleSmall.copy(fontSize = 12.sp),
-        h6 = currentTypography.titleSmall.copy(fontSize = 12.sp),
+        text = currentTypography.bodySmall.copy(fontSize = 10.sp, lineHeight = 13.sp),
+        h1 = currentTypography.titleSmall.copy(fontSize = 12.sp),
+        h2 = currentTypography.titleSmall.copy(fontSize = 11.sp),
+        h3 = currentTypography.titleSmall.copy(fontSize = 10.sp),
+        h4 = currentTypography.titleSmall.copy(fontSize = 10.sp),
+        h5 = currentTypography.titleSmall.copy(fontSize = 10.sp),
+        h6 = currentTypography.titleSmall.copy(fontSize = 10.sp),
     )
 
     val customMarkdownPadding = markdownPadding(block = 12.dp)
     val thoughtMarkdownPadding = markdownPadding(block = 4.dp)
+
+    val shouldAnimate = !isFirstComposition && !isSwitching
 
     Column(
         modifier = Modifier
@@ -240,7 +246,7 @@ fun MessageItem(
                     shadowElevation = 1.dp,
                     modifier = Modifier
                         .widthIn(max = 300.dp)
-                        .then(if (!isFirstComposition) Modifier.animateContentSize(animationSpec = tween(150)) else Modifier)
+                        .then(if (shouldAnimate) Modifier.animateContentSize(animationSpec = tween(150)) else Modifier)
                 ) {
                     if (isEditing) {
                         Column(modifier = Modifier.padding(8.dp)) {
@@ -301,7 +307,7 @@ fun MessageItem(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 8.dp)
-                    .then(if (isStreaming || !isFirstComposition) Modifier.animateContentSize(animationSpec = tween(150)) else Modifier)
+                    .then(if (isStreaming || shouldAnimate) Modifier.animateContentSize(animationSpec = tween(150)) else Modifier)
             ) {
                 Column {
                     // Status Header
@@ -311,7 +317,7 @@ fun MessageItem(
 
                         val statusText = when (message.status) {
                             MessageStatus.THINKING -> "Thinking..."
-                            MessageStatus.SENDING -> "Sending..."
+                            MessageStatus.SENDING -> if (message.text.isNotEmpty()) "Answering..." else "Sending..."
                             MessageStatus.SUCCESS -> if (message.tokenCount > 0) "Cost ${message.tokenCount} tokens" else null
                             else -> null
                         }
@@ -368,7 +374,7 @@ fun MessageItem(
                                 shape = RoundedCornerShape(12.dp),
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(top = 4.dp, bottom = 2.dp) // Reduced outer padding
+                                    .padding(top = 4.dp, bottom = 12.dp) // Increased bottom padding
                                     .clip(RoundedCornerShape(12.dp))
                                     .clickable { isThoughtExpanded = !isThoughtExpanded }
                             ) {
@@ -404,13 +410,18 @@ fun MessageItem(
                                         Icon(if (isThoughtExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown, null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
                                     }
                                     if (isThoughtExpanded) {
-                                        Spacer(modifier = Modifier.height(6.dp))
-                                        Markdown(
-                                            content = debouncedThoughts, 
-                                            modifier = Modifier.fillMaxWidth(),
-                                            typography = thoughtTypography,
-                                            padding = thoughtMarkdownPadding // Use tighter padding for thoughts
-                                        )
+                                        Spacer(modifier = Modifier.height(12.dp))
+                                        val density = androidx.compose.ui.platform.LocalDensity.current
+                                        CompositionLocalProvider(
+                                            androidx.compose.ui.platform.LocalDensity provides androidx.compose.ui.unit.Density(density.density, density.fontScale * 0.8f)
+                                        ) {
+                                            Markdown(
+                                                content = debouncedThoughts, 
+                                                modifier = Modifier.fillMaxWidth(),
+                                                typography = thoughtTypography,
+                                                padding = thoughtMarkdownPadding // Use tighter padding for thoughts
+                                            )
+                                        }
                                     }
                                 }
                             }
@@ -442,6 +453,8 @@ fun MessageItem(
                                 }
                             }
                         }
+                        
+                        Spacer(modifier = Modifier.height(32.dp))
                     }
                 }
             }
@@ -469,6 +482,7 @@ fun ChatBottomBar(
     onSendMessage: (String) -> Unit,
     onStopGeneration: () -> Unit = {},
     isLoading: Boolean,
+    isSwitching: Boolean = false,
     enabledModels: Set<String>,
     selectedModel: String,
     modelAliases: Map<String, String> = emptyMap(),
@@ -480,7 +494,7 @@ fun ChatBottomBar(
     onOpenSettings: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val textFieldState = rememberTextFieldState()
+    val textFieldState = rememberSaveable(saver = TextFieldState.Saver) { TextFieldState() }
     val scrollState = rememberScrollState()
     var expanded by remember { mutableStateOf(false) }
     var isExpanded by remember { mutableStateOf(false) }
@@ -523,8 +537,26 @@ fun ChatBottomBar(
                     }
                 }
             }
-            val canSend = textFieldState.text.isNotBlank() && !isLoading && isModelValid
-            FloatingActionButton(onClick = { if (isLoading) onStopGeneration() else if (canSend) { onSendMessage(textFieldState.text.toString()); textFieldState.edit { replace(0, length, "") }; isExpanded = false } }, containerColor = if (canSend || isLoading) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant, contentColor = if (canSend || isLoading) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(48.dp), shape = CircleShape, elevation = FloatingActionButtonDefaults.elevation(0.dp, 0.dp, 0.dp, 0.dp)) { Icon(if (isLoading) Icons.Default.Stop else Icons.AutoMirrored.Filled.Send, "Action", modifier = Modifier.size(24.dp)) }
+            val canSend = textFieldState.text.isNotBlank() && !isLoading && isModelValid && !isSwitching
+            val isActionable = (isLoading || canSend) && !isSwitching
+            FloatingActionButton(
+                onClick = { 
+                    if (isSwitching) return@FloatingActionButton
+                    if (isLoading) onStopGeneration() 
+                    else if (canSend) { 
+                        onSendMessage(textFieldState.text.toString())
+                        textFieldState.edit { replace(0, length, "") }
+                        isExpanded = false 
+                    } 
+                }, 
+                containerColor = if (isActionable) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant, 
+                contentColor = if (isActionable) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant, 
+                modifier = Modifier.size(48.dp), 
+                shape = CircleShape, 
+                elevation = FloatingActionButtonDefaults.elevation(0.dp, 0.dp, 0.dp, 0.dp)
+            ) { 
+                Icon(if (isLoading) Icons.Default.Stop else Icons.AutoMirrored.Filled.Send, "Action", modifier = Modifier.size(24.dp)) 
+            }
         }
     }
 }
