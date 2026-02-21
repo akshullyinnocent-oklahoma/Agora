@@ -166,10 +166,13 @@ fun MessageItem(
     var isFirstComposition by remember { mutableStateOf(true) }
     LaunchedEffect(Unit) { isFirstComposition = false }
 
+    var isThoughtExpanded by rememberSaveable { mutableStateOf(false) }
+    var stableCollapsedHeight by remember { mutableIntStateOf(0) }
+
     var currentHeight by remember { mutableIntStateOf(0) }
     LaunchedEffect(message.text, message.status, isEditing) {
         kotlinx.coroutines.delay(50)
-        onHeightChanged(currentHeight)
+        onHeightChanged(if (!isThoughtExpanded && stableCollapsedHeight > 0) stableCollapsedHeight else currentHeight)
     }
 
     LaunchedEffect(isEditing) {
@@ -232,7 +235,7 @@ fun MessageItem(
             .fillMaxWidth()
             .onSizeChanged { 
                 currentHeight = it.height
-                onHeightChanged(it.height) 
+                onHeightChanged(if (!isThoughtExpanded && stableCollapsedHeight > 0) stableCollapsedHeight else it.height) 
             }
             .padding(vertical = 8.dp)
             .then(if (visualizeContextRollout && !isInContext) Modifier.alpha(0.38f) else Modifier),
@@ -307,7 +310,6 @@ fun MessageItem(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 8.dp)
-                    .then(if (isStreaming || shouldAnimate) Modifier.animateContentSize(animationSpec = tween(150)) else Modifier)
             ) {
                 Column {
                     // Status Header
@@ -355,7 +357,6 @@ fun MessageItem(
                         
                         // Thought/Reasoning Block
                         if (!message.thoughts.isNullOrBlank()) {
-                            var isThoughtExpanded by rememberSaveable { mutableStateOf(false) }
                             val isThinking = message.status == MessageStatus.THINKING
                             
                             // Throttle updates for thoughts to match main output behavior
@@ -369,17 +370,27 @@ fun MessageItem(
                                 debouncedThoughts = message.thoughts!!
                             }
 
-                            Surface(
-                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
-                                shape = RoundedCornerShape(12.dp),
+                            val bottomPadding by animateDpAsState(
+                                targetValue = if (isThoughtExpanded) 12.dp else 4.dp,
+                                animationSpec = tween(400),
+                                label = "thoughtPadding"
+                            )
+                            Column(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(top = 4.dp, bottom = 12.dp) // Increased bottom padding
+                                    .padding(top = 4.dp, bottom = bottomPadding)
                                     .clip(RoundedCornerShape(12.dp))
-                                    .clickable { isThoughtExpanded = !isThoughtExpanded }
+                                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
+                                    .animateContentSize(animationSpec = tween(400))
+                                    .clickable { 
+                                        if (!isThoughtExpanded) {
+                                            stableCollapsedHeight = currentHeight
+                                        }
+                                        isThoughtExpanded = !isThoughtExpanded 
+                                    }
+                                    .padding(10.dp)
                             ) {
-                                Column(modifier = Modifier.padding(10.dp)) { // Tighter inner padding
-                                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                                         Icon(Icons.Default.Language, null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f))
                                         Spacer(modifier = Modifier.width(8.dp))
                                         
@@ -424,26 +435,30 @@ fun MessageItem(
                                         }
                                     }
                                 }
-                            }
                         }
 
-                        if (isError) {
-                            Surface(color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.4f), contentColor = MaterialTheme.colorScheme.onErrorContainer, shape = RoundedCornerShape(12.dp), modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-                                Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.Top) {
-                                    Icon(Icons.Default.Info, null, modifier = Modifier.size(16.dp).padding(top = 2.dp), tint = MaterialTheme.colorScheme.error)
-                                    Spacer(modifier = Modifier.width(12.dp))
-                                    Text(debouncedText.ifEmpty { "Generation failed." }, style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium, lineHeight = 18.sp), color = MaterialTheme.colorScheme.error.copy(alpha = 0.8f))
-                                }
-                            }
-                        } else if (debouncedText.isNotEmpty()) {
-                            Markdown(
-                                content = debouncedText, 
-                                modifier = Modifier.fillMaxWidth(), 
-                                typography = customTypography,
-                                padding = customMarkdownPadding
-                            )
-                        }
-
+                        Box(
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .then(if (isStreaming || shouldAnimate) Modifier.animateContentSize(animationSpec = tween(150)) else Modifier)
+                                                ) {
+                                                    if (isError) {
+                                                        Surface(color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.4f), contentColor = MaterialTheme.colorScheme.onErrorContainer, shape = RoundedCornerShape(12.dp), modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+                                                            Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.Top) {
+                                                                Icon(Icons.Default.Info, null, modifier = Modifier.size(16.dp).padding(top = 2.dp), tint = MaterialTheme.colorScheme.error)
+                                                                Spacer(modifier = Modifier.width(12.dp))
+                                                                Text(debouncedText.ifEmpty { "Generation failed." }, style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium, lineHeight = 18.sp), color = MaterialTheme.colorScheme.error.copy(alpha = 0.8f))
+                                                            }
+                                                        }
+                                                    } else if (debouncedText.isNotEmpty()) {
+                                                        Markdown(
+                                                            content = debouncedText,
+                                                            modifier = Modifier.fillMaxWidth(),
+                                                            typography = customTypography,
+                                                            padding = customMarkdownPadding
+                                                        )
+                                                    }
+                                                }
                         if (!isStreaming && message.status == MessageStatus.STOPPED) {
                             Surface(color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f), shape = RoundedCornerShape(8.dp), modifier = Modifier.padding(top = if (debouncedText.isNotEmpty()) 8.dp else 0.dp)) {
                                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)) {
