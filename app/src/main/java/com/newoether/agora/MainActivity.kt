@@ -45,6 +45,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
@@ -178,6 +179,7 @@ fun ChatApp(
     val modelAliases by viewModel.modelAliases.collectAsState()
     val isNewChatMode by viewModel.isNewChatMode.collectAsState()
     val isSwitching by viewModel.isSwitching.collectAsState()
+    val isTransitioningToNewChat by viewModel.isTransitioningToNewChat.collectAsState()
     val totalTokens by viewModel.totalTokens.collectAsState()
     val visualizeContextRollout by viewModel.visualizeContextRollout.collectAsState()
     val maxContextWindow by viewModel.maxContextWindow.collectAsState()
@@ -198,6 +200,13 @@ fun ChatApp(
     // Shared layout state in ViewModel to prevent jumps during transitions
     val messageHeights = viewModel.messageHeights
     var viewportHeightPx by remember { mutableIntStateOf(0) }
+    
+    // Logic to trigger launch animation for "Ask Agora"
+    var showLaunchContent by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        kotlinx.coroutines.delay(100)
+        showLaunchContent = true
+    }
 
     // Logic to scroll to the last user message
     suspend fun scrollToLastUserMessage(animate: Boolean = true) {
@@ -497,58 +506,84 @@ fun ChatApp(
                 }
             ) { padding ->
                 Box(modifier = Modifier.fillMaxSize()) {
-                    // Chat content - Keep it always present to allow heights calculation in background
-                    if (!isNewChatMode) {
-                        MessageList(
-                            messages = messages,
-                            allMessages = allMessages,
-                            modifier = Modifier.fillMaxSize(),
-                            state = listState,
-                            isLoading = isLoading,
-                            isSwitching = isSwitching,
-                            visualizeContextRollout = visualizeContextRollout,
-                            maxContextWindow = maxContextWindow,
-                            bottomBarHeight = bottomBarHeight,
-                            viewportHeight = viewportHeightPx,
-                            messageHeights = messageHeights,
-                            onEditMessage = { id, text ->
-                                val isFirstMessage = messages.isEmpty()
-                                viewModel.editMessage(id, text)
-                                scope.launch {
-                                    if (!isFirstMessage) {
-                                        kotlinx.coroutines.delay(200)
-                                        scrollToLastUserMessage(animate = true)
+                    AnimatedContent(
+                        targetState = Pair(isNewChatMode, showLaunchContent),
+                        transitionSpec = {
+                            val targetNewChat = targetState.first
+                            val targetShowLaunch = targetState.second
+                            val initialShowLaunch = initialState.second
+                            
+                            if (targetNewChat && (targetShowLaunch != initialShowLaunch || targetNewChat != initialState.first)) {
+                                // Transition TO New Chat (or at Launch): Fade out history, Scale in prompt
+                                // Slower scale in, very fast initial speed, smooth finish
+                                val enterSpec = tween<Float>(700, easing = CubicBezierEasing(0.05f, 0.7f, 0.1f, 1.0f))
+                                val fadeInSpec = tween<Float>(500)
+                                (fadeIn(animationSpec = fadeInSpec) + scaleIn(initialScale = 0.7f, transformOrigin = TransformOrigin(0.5f, 0.45f), animationSpec = enterSpec))
+                                    .togetherWith(fadeOut(animationSpec = tween(300)))
+                            } else {
+                                // Transition FROM New Chat (or between histories): Simple crossfade
+                                fadeIn(animationSpec = tween(300))
+                                    .togetherWith(fadeOut(animationSpec = tween(300)))
+                            }
+                        },
+                        label = "MainContentTransition",
+                        modifier = Modifier.fillMaxSize()
+                    ) { (targetNewChat, targetShowLaunch) ->
+                        if (!targetNewChat) {
+                            MessageList(
+                                messages = messages,
+                                allMessages = allMessages,
+                                modifier = Modifier.fillMaxSize(),
+                                state = listState,
+                                isLoading = isLoading,
+                                isSwitching = isSwitching,
+                                visualizeContextRollout = visualizeContextRollout,
+                                maxContextWindow = maxContextWindow,
+                                bottomBarHeight = bottomBarHeight,
+                                viewportHeight = viewportHeightPx,
+                                messageHeights = messageHeights,
+                                onEditMessage = { id, text ->
+                                    val isFirstMessage = messages.isEmpty()
+                                    viewModel.editMessage(id, text)
+                                    scope.launch {
+                                        if (!isFirstMessage) {
+                                            kotlinx.coroutines.delay(200)
+                                            scrollToLastUserMessage(animate = true)
+                                        }
                                     }
-                                }
-                            },
-                            onSwitchBranch = { parentId, direction -> viewModel.switchBranch(parentId, direction) },
-                            contentPadding = PaddingValues(
-                                start = 8.dp, 
-                                end = 8.dp, 
-                                top = 140.dp, 
-                                bottom = bottomBarHeight + 8.dp
+                                },
+                                onSwitchBranch = { parentId, direction -> viewModel.switchBranch(parentId, direction) },
+                                contentPadding = PaddingValues(
+                                    start = 8.dp, 
+                                    end = 8.dp, 
+                                    top = 140.dp, 
+                                    bottom = bottomBarHeight + 8.dp
+                                )
                             )
-                        )
-                    } else if (!isSwitching) {
-                        // Show "Ask Agora" prompt ONLY when not switching and in new chat mode
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .offset(y = (-40).dp), 
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                "Ask Agora Anything...",
-                                style = MaterialTheme.typography.headlineMedium,
-                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f),
-                                fontWeight = FontWeight.Bold
-                            )
+                        } else if (targetShowLaunch) {
+                            // Show "Ask Agora" prompt
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .offset(y = (-40).dp), 
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    "Ask Agora Anything...",
+                                    style = MaterialTheme.typography.headlineMedium,
+                                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f),
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        } else {
+                            // Empty box while waiting for launch animation trigger
+                            Box(modifier = Modifier.fillMaxSize())
                         }
                     }
 
                     // Loading overlay for chat switching
                     AnimatedVisibility(
-                        visible = isSwitching,
+                        visible = isSwitching && !isTransitioningToNewChat,
                         enter = fadeIn(animationSpec = tween(200)),
                         exit = fadeOut(animationSpec = tween(200))
                     ) {

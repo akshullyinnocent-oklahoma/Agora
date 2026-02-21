@@ -220,6 +220,9 @@ class ChatViewModel(
     private val _isNewChatMode = MutableStateFlow(true)
     val isNewChatMode: StateFlow<Boolean> = _isNewChatMode.asStateFlow()
 
+    private val _isTransitioningToNewChat = MutableStateFlow(false)
+    val isTransitioningToNewChat: StateFlow<Boolean> = _isTransitioningToNewChat.asStateFlow()
+
     init {
         viewModelScope.launch {
             _currentConversationId.collectLatest { id ->
@@ -313,15 +316,17 @@ class ChatViewModel(
 
     fun createNewChat() {
         switchingJob?.cancel()
+        _isNewChatMode.value = true
+        _isTransitioningToNewChat.value = true
         _isSwitching.value = true
         switchingJob = viewModelScope.launch {
             kotlinx.coroutines.delay(200) // Allow overlay to fade in
             clearMessageHeights()
-            _isNewChatMode.value = true
             _currentConversationId.value = null
             _allMessages.value = emptyList()
             _selectedChildren.value = emptyMap()
             _isSwitching.value = false
+            _isTransitioningToNewChat.value = false
         }
     }
 
@@ -329,11 +334,12 @@ class ChatViewModel(
         if (_currentConversationId.value == id && !_isNewChatMode.value) return
         
         switchingJob?.cancel()
+        _isTransitioningToNewChat.value = false
         _isSwitching.value = true
         switchingJob = viewModelScope.launch {
             kotlinx.coroutines.delay(200) // Allow overlay to fade in
-            clearMessageHeights()
             _isNewChatMode.value = false
+            clearMessageHeights()
             _currentConversationId.value = id
             triggerScrollToLastMessage()
         }
