@@ -1,5 +1,7 @@
 package com.newoether.agora.viewmodel
 
+import android.app.Application
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.newoether.agora.data.ApiKeyEntry
@@ -25,6 +27,7 @@ import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
+import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
 import java.text.SimpleDateFormat
@@ -70,7 +73,16 @@ data class ApiTool(
 data class ApiRequestContent(val role: String? = null, val parts: List<ApiRequestPart>)
 
 @Serializable
-data class ApiRequestPart(val text: String? = null)
+data class ApiInlineData(
+    val mimeType: String,
+    val data: String
+)
+
+@Serializable
+data class ApiRequestPart(
+    val text: String? = null,
+    val inlineData: ApiInlineData? = null
+)
 
 @Serializable
 data class ApiResponseContent(val role: String? = null, val parts: List<ApiResponsePart>)
@@ -113,9 +125,10 @@ data class ApiErrorResponse(val error: ApiError)
 data class ApiError(val code: Int? = null, val message: String? = null, val status: String? = null)
 
 class ChatViewModel(
+    application: Application,
     private val settingsManager: SettingsManager,
     private val chatDao: ChatDao
-) : ViewModel() {
+) : AndroidViewModel(application) {
     
     val listState = LazyListState()
     val messageHeights = androidx.compose.runtime.mutableStateMapOf<String, Int>()
@@ -236,6 +249,7 @@ class ChatViewModel(
                                 id = it.id, 
                                 parentId = it.parentId,
                                 text = it.text, 
+                                images = it.images,
                                 thoughts = it.thoughts,
                                 tokenCount = it.tokenCount,
                                 status = it.status,
@@ -450,7 +464,41 @@ class ChatViewModel(
         }
     }
 
-    fun sendMessage(text: String) {
+    private suspend fun processImages(uris: List<String>): List<String> {
+        return withContext(Dispatchers.IO) {
+            val app = getApplication<Application>()
+            uris.mapNotNull { uriString ->
+                try {
+                    val uri = android.net.Uri.parse(uriString)
+                    app.contentResolver.openInputStream(uri)?.use { inputStream ->
+                        val options = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                        android.graphics.BitmapFactory.decodeStream(inputStream, null, options)
+                        
+                        var scale = 1
+                        while (options.outWidth / scale / 2 >= 1024 && options.outHeight / scale / 2 >= 1024) {
+                            scale *= 2
+                        }
+                        
+                        val decodeOptions = android.graphics.BitmapFactory.Options().apply { inSampleSize = scale }
+                        app.contentResolver.openInputStream(uri)?.use { stream2 ->
+                            val bitmap = android.graphics.BitmapFactory.decodeStream(stream2, null, decodeOptions)
+                            if (bitmap != null) {
+                                val file = File(app.filesDir, "img_${UUID.randomUUID()}.jpg")
+                                file.outputStream().use { out ->
+                                    bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 80, out)
+                                }
+                                file.absolutePath
+                            } else null
+                        }
+                    }
+                } catch (e: Exception) {
+                    null
+                }
+            }
+        }
+    }
+
+    fun sendMessage(text: String, images: List<String> = emptyList()) {
         val activeKey = apiKeys.value.find { it.id == activeApiKeyId.value }?.key
         if (activeKey.isNullOrBlank()) {
             _allMessages.value = _allMessages.value + ChatMessage(text = "Please set API Key first!", participant = Participant.ERROR)
@@ -458,10 +506,11 @@ class ChatViewModel(
         }
         stopGeneration()
         generationJob = viewModelScope.launch {
+            val processedImages = if (images.isNotEmpty()) processImages(images) else emptyList()
             var currentId = _currentConversationId.value
             if (_isNewChatMode.value) {
                 val newId = UUID.randomUUID().toString()
-                val title = if (text.length > 20) text.take(20) + "..." else text
+                val title = if (text.length > 20) text.take(20) + "..." else text.ifBlank { "New Chat" }
                 chatDao.upsertConversation(ChatEntity(id = newId, title = title))
                 _currentConversationId.value = newId
                 _isNewChatMode.value = false
@@ -472,7 +521,7 @@ class ChatViewModel(
             val userMessageId = UUID.randomUUID().toString()
             chatDao.upsertMessage(MessageEntity(
                 id = userMessageId, conversationId = currentId!!, parentId = lastMessageId,
-                text = text, thoughts = null, status = MessageStatus.SUCCESS, participant = Participant.USER, timestamp = System.currentTimeMillis()
+                text = text, images = processedImages, thoughts = null, status = MessageStatus.SUCCESS, participant = Participant.USER, timestamp = System.currentTimeMillis()
             ))
             val modelMessageId = UUID.randomUUID().toString()
             val startTime = System.currentTimeMillis() + 1
@@ -509,7 +558,24 @@ class ChatViewModel(
                 }
 
                 val apiContents = limitedPath.map { msg ->
-                    ApiRequestContent(role = if (msg.participant == Participant.USER) "user" else "model", parts = listOf(ApiRequestPart(text = msg.text)))
+                    val parts = mutableListOf<ApiRequestPart>()
+                    if (msg.text.isNotEmpty()) {
+                        parts.add(ApiRequestPart(text = msg.text))
+                    }
+                    for (imagePath in msg.images) {
+                        try {
+                            val file = File(imagePath)
+                            if (file.exists()) {
+                                val bytes = file.readBytes()
+                                val base64 = android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP)
+                                parts.add(ApiRequestPart(inlineData = ApiInlineData(mimeType = "image/jpeg", data = base64)))
+                            }
+                        } catch (e: Exception) {
+                            android.util.Log.e("AgoraAPI", "Failed to encode image: $imagePath", e)
+                        }
+                    }
+                    if (parts.isEmpty()) parts.add(ApiRequestPart(text = ""))
+                    ApiRequestContent(role = if (msg.participant == Participant.USER) "user" else "model", parts = parts)
                 }
                 val activePrompt = systemPrompts.value.find { it.id == activeSystemPromptId.value }?.content
                 val sdf = SimpleDateFormat("MMMM d, yyyy, HH:mm", Locale.US).apply {

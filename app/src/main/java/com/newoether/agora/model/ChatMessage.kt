@@ -16,6 +16,7 @@ data class ChatMessage(
     val id: String = UUID.randomUUID().toString(),
     val parentId: String? = null,
     val text: String,
+    val images: List<String> = emptyList(),
     val thoughts: String? = null,
     val tokenCount: Int = 0,
     val status: MessageStatus = MessageStatus.SUCCESS, // Default to SUCCESS for old messages

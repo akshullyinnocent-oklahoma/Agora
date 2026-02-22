@@ -95,7 +95,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             AgoraTheme {
-                val factory = ChatViewModelFactory(settingsManager, database.chatDao())
+                val factory = ChatViewModelFactory(application, settingsManager, database.chatDao())
                 val viewModel: ChatViewModel = viewModel(factory = factory)
                 MainNavigation(viewModel)
             }
@@ -641,9 +641,9 @@ fun ChatApp(
                         .imePadding()
                 ) {
                     ChatBottomBar(
-                        onSendMessage = { 
+                        onSendMessage = { text, images ->
                             val isFirstMessage = messages.isEmpty()
-                            viewModel.sendMessage(it)
+                            viewModel.sendMessage(text, images)
                             scope.launch {
                                 // Only scroll if it's not the first message in the chat
                                 if (!isFirstMessage) {

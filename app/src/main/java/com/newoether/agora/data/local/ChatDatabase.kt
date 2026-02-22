@@ -15,6 +15,17 @@ class MessageConverters {
     fun fromStatus(value: MessageStatus) = value.name
     @TypeConverter
     fun toStatus(value: String) = MessageStatus.valueOf(value)
+    
+    @TypeConverter
+    fun fromStringList(value: List<String>?): String {
+        return value?.joinToString(separator = "|||") ?: ""
+    }
+
+    @TypeConverter
+    fun toStringList(value: String?): List<String> {
+        if (value.isNullOrEmpty()) return emptyList()
+        return value.split("|||")
+    }
 }
 
 @Entity(tableName = "conversations")
@@ -41,6 +52,7 @@ data class MessageEntity(
     val conversationId: String,
     val parentId: String? = null,
     val text: String,
+    val images: List<String> = emptyList(),
     val thoughts: String? = null,
     val tokenCount: Int = 0,
     val status: MessageStatus = MessageStatus.SUCCESS,
@@ -71,7 +83,7 @@ interface ChatDao {
 
 @Database(
     entities = [ChatEntity::class, MessageEntity::class], 
-    version = 1,
+    version = 2,
     exportSchema = true
 )
 @TypeConverters(MessageConverters::class)
