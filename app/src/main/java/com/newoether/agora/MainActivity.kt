@@ -220,7 +220,7 @@ fun ChatApp(
         if (targetIndex == -1) return
 
         with(density) {
-            val targetTopPx = 180.dp.toPx()
+            val targetTopPx = 160.dp.toPx()
             val topPaddingPx = 140.dp.toPx()
             
             // Calculate absolute pixel offset of the target position
@@ -284,7 +284,7 @@ fun ChatApp(
 
                             if (currentTargetIndex != -1 && vHeight > 0) {
                                 with(density) {
-                                    listState.scrollToItem(currentTargetIndex, -(180.dp.toPx().toInt()))
+                                    listState.scrollToItem(currentTargetIndex, -(160.dp.toPx().toInt()))
                                 }
                             }
                             
