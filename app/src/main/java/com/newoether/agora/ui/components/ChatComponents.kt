@@ -100,7 +100,7 @@ fun MessageList(
     } else {
         with(density) {
             val vDp = viewportHeight.toDp()
-            val targetTopDp = 180.dp
+            val targetTopDp = 220.dp
             val availableSpaceDp = vDp - targetTopDp - (bottomBarHeight + 8.dp)
             var contentHeightPx = 0
             for (i in lastUserMessageIndex until messages.size) {
