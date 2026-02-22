@@ -100,7 +100,7 @@ fun MessageList(
     } else {
         with(density) {
             val vDp = viewportHeight.toDp()
-            val targetTopDp = 220.dp
+            val targetTopDp = 180.dp
             val availableSpaceDp = vDp - targetTopDp - (bottomBarHeight + 8.dp)
             var contentHeightPx = 0
             for (i in lastUserMessageIndex until messages.size) {
@@ -224,8 +224,8 @@ fun MessageItem(
     }
 
     val shape = when (message.participant) {
-        Participant.USER -> RoundedCornerShape(20.dp, 20.dp, 4.dp, 20.dp)
-        Participant.MODEL -> RoundedCornerShape(0.dp)
+        Participant.USER -> RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp, bottomStart = 20.dp, bottomEnd = 4.dp)
+        Participant.MODEL -> RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp, bottomStart = 4.dp, bottomEnd = 20.dp)
         Participant.ERROR -> RoundedCornerShape(12.dp)
     }
 
@@ -425,9 +425,6 @@ fun MessageItem(
                                     .fillMaxWidth()
                                     .onSizeChanged { 
                                         currentThoughtBlockHeight = it.height 
-                                        if (currentTotalHeight > 0) {
-                                            onHeightChanged(calculateReportedHeight(currentTotalHeight, it.height))
-                                        }
                                     }
                                     .padding(top = 8.dp, bottom = bottomPadding)
                                     .clip(RoundedCornerShape(12.dp))
