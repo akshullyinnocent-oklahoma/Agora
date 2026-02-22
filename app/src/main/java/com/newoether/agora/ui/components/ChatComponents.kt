@@ -22,6 +22,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.input.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CloseFullscreen
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.OpenInFull
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.CheckCircle
@@ -43,6 +44,8 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
@@ -75,7 +78,8 @@ fun MessageList(
     viewportHeight: Int = 0,
     messageHeights: MutableMap<String, Int> = remember { mutableStateMapOf() },
     onEditMessage: (String, String) -> Unit = { _, _ -> },
-    onSwitchBranch: (String?, Int) -> Unit = { _, _ -> }
+    onSwitchBranch: (String?, Int) -> Unit = { _, _ -> },
+    onRegenerate: (String) -> Unit = {}
 ) {
     var editingMessageId by remember { mutableStateOf<String?>(null) }
     val density = androidx.compose.ui.platform.LocalDensity.current
@@ -135,6 +139,7 @@ fun MessageList(
                     branchIndex = branchIndex,
                     totalBranches = totalBranches,
                     onSwitchBranch = { direction -> onSwitchBranch(message.parentId, direction) },
+                    onRegenerate = onRegenerate,
                     onHeightChanged = { height -> messageHeights[message.id] = height }
                 )
             }
@@ -160,6 +165,7 @@ fun MessageItem(
     branchIndex: Int = 0,
     totalBranches: Int = 1,
     onSwitchBranch: (Int) -> Unit = {},
+    onRegenerate: (String) -> Unit = {},
     onHeightChanged: (Int) -> Unit = {}
 ) {
     var editText by remember { mutableStateOf(message.text) }
@@ -168,6 +174,7 @@ fun MessageItem(
 
     var isThoughtExpanded by rememberSaveable { mutableStateOf(false) }
     var stableCollapsedHeight by remember { mutableIntStateOf(0) }
+    val clipboardManager = LocalClipboardManager.current
 
     var currentHeight by remember { mutableIntStateOf(0) }
     LaunchedEffect(message.text, message.status, isEditing) {
@@ -453,7 +460,7 @@ fun MessageItem(
                                                             Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.Top) {
                                                                 Icon(Icons.Default.Info, null, modifier = Modifier.size(16.dp).padding(top = 2.dp), tint = MaterialTheme.colorScheme.error)
                                                                 Spacer(modifier = Modifier.width(12.dp))
-                                                                Text(debouncedText.ifEmpty { "Generation failed." }, style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium, lineHeight = 18.sp), color = MaterialTheme.colorScheme.error.copy(alpha = 0.8f))
+                                                                Text(debouncedText.ifEmpty { "Failed to generate." }, style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium, lineHeight = 18.sp), color = MaterialTheme.colorScheme.error.copy(alpha = 0.8f))
                                                             }
                                                         }
                                                     } else if (debouncedText.isNotEmpty()) {
@@ -471,6 +478,21 @@ fun MessageItem(
                                     Icon(Icons.Default.Info, null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f))
                                     Spacer(modifier = Modifier.width(8.dp))
                                     Text("Generation stopped.", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f))
+                                }
+                            }
+                        }
+                        
+                        if (message.participant == Participant.MODEL && !isStreaming) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                                horizontalArrangement = Arrangement.Start,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                IconButton(onClick = { clipboardManager.setText(AnnotatedString(message.text)) }, modifier = Modifier.size(32.dp)) {
+                                    Icon(Icons.Default.ContentCopy, null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f))
+                                }
+                                IconButton(onClick = { onRegenerate(message.id) }, modifier = Modifier.size(32.dp)) {
+                                    Icon(Icons.Default.Refresh, null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f))
                                 }
                             }
                         }
