@@ -284,14 +284,11 @@ fun ChatApp(
 
                             if (currentTargetIndex != -1 && vHeight > 0) {
                                 with(density) {
-                                    val targetTopPx = 140.dp.toPx()
-                                    val topPaddingPx = 140.dp.toPx()
                                     var totalHeightBeforePx = 0
                                     for (i in 0 until currentTargetIndex) {
                                         totalHeightBeforePx += messageHeights[currentMsgs[i].id] ?: 0
                                     }
-                                    val targetScrollPx = (topPaddingPx + totalHeightBeforePx - targetTopPx).coerceAtLeast(0f)
-                                    listState.scrollToItem(0, targetScrollPx.toInt())
+                                    listState.scrollToItem(currentTargetIndex, 0)
                                 }
                             }
                             
