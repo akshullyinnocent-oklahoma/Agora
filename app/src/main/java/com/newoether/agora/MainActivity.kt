@@ -565,7 +565,13 @@ fun ChatApp(
                                     }
                                 },
                                 onSwitchBranch = { parentId, direction -> viewModel.switchBranch(parentId, direction) },
-                                onRegenerate = { id -> viewModel.regenerate(id) },
+                                onRegenerate = { id -> 
+                                    viewModel.regenerate(id)
+                                    scope.launch {
+                                        kotlinx.coroutines.delay(50)
+                                        scrollToLastUserMessage(animate = true)
+                                    }
+                                },
                                 contentPadding = PaddingValues(
                                     start = 8.dp, 
                                     end = 8.dp, 

@@ -376,6 +376,32 @@ class ChatViewModel(
         _streamingMessage.value = null
     }
 
+    fun regenerate(messageId: String) {
+        val currentId = _currentConversationId.value ?: return
+        val activeKey = apiKeys.value.find { it.id == activeApiKeyId.value }?.key
+        if (activeKey.isNullOrBlank()) return
+
+        stopGeneration()
+        generationJob = viewModelScope.launch {
+            val messageToRegenerate = _allMessages.value.find { it.id == messageId } ?: return@launch
+            val parentId = messageToRegenerate.parentId ?: return@launch
+            val userMessage = _allMessages.value.find { it.id == parentId } ?: return@launch
+
+            val modelMessageId = UUID.randomUUID().toString()
+            val startTime = System.currentTimeMillis() + 1
+            chatDao.upsertMessage(MessageEntity(
+                id = modelMessageId, conversationId = currentId, parentId = parentId,
+                text = "", thoughts = null, status = MessageStatus.SENDING, participant = Participant.MODEL, timestamp = startTime
+            ))
+            
+            val newMap = _selectedChildren.value.toMutableMap()
+            newMap[parentId] = modelMessageId
+            _selectedChildren.value = newMap
+            
+            generateResponse(currentId, userMessage.text, modelMessageId, startTime)
+        }
+    }
+
     fun switchBranch(parentId: String?, direction: Int) {
         if (_isLoading.value) return
         val siblings = _allMessages.value.filter { it.parentId == parentId }.sortedBy { it.timestamp }
