@@ -26,6 +26,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.foundation.relocation.BringIntoViewResponder
 import androidx.compose.foundation.relocation.bringIntoViewResponder
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.foundation.text.input.TextFieldState
+import androidx.compose.foundation.text.input.rememberTextFieldState
+import androidx.compose.foundation.text.input.TextFieldLineLimits
+import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.newoether.agora.data.ApiKeyEntry
@@ -513,7 +517,8 @@ fun SettingsScreen(viewModel: ChatViewModel, onBack: () -> Unit) {
     // System Prompt Dialog (Add/Edit)
     showPromptDialog?.let { entry ->
         var title by remember { mutableStateOf(entry.title) }
-        var content by remember { mutableStateOf(entry.content) }
+        val contentState = rememberTextFieldState(entry.content)
+        val contentScrollState = rememberScrollState()
         val isEdit = systemPrompts.any { it.id == entry.id }
 
         AlertDialog(
@@ -531,20 +536,22 @@ fun SettingsScreen(viewModel: ChatViewModel, onBack: () -> Unit) {
                         colors = TextFieldDefaults.colors(focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent)
                     )
                     Spacer(modifier = Modifier.height(8.dp))
-                    TextField(
-                        value = content, onValueChange = { content = it }, 
-                        label = { Text("System Instruction") }, 
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .bringIntoViewResponder(noOpResponder), 
-                        maxLines = 10,
-                        shape = MaterialTheme.shapes.large,
-                        colors = TextFieldDefaults.colors(focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent)
-                    )
+                    Box(modifier = Modifier.bringIntoViewResponder(noOpResponder)) {
+                        TextField(
+                            state = contentState,
+                            scrollState = contentScrollState,
+                            label = { Text("System Instruction") }, 
+                            modifier = Modifier.fillMaxWidth(),
+                            lineLimits = TextFieldLineLimits.MultiLine(1, 10),
+                            shape = MaterialTheme.shapes.large,
+                            colors = TextFieldDefaults.colors(focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent)
+                        )
+                    }
                 }
             },
             confirmButton = { 
                 TextButton(onClick = { 
+                    val content = contentState.text.toString()
                     if (title.isNotBlank() && content.isNotBlank()) {
                         if (isEdit) viewModel.updateSystemPrompt(entry.id, title, content) else viewModel.addSystemPrompt(title, content)
                         showPromptDialog = null 
