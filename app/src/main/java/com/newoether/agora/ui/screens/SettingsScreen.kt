@@ -1,8 +1,11 @@
 package com.newoether.agora.ui.screens
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -36,7 +39,7 @@ import com.newoether.agora.data.ApiKeyEntry
 import com.newoether.agora.data.SystemPromptEntry
 import com.newoether.agora.viewmodel.ChatViewModel
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun SettingsScreen(viewModel: ChatViewModel, onBack: () -> Unit) {
     val provider by viewModel.provider.collectAsState()
@@ -69,6 +72,21 @@ fun SettingsScreen(viewModel: ChatViewModel, onBack: () -> Unit) {
     
     var expandedProvider by remember { mutableStateOf(false) }
     val providers = listOf("Google", "OpenAI (Soon)", "Anthropic (Soon)")
+
+    val pagerState = rememberPagerState(pageCount = { tabs.size })
+    val coroutineScope = rememberCoroutineScope()
+
+    LaunchedEffect(selectedTab) {
+        if (selectedTab != pagerState.currentPage) {
+            pagerState.animateScrollToPage(selectedTab)
+        }
+    }
+
+    LaunchedEffect(pagerState.currentPage) {
+        if (selectedTab != pagerState.currentPage) {
+            selectedTab = pagerState.currentPage
+        }
+    }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -108,10 +126,13 @@ fun SettingsScreen(viewModel: ChatViewModel, onBack: () -> Unit) {
             }
         }
     ) { padding ->
-        if (selectedTab == 0) {
-            Column(
-                modifier = Modifier
-                    .padding(padding)
+        HorizontalPager(
+            state = pagerState,
+            modifier = Modifier.padding(padding)
+        ) { page ->
+            if (page == 0) {
+                Column(
+                    modifier = Modifier
                     .padding(horizontal = 16.dp)
                     .fillMaxSize()
                     .verticalScroll(rememberScrollState())
@@ -365,11 +386,10 @@ fun SettingsScreen(viewModel: ChatViewModel, onBack: () -> Unit) {
                 }
                 Spacer(modifier = Modifier.height(32.dp))
             }
-        } else {
+            } else {
             // Model Selection Tab
             Column(
                 modifier = Modifier
-                    .padding(padding)
                     .padding(horizontal = 16.dp)
                     .fillMaxSize()
                     .verticalScroll(rememberScrollState())
@@ -430,6 +450,7 @@ fun SettingsScreen(viewModel: ChatViewModel, onBack: () -> Unit) {
                     }
                 }
                 Spacer(modifier = Modifier.height(32.dp))
+            }
             }
         }
     }
