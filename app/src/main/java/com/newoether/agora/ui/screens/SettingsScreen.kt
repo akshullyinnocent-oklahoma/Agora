@@ -23,6 +23,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.foundation.relocation.BringIntoViewResponder
+import androidx.compose.foundation.relocation.bringIntoViewResponder
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.newoether.agora.data.ApiKeyEntry
@@ -43,6 +46,13 @@ fun SettingsScreen(viewModel: ChatViewModel, onBack: () -> Unit) {
     val selectedModel by viewModel.selectedModel.collectAsState()
     val maxContextWindow by viewModel.maxContextWindow.collectAsState()
     val visualizeContextRollout by viewModel.visualizeContextRollout.collectAsState()
+
+    val noOpResponder = remember {
+        object : BringIntoViewResponder {
+            override fun calculateRectForParent(localRect: Rect): Rect = localRect
+            override suspend fun bringChildIntoView(localRect: () -> Rect?) {}
+        }
+    }
 
     var showKeyDialog by remember { mutableStateOf<ApiKeyEntry?>(null) }
     var showPromptDialog by remember { mutableStateOf<SystemPromptEntry?>(null) }
@@ -435,7 +445,9 @@ fun SettingsScreen(viewModel: ChatViewModel, onBack: () -> Unit) {
                         value = alias,
                         onValueChange = { alias = it },
                         label = { Text("Alias") },
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .bringIntoViewResponder(noOpResponder),
                         shape = MaterialTheme.shapes.large,
                         placeholder = { Text(model.removePrefix("models/")) },
                         colors = TextFieldDefaults.colors(focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent)
@@ -468,7 +480,9 @@ fun SettingsScreen(viewModel: ChatViewModel, onBack: () -> Unit) {
                     TextField(
                         value = name, onValueChange = { name = it }, 
                         label = { Text("Name (e.g. Workspace)") }, 
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .bringIntoViewResponder(noOpResponder),
                         shape = MaterialTheme.shapes.large,
                         colors = TextFieldDefaults.colors(focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent)
                     )
@@ -476,7 +490,9 @@ fun SettingsScreen(viewModel: ChatViewModel, onBack: () -> Unit) {
                     TextField(
                         value = key, onValueChange = { key = it }, 
                         label = { Text("Google API Key") }, 
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .bringIntoViewResponder(noOpResponder),
                         shape = MaterialTheme.shapes.large,
                         colors = TextFieldDefaults.colors(focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent)
                     )
@@ -508,7 +524,9 @@ fun SettingsScreen(viewModel: ChatViewModel, onBack: () -> Unit) {
                     TextField(
                         value = title, onValueChange = { title = it }, 
                         label = { Text("Title (e.g. Translator)") }, 
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .bringIntoViewResponder(noOpResponder),
                         shape = MaterialTheme.shapes.large,
                         colors = TextFieldDefaults.colors(focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent)
                     )
@@ -516,7 +534,9 @@ fun SettingsScreen(viewModel: ChatViewModel, onBack: () -> Unit) {
                     TextField(
                         value = content, onValueChange = { content = it }, 
                         label = { Text("System Instruction") }, 
-                        modifier = Modifier.fillMaxWidth(), 
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .bringIntoViewResponder(noOpResponder), 
                         maxLines = 10,
                         shape = MaterialTheme.shapes.large,
                         colors = TextFieldDefaults.colors(focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent)
