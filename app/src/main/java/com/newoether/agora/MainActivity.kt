@@ -18,6 +18,7 @@ import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.gestures.scrollBy
@@ -33,6 +34,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Menu
@@ -144,6 +146,7 @@ fun SloganItem(title: String, description: String) {
 @Composable
 fun MainNavigation(viewModel: ChatViewModel) {
     var showSettings by rememberSaveable { mutableStateOf(false) }
+    var fullScreenImageUrl by rememberSaveable { mutableStateOf<String?>(null) }
     
     Surface(
         modifier = Modifier.fillMaxSize(),
@@ -154,6 +157,9 @@ fun MainNavigation(viewModel: ChatViewModel) {
                 viewModel = viewModel,
                 onOpenSettings = {
                     showSettings = true
+                },
+                onImageClick = { url ->
+                    fullScreenImageUrl = url
                 }
             )
 
@@ -194,6 +200,52 @@ fun MainNavigation(viewModel: ChatViewModel) {
                     }
                 }
             }
+
+            // Full screen image preview
+            AnimatedVisibility(
+                visible = fullScreenImageUrl != null,
+                enter = fadeIn() + scaleIn(initialScale = 0.9f),
+                exit = fadeOut() + scaleOut(targetScale = 0.9f)
+            ) {
+                fullScreenImageUrl?.let { url ->
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(Color.Black.copy(alpha = 0.9f))
+                            .clickable { fullScreenImageUrl = null },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        coil.compose.AsyncImage(
+                            model = url,
+                            contentDescription = "Full screen image",
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(16.dp),
+                            contentScale = androidx.compose.ui.layout.ContentScale.Fit
+                        )
+                        
+                        // Close button
+                        IconButton(
+                            onClick = { fullScreenImageUrl = null },
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .statusBarsPadding()
+                                .padding(16.dp)
+                                .background(Color.Black.copy(alpha = 0.3f), CircleShape)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "Close",
+                                tint = Color.White
+                            )
+                        }
+                    }
+                    
+                    BackHandler {
+                        fullScreenImageUrl = null
+                    }
+                }
+            }
         }
     }
 }
@@ -202,7 +254,8 @@ fun MainNavigation(viewModel: ChatViewModel) {
 @Composable
 fun ChatApp(
     viewModel: ChatViewModel,
-    onOpenSettings: () -> Unit
+    onOpenSettings: () -> Unit,
+    onImageClick: (String) -> Unit
 ) {
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
@@ -640,6 +693,7 @@ fun ChatApp(
                                         scrollToLastUserMessage(animate = true)
                                     }
                                 },
+                                onImageClick = onImageClick,
                                 contentPadding = PaddingValues(
                                     start = 8.dp, 
                                     end = 8.dp, 
@@ -822,6 +876,7 @@ fun ChatApp(
                         onGoogleSearchToggle = { viewModel.setGoogleSearchEnabled(it) },
                         onModelSelect = { viewModel.setSelectedModel(it) },
                         onOpenSettings = onOpenSettings,
+                        onImageClick = onImageClick,
                         modifier = Modifier,
                         textFieldState = textFieldState
                     )

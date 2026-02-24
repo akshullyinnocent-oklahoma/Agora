@@ -88,7 +88,8 @@ fun MessageList(
     messageHeights: MutableMap<String, Int> = remember { mutableStateMapOf() },
     onEditMessage: (String, String) -> Unit = { _, _ -> },
     onSwitchBranch: (String?, Int) -> Unit = { _, _ -> },
-    onRegenerate: (String) -> Unit = {}
+    onRegenerate: (String) -> Unit = {},
+    onImageClick: (String) -> Unit = {}
 ) {
     var editingMessageId by remember { mutableStateOf<String?>(null) }
     val density = androidx.compose.ui.platform.LocalDensity.current
@@ -149,6 +150,7 @@ fun MessageList(
                     totalBranches = totalBranches,
                     onSwitchBranch = { direction -> onSwitchBranch(message.parentId, direction) },
                     onRegenerate = onRegenerate,
+                    onImageClick = onImageClick,
                     onHeightChanged = { height -> messageHeights[message.id] = height }
                 )
             }
@@ -175,6 +177,7 @@ fun MessageItem(
     totalBranches: Int = 1,
     onSwitchBranch: (Int) -> Unit = {},
     onRegenerate: (String) -> Unit = {},
+    onImageClick: (String) -> Unit = {},
     onHeightChanged: (Int) -> Unit = {}
 ) {
     var isFirstComposition by remember { mutableStateOf(true) }
@@ -323,7 +326,10 @@ fun MessageItem(
                                         coil.compose.AsyncImage(
                                             model = imagePath,
                                             contentDescription = null,
-                                            modifier = Modifier.sizeIn(maxWidth = 200.dp, maxHeight = 200.dp).clip(RoundedCornerShape(8.dp)),
+                                            modifier = Modifier
+                                                .sizeIn(maxWidth = 200.dp, maxHeight = 200.dp)
+                                                .clip(RoundedCornerShape(8.dp))
+                                                .clickable { onImageClick(imagePath) },
                                             contentScale = androidx.compose.ui.layout.ContentScale.Fit
                                         )
                                     }
@@ -649,6 +655,7 @@ fun ChatBottomBar(
     onGoogleSearchToggle: (Boolean) -> Unit = {},
     onModelSelect: (String) -> Unit,
     onOpenSettings: () -> Unit,
+    onImageClick: (String) -> Unit = {},
     modifier: Modifier = Modifier,
     textFieldState: TextFieldState = rememberSaveable(saver = TextFieldState.Saver) { TextFieldState() }
 ) {
@@ -689,7 +696,10 @@ fun ChatBottomBar(
                         coil.compose.AsyncImage(
                             model = uriStr,
                             contentDescription = null,
-                            modifier = Modifier.size(64.dp).clip(RoundedCornerShape(8.dp)),
+                            modifier = Modifier
+                                .size(64.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable { onImageClick(uriStr) },
                             contentScale = androidx.compose.ui.layout.ContentScale.Crop
                         )
                         Box(
