@@ -310,7 +310,10 @@ fun MessageItem(
                             }
                         }
                     } else {
-                        Column(modifier = Modifier.padding(16.dp)) {
+                        Column(
+                            modifier = Modifier.padding(16.dp),
+                            horizontalAlignment = if (message.participant == Participant.USER) Alignment.End else Alignment.Start
+                        ) {
                             if (message.images.isNotEmpty()) {
                                 androidx.compose.foundation.lazy.LazyRow(
                                     modifier = Modifier.fillMaxWidth().padding(bottom = if (message.text.isNotEmpty()) 8.dp else 0.dp),
