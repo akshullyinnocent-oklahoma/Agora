@@ -59,7 +59,8 @@ data class MessageEntity(
     val status: MessageStatus = MessageStatus.SUCCESS,
     val participant: Participant,
     val timestamp: Long,
-    val thoughtTimeMs: Long? = null
+    val thoughtTimeMs: Long? = null,
+    val modelName: String? = null
 )
 
 @Dao
@@ -85,7 +86,7 @@ interface ChatDao {
 
 @Database(
     entities = [ChatEntity::class, MessageEntity::class], 
-    version = 4,
+    version = 5,
     exportSchema = true
 )
 @TypeConverters(MessageConverters::class)

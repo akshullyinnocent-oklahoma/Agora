@@ -22,7 +22,8 @@ data class ChatMessage(
     val status: MessageStatus = MessageStatus.SUCCESS, // Default to SUCCESS for old messages
     val participant: Participant,
     val timestamp: Long = System.currentTimeMillis(),
-    val thoughtTimeMs: Long? = null
+    val thoughtTimeMs: Long? = null,
+    val modelName: String? = null
 )
 
 @Immutable

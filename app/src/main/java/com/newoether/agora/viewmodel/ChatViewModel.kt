@@ -278,7 +278,8 @@ class ChatViewModel(
                                 status = it.status,
                                 participant = it.participant, 
                                 timestamp = it.timestamp,
-                                thoughtTimeMs = it.thoughtTimeMs
+                                thoughtTimeMs = it.thoughtTimeMs,
+                                modelName = it.modelName
                             )
                         }
                     }
@@ -452,7 +453,8 @@ class ChatViewModel(
                 modelMessageId = messageId
                 chatDao.upsertMessage(MessageEntity(
                     id = modelMessageId, conversationId = currentId, parentId = parentId,
-                    text = "", thoughts = null, status = MessageStatus.SENDING, participant = Participant.MODEL, timestamp = startTime
+                    text = "", thoughts = null, status = MessageStatus.SENDING, participant = Participant.MODEL, timestamp = startTime,
+                    modelName = selectedModel.value
                 ))
                 val newMap = _selectedChildren.value.toMutableMap()
                 newMap[parentId] = modelMessageId
@@ -461,7 +463,8 @@ class ChatViewModel(
                 modelMessageId = UUID.randomUUID().toString()
                 chatDao.upsertMessage(MessageEntity(
                     id = modelMessageId, conversationId = currentId, parentId = parentId,
-                    text = "", thoughts = null, status = MessageStatus.SENDING, participant = Participant.MODEL, timestamp = startTime
+                    text = "", thoughts = null, status = MessageStatus.SENDING, participant = Participant.MODEL, timestamp = startTime,
+                    modelName = selectedModel.value
                 ))
                 
                 val newMap = _selectedChildren.value.toMutableMap()
@@ -515,7 +518,8 @@ class ChatViewModel(
             val startTime = System.currentTimeMillis() + 1
             chatDao.upsertMessage(MessageEntity(
                 id = modelMessageId, conversationId = currentId, parentId = newUserMessageId,
-                text = "", thoughts = null, status = MessageStatus.SENDING, participant = Participant.MODEL, timestamp = startTime
+                text = "", thoughts = null, status = MessageStatus.SENDING, participant = Participant.MODEL, timestamp = startTime,
+                modelName = selectedModel.value
             ))
             generateResponse(currentId, newText, modelMessageId, startTime)
         }
@@ -584,7 +588,8 @@ class ChatViewModel(
             val startTime = System.currentTimeMillis() + 1
             chatDao.upsertMessage(MessageEntity(
                 id = modelMessageId, conversationId = currentId, parentId = userMessageId,
-                text = "", thoughts = null, status = MessageStatus.SENDING, participant = Participant.MODEL, timestamp = startTime
+                text = "", thoughts = null, status = MessageStatus.SENDING, participant = Participant.MODEL, timestamp = startTime,
+                modelName = selectedModel.value
             ))
             triggerScrollToMessage(userMessageId)
             generateResponse(currentId, text, modelMessageId, startTime)
@@ -775,7 +780,8 @@ class ChatViewModel(
                                                     status = currentStatus, 
                                                     participant = Participant.MODEL, 
                                                     timestamp = startTime,
-                                                    thoughtTimeMs = totalThoughtTimeMs
+                                                    thoughtTimeMs = totalThoughtTimeMs,
+                                                    modelName = selectedModel.value
                                                 )
                                             }
                                         }
@@ -838,9 +844,9 @@ class ChatViewModel(
                 if (conversationExists) {
                     val finalStreamingMsg = _streamingMessage.value
                     if (finalStreamingMsg != null) {
-                        chatDao.upsertMessage(MessageEntity(id = finalStreamingMsg.id, conversationId = currentId, parentId = finalStreamingMsg.parentId, text = finalStreamingMsg.text, thoughts = finalStreamingMsg.thoughts, tokenCount = finalStreamingMsg.tokenCount, status = currentStatus, participant = finalStreamingMsg.participant, timestamp = finalStreamingMsg.timestamp, thoughtTimeMs = finalStreamingMsg.thoughtTimeMs))
+                        chatDao.upsertMessage(MessageEntity(id = finalStreamingMsg.id, conversationId = currentId, parentId = finalStreamingMsg.parentId, text = finalStreamingMsg.text, thoughts = finalStreamingMsg.thoughts, tokenCount = finalStreamingMsg.tokenCount, status = currentStatus, participant = finalStreamingMsg.participant, timestamp = finalStreamingMsg.timestamp, thoughtTimeMs = finalStreamingMsg.thoughtTimeMs, modelName = finalStreamingMsg.modelName))
                     } else {
-                        chatDao.upsertMessage(MessageEntity(id = modelMessageId, conversationId = currentId, parentId = parentId, text = totalText, thoughts = totalThoughts.ifBlank { null }, tokenCount = totalTokenCount, status = currentStatus, participant = Participant.MODEL, timestamp = startTime, thoughtTimeMs = totalThoughtTimeMs))
+                        chatDao.upsertMessage(MessageEntity(id = modelMessageId, conversationId = currentId, parentId = parentId, text = totalText, thoughts = totalThoughts.ifBlank { null }, tokenCount = totalTokenCount, status = currentStatus, participant = Participant.MODEL, timestamp = startTime, thoughtTimeMs = totalThoughtTimeMs, modelName = selectedModel.value))
                     }
                 }
                 _isLoading.value = false

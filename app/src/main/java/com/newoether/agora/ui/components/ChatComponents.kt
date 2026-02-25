@@ -56,6 +56,9 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.layout.onSizeChanged
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -83,6 +86,7 @@ fun MessageList(
     isSwitching: Boolean = false,
     visualizeContextRollout: Boolean = false,
     maxContextWindow: Int = 20,
+    modelAliases: Map<String, String> = emptyMap(),
     bottomBarHeight: androidx.compose.ui.unit.Dp = 0.dp,
     viewportHeight: Int = 0,
     messageHeights: MutableMap<String, Int> = remember { mutableStateMapOf() },
@@ -143,6 +147,7 @@ fun MessageList(
                     isEditing = editingMessageId == message.id,
                     isSwitching = isSwitching,
                     isInContext = isInContext,
+                    modelAliases = modelAliases,
                     visualizeContextRollout = visualizeContextRollout,
                     onStartEdit = { editingMessageId = message.id },
                     onCancelEdit = { editingMessageId = null },
@@ -170,6 +175,7 @@ fun MessageItem(
     isEditing: Boolean = false,
     isSwitching: Boolean = false,
     isInContext: Boolean = false,
+    modelAliases: Map<String, String> = emptyMap(),
     visualizeContextRollout: Boolean = false,
     onStartEdit: () -> Unit = {},
     onCancelEdit: () -> Unit = {},
@@ -186,8 +192,34 @@ fun MessageItem(
     var isThoughtExpanded by rememberSaveable { mutableStateOf(false) }
     var currentThoughtBlockHeight by remember { mutableIntStateOf(0) }
     var stableCollapsedThoughtHeight by remember { mutableIntStateOf(0) }
+    var showInfoDialog by remember { mutableStateOf(false) }
     
     val clipboardManager = LocalClipboardManager.current
+
+    if (showInfoDialog) {
+        val sdf = remember { SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()) }
+        val dateString = sdf.format(Date(message.timestamp))
+        val modelDisplay = if (message.modelName != null) {
+            modelAliases[message.modelName] ?: message.modelName.removePrefix("models/")
+        } else "Unknown"
+
+        AlertDialog(
+            onDismissRequest = { showInfoDialog = false },
+            title = { Text("Message Info") },
+            text = {
+                Column {
+                    Text("Time: $dateString", style = MaterialTheme.typography.bodyMedium)
+                    if (message.participant == Participant.MODEL) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text("Model: $modelDisplay", style = MaterialTheme.typography.bodyMedium)
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showInfoDialog = false }) { Text("Close") }
+            }
+        )
+    }
 
     var currentTotalHeight by remember { mutableIntStateOf(0) }
     
@@ -314,7 +346,7 @@ fun MessageItem(
                         }
                     } else {
                         Column(
-                            modifier = Modifier.padding(16.dp),
+                            modifier = Modifier.padding(16.dp).bringIntoViewResponder(noOpResponder),
                             horizontalAlignment = Alignment.Start
                         ) {
                             if (message.images.isNotEmpty()) {
@@ -340,8 +372,7 @@ fun MessageItem(
                                     Text(
                                         text = message.text,
                                         style = MaterialTheme.typography.bodyMedium,
-                                        color = textColor,
-                                        modifier = Modifier.bringIntoViewResponder(noOpResponder)
+                                        color = textColor
                                     )
                                 }
                             }
@@ -375,6 +406,9 @@ fun MessageItem(
                         }
                         IconButton(onClick = { onStartEdit() }, enabled = isEditingAllowed, modifier = Modifier.size(32.dp)) {
                             Icon(Icons.Default.Edit, contentDescription = "Edit", modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f))
+                        }
+                        IconButton(onClick = { showInfoDialog = true }, modifier = Modifier.size(32.dp)) {
+                            Icon(Icons.Default.Info, contentDescription = "Info", modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f))
                         }
                     }
                 }
@@ -544,6 +578,7 @@ fun MessageItem(
                                                     modifier = Modifier
                                                         .fillMaxWidth()
                                                         .then(if (isStreaming || shouldAnimate) Modifier.animateContentSize(animationSpec = tween(150)) else Modifier)
+                                                        .bringIntoViewResponder(noOpResponder)
                                                 ) {
                                                     if (isError) {
                                                         Surface(color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.4f), contentColor = MaterialTheme.colorScheme.onErrorContainer, shape = RoundedCornerShape(12.dp), modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
@@ -554,8 +589,7 @@ fun MessageItem(
                                                                     Text(
                                                                         debouncedText.ifEmpty { "Failed to generate." },
                                                                         style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium, lineHeight = 18.sp),
-                                                                        color = MaterialTheme.colorScheme.error.copy(alpha = 0.8f),
-                                                                        modifier = Modifier.bringIntoViewResponder(noOpResponder)
+                                                                        color = MaterialTheme.colorScheme.error.copy(alpha = 0.8f)
                                                                     )
                                                                 }
                                                             }
@@ -565,8 +599,7 @@ fun MessageItem(
                                                             Markdown(
                                                                 content = debouncedText,
                                                                 modifier = Modifier
-                                                                    .fillMaxWidth()
-                                                                    .bringIntoViewResponder(noOpResponder),
+                                                                    .fillMaxWidth(),
                                                                 typography = customTypography,
                                                                 padding = customMarkdownPadding
                                                             )
@@ -594,6 +627,9 @@ fun MessageItem(
                                 }
                                 IconButton(onClick = { onRegenerate(message.id) }, modifier = Modifier.size(40.dp)) {
                                     Icon(Icons.Default.Refresh, null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f))
+                                }
+                                IconButton(onClick = { showInfoDialog = true }, modifier = Modifier.size(40.dp)) {
+                                    Icon(Icons.Default.Info, null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f))
                                 }
                                 
                                 if (totalBranches > 1) {
