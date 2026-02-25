@@ -766,7 +766,7 @@ fun ChatBottomBar(
         }
 
         Row(modifier = Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.clip(RoundedCornerShape(100)).background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)).padding(horizontal = 8.dp, vertical = 2.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f), RoundedCornerShape(100)).padding(horizontal = 8.dp, vertical = 2.dp)) {
                 IconButton(
                     onClick = { 
                         launcher.launch(androidx.activity.result.PickVisualMediaRequest(androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia.ImageOnly))
@@ -780,20 +780,99 @@ fun ChatBottomBar(
                     enabledModels.isNotEmpty() -> "Select Model"
                     else -> "No model selected"
                 }
+                
                 Box {
-                    TextButton(onClick = { expanded = true }, modifier = Modifier.widthIn(max = 160.dp), contentPadding = PaddingValues(start = 12.dp, end = 8.dp)) { Text(displayText, style = MaterialTheme.typography.labelLarge, maxLines = 1, overflow = TextOverflow.Ellipsis, color = if (isModelValid) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error) }
-                    DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }, shape = MaterialTheme.shapes.medium) {
-                        if (enabledModels.isEmpty()) DropdownMenuItem(text = { Text("No models enabled") }, onClick = { expanded = false }, enabled = false)
-                        else enabledModels.forEach { model -> DropdownMenuItem(text = { Text(modelAliases[model] ?: model.removePrefix("models/")) }, onClick = { onModelSelect(model); expanded = false }) }
+                    TextButton(
+                        onClick = { expanded = true }, 
+                        modifier = Modifier.widthIn(max = 160.dp), 
+                        contentPadding = PaddingValues(start = 12.dp, end = 8.dp)
+                    ) { 
+                        Text(
+                            displayText, 
+                            style = MaterialTheme.typography.labelLarge, 
+                            maxLines = 1, 
+                            overflow = TextOverflow.Ellipsis, 
+                            color = if (isModelValid) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
+                        ) 
+                    }
+                    
+                    DropdownMenu(
+                        expanded = expanded, 
+                        onDismissRequest = { expanded = false },
+                        shape = MaterialTheme.shapes.medium,
+                        properties = androidx.compose.ui.window.PopupProperties(focusable = true)
+                    ) {
+                        if (enabledModels.isEmpty()) {
+                            DropdownMenuItem(
+                                text = { Text("No models enabled") }, 
+                                onClick = { expanded = false }, 
+                                enabled = false
+                            )
+                        } else {
+                            enabledModels.forEach { model -> 
+                                DropdownMenuItem(
+                                    text = { Text(modelAliases[model] ?: model.removePrefix("models/")) }, 
+                                    onClick = { 
+                                        onModelSelect(model)
+                                        expanded = false 
+                                    }
+                                ) 
+                            }
+                        }
                     }
                 }
+                
                 IconButton(onClick = onOpenSettings, modifier = Modifier.size(32.dp)) { Icon(Icons.Default.Settings, "Settings", modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant) }
+                
                 var toolsMenuExpanded by remember { mutableStateOf(false) }
                 Box {
-                    IconButton(onClick = { toolsMenuExpanded = true }, modifier = Modifier.size(32.dp)) { Icon(Icons.Default.MoreVert, "Tools", modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant) }
-                    DropdownMenu(expanded = toolsMenuExpanded, onDismissRequest = { toolsMenuExpanded = false }, shape = RoundedCornerShape(16.dp)) {
-                        DropdownMenuItem(text = { Row(verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Default.Terminal, null, modifier = Modifier.size(18.dp)); Spacer(modifier = Modifier.width(12.dp)); Text("Code Execution") } }, trailingIcon = { Switch(checked = codeExecutionEnabled, onCheckedChange = { onCodeExecutionToggle(it) }, modifier = Modifier.scale(0.7f)) }, onClick = { onCodeExecutionToggle(!codeExecutionEnabled) })
-                        DropdownMenuItem(text = { Row(verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Default.Language, null, modifier = Modifier.size(18.dp)); Spacer(modifier = Modifier.width(12.dp)); Text("Google Search") } }, trailingIcon = { Switch(checked = googleSearchEnabled, onCheckedChange = { onGoogleSearchToggle(it) }, modifier = Modifier.scale(0.7f)) }, onClick = { onGoogleSearchToggle(!googleSearchEnabled) })
+                    IconButton(
+                        onClick = { toolsMenuExpanded = true }, 
+                        modifier = Modifier.size(32.dp)
+                    ) { 
+                        Icon(Icons.Default.MoreVert, "Tools", modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant) 
+                    }
+                    
+                    DropdownMenu(
+                        expanded = toolsMenuExpanded, 
+                        onDismissRequest = { toolsMenuExpanded = false },
+                        shape = RoundedCornerShape(16.dp),
+                        properties = androidx.compose.ui.window.PopupProperties(focusable = true)
+                    ) {
+                        DropdownMenuItem(
+                            text = { 
+                                Row(verticalAlignment = Alignment.CenterVertically) { 
+                                    Icon(Icons.Default.Terminal, null, modifier = Modifier.size(18.dp))
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Text("Code Execution") 
+                                } 
+                            }, 
+                            trailingIcon = { 
+                                Switch(
+                                    checked = codeExecutionEnabled, 
+                                    onCheckedChange = { onCodeExecutionToggle(it) }, 
+                                    modifier = Modifier.scale(0.7f)
+                                ) 
+                            }, 
+                            onClick = { onCodeExecutionToggle(!codeExecutionEnabled) }
+                        )
+                        DropdownMenuItem(
+                            text = { 
+                                Row(verticalAlignment = Alignment.CenterVertically) { 
+                                    Icon(Icons.Default.Language, null, modifier = Modifier.size(18.dp))
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Text("Google Search") 
+                                } 
+                            }, 
+                            trailingIcon = { 
+                                Switch(
+                                    checked = googleSearchEnabled, 
+                                    onCheckedChange = { onGoogleSearchToggle(it) }, 
+                                    modifier = Modifier.scale(0.7f)
+                                ) 
+                            }, 
+                            onClick = { onGoogleSearchToggle(!googleSearchEnabled) }
+                        )
                     }
                 }
             }
