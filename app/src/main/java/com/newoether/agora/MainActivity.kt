@@ -590,7 +590,12 @@ fun ChatApp(
         if (messages.isEmpty() || viewportHeightPx == 0) return
         
         val targetIndex = if (targetMessageId != null) {
-            messages.indexOfFirst { it.id == targetMessageId }
+            val msg = messages.find { it.id == targetMessageId }
+            if (msg?.participant == Participant.MODEL && msg.parentId != null) {
+                messages.indexOfFirst { it.id == msg.parentId }
+            } else {
+                messages.indexOfFirst { it.id == targetMessageId }
+            }
         } else {
             messages.indexOfLast { it.participant == Participant.USER }
         }
@@ -636,7 +641,12 @@ fun ChatApp(
             snapshotFlow { messages }.filter { it.isNotEmpty() }.first()
             
             val targetIndex = if (branchSwitchTrigger != null) {
-                messages.indexOfFirst { it.id == branchSwitchTrigger }
+                val msg = messages.find { it.id == branchSwitchTrigger }
+                if (msg?.participant == Participant.MODEL && msg.parentId != null) {
+                    messages.indexOfFirst { it.id == msg.parentId }
+                } else {
+                    messages.indexOfFirst { it.id == branchSwitchTrigger }
+                }
             } else {
                 messages.indexOfLast { it.participant == Participant.USER }
             }
@@ -654,7 +664,12 @@ fun ChatApp(
                             val vHeight = data.component3()
 
                             val currentTargetIndex = if (branchSwitchTrigger != null) {
-                                currentMsgs.indexOfFirst { it.id == branchSwitchTrigger }
+                                val msg = currentMsgs.find { it.id == branchSwitchTrigger }
+                                if (msg?.participant == Participant.MODEL && msg.parentId != null) {
+                                    currentMsgs.indexOfFirst { it.id == msg.parentId }
+                                } else {
+                                    currentMsgs.indexOfFirst { it.id == branchSwitchTrigger }
+                                }
                             } else {
                                 currentMsgs.indexOfLast { it.participant == Participant.USER }
                             }
@@ -1143,6 +1158,10 @@ fun ChatApp(
                     ChatBottomBar(
                         onSendMessage = { text, images ->
                             viewModel.sendMessage(text, images)
+                            scope.launch {
+                                delay(100)
+                                scrollToLastUserMessage(animate = true)
+                            }
                         },
                         onStopGeneration = { viewModel.stopGeneration() },
                         isLoading = isLoading,

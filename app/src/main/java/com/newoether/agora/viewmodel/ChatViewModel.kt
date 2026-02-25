@@ -485,13 +485,13 @@ class ChatViewModel(
         _isSwitching.value = true
         switchingJob = viewModelScope.launch {
             kotlinx.coroutines.delay(200) // Allow overlay to fade in
-            clearMessageHeights()
             val newMap = _selectedChildren.value.toMutableMap()
-            val targetMessageId = siblings[newIndex].id
-            newMap[parentId] = targetMessageId
+            val targetMessage = siblings[newIndex]
+            newMap[parentId] = targetMessage.id
             _selectedChildren.value = newMap
-            _branchSwitchTrigger.value = targetMessageId
-            triggerScrollToMessage(targetMessageId)
+            
+            _branchSwitchTrigger.value = targetMessage.id
+            triggerScrollToMessage(targetMessage.id)
         }
     }
 
