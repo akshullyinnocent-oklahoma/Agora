@@ -692,17 +692,12 @@ fun ChatApp(
                         snapshotFlow { messages.indexOfFirst { it.id == messageId } }
                             .filter { it != -1 }
                             .first()
-                        
-                        // Wait for layout heights to register
-                        snapshotFlow { messageHeights[messageId] }
-                            .filter { it != null && it > 0 }
-                            .first()
-                            
-                        scrollToLastUserMessage(animate = true, targetMessageId = messageId)
                     }
                 } catch (e: Exception) {
                     // Timeout
                 }
+                kotlinx.coroutines.delay(50)
+                scrollToLastUserMessage(animate = true, targetMessageId = messageId)
             } else {
                 scrollToLastUserMessage(animate = true)
             }
