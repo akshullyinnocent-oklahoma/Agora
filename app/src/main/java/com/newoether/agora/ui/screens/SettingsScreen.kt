@@ -272,8 +272,8 @@ fun SettingsScreen(viewModel: ChatViewModel, onBack: () -> Unit) {
                         }
                     }
 
-                    // 3. Memory Group
-                    SettingsGroup(title = "MEMORY") {
+                    // 3. Context Group
+                    SettingsGroup(title = "CONTEXT") {
                         ListItem(
                             colors = ListItemDefaults.colors(containerColor = Color.Transparent),
                             headlineContent = { Text("Context Window") },
@@ -310,73 +310,73 @@ fun SettingsScreen(viewModel: ChatViewModel, onBack: () -> Unit) {
                         )
                     }
                 }
-                        } else {
-                            // Models Tab
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .verticalScroll(rememberScrollState())
-                                    .padding(horizontal = 16.dp, vertical = 16.dp)
-                            ) {
-                                                                SettingsGroup(title = "DEFAULT MODEL") {
-                                                                    val activeAlias = modelAliases[selectedModel]
-                                                                    val activeDisplayName = activeAlias ?: selectedModel.removePrefix("models/")
-                                                                    
-                                                                    ListItem(
-                                                                        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                                                                        headlineContent = { 
-                                                                            Text(
-                                                                                if (enabledModels.isEmpty()) "No models enabled" else activeDisplayName,
-                                                                                color = if (enabledModels.isEmpty()) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
-                                                                            ) 
-                                                                        },
-                                                                        supportingContent = if (activeAlias != null && enabledModels.isNotEmpty()) { { Text(selectedModel.removePrefix("models/")) } } else null,
-                                                                        leadingContent = {
-                                                                            Icon(Icons.Default.Chat, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                                                                        },
-                                                                        modifier = Modifier.clickable(enabled = enabledModels.isNotEmpty()) { showActiveModelDialog = true }
-                                                                    )
-                                                                }            
-                                                    SettingsGroup(title = "AVAILABLE MODELS") {
-                                                        ListItem(
-                                                            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                                                            headlineContent = { Text("Sync from Provider") },
-                                                            supportingContent = { Text("Fetch the latest model list") },
-                                                            leadingContent = {
-                                                                Icon(Icons.Default.Refresh, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                                                            },
-                                                            modifier = Modifier.clickable { viewModel.fetchAvailableModels() }
-                                                        )
-                                                        
-                                                        if (availableModels.isNotEmpty()) {
-                                                            HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-                                                            
-                                                            availableModels.forEach { model ->
-                                                                val isEnabled = enabledModels.contains(model)
-                                                                val alias = modelAliases[model]
-                                                                val displayName = alias ?: model.removePrefix("models/")
-                                                                
-                                                                ListItem(
-                                                                    colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                                                                    headlineContent = { Text(displayName) },
-                                                                    supportingContent = if (alias != null) { { Text(model.removePrefix("models/")) } } else null,
-                                                                    trailingContent = {
-                                                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                                                            IconButton(onClick = { showModelAliasDialog = model }) {
-                                                                                Icon(Icons.Default.Edit, contentDescription = "Rename", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
-                                                                            }
-                                                                            Checkbox(checked = isEnabled, onCheckedChange = {
-                                                                                viewModel.setEnabledModels(if (it) enabledModels + model else enabledModels - model)
-                                                                            })
-                                                                        }
-                                                                    },
-                                                                    modifier = Modifier.clickable {
-                                                                        viewModel.setEnabledModels(if (!isEnabled) enabledModels + model else enabledModels - model)
-                                                                    }
-                                                                )
-                                                            }
-                                                        }
-                                                    }
+            } else {
+                // Models Tab
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = 16.dp, vertical = 16.dp)
+                ) {
+                    SettingsGroup(title = "DEFAULT MODEL") {
+                        val activeAlias = modelAliases[selectedModel]
+                        val activeDisplayName = activeAlias ?: selectedModel.removePrefix("models/")
+
+                        ListItem(
+                            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                            headlineContent = {
+                                Text(
+                                    if (enabledModels.isEmpty()) "No models enabled" else activeDisplayName,
+                                    color = if (enabledModels.isEmpty()) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
+                                )
+                                              },
+                            supportingContent = if (activeAlias != null && enabledModels.isNotEmpty()) { { Text(selectedModel.removePrefix("models/")) } } else null,
+                            leadingContent = {
+                                Icon(Icons.Default.Chat, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                                             },
+                            modifier = Modifier.clickable(enabled = enabledModels.isNotEmpty()) { showActiveModelDialog = true }
+                        )
+                    }
+                    SettingsGroup(title = "AVAILABLE MODELS") {
+                        ListItem(
+                            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                            headlineContent = { Text("Sync from Provider") },
+                            supportingContent = { Text("Fetch the latest model list") },
+                            leadingContent = {
+                                Icon(Icons.Default.Refresh, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                                             },
+                            modifier = Modifier.clickable { viewModel.fetchAvailableModels() }
+                        )
+
+                        if (availableModels.isNotEmpty()) {
+                            HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+
+                            availableModels.forEach { model ->
+                                val isEnabled = enabledModels.contains(model)
+                                val alias = modelAliases[model]
+                                val displayName = alias ?: model.removePrefix("models/")
+
+                                ListItem(
+                                    colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                                    headlineContent = { Text(displayName) },
+                                    supportingContent = if (alias != null) { { Text(model.removePrefix("models/")) } } else null,
+                                    trailingContent = {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            IconButton(onClick = { showModelAliasDialog = model }) {
+                                                Icon(Icons.Default.Edit, contentDescription = "Rename", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+                                            }
+                                            Checkbox(checked = isEnabled, onCheckedChange = {
+                                                viewModel.setEnabledModels(if (it) enabledModels + model else enabledModels - model)
+                                            })
+                                        }
+                                                      },
+                                    modifier = Modifier.clickable {
+                                        viewModel.setEnabledModels(if (!isEnabled) enabledModels + model else enabledModels - model)
+                                    }
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }
