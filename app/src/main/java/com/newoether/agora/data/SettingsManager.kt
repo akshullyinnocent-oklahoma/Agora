@@ -20,7 +20,8 @@ private val Context.dataStore by preferencesDataStore(name = "settings")
 data class ApiKeyEntry(
     val id: String = UUID.randomUUID().toString(),
     val name: String,
-    val key: String
+    val key: String,
+    val provider: String = "Google"
 )
 
 @Serializable
@@ -40,7 +41,7 @@ class SettingsManager(private val context: Context) {
         val ENABLED_MODELS = stringSetPreferencesKey("enabled_models")
         
         val API_KEYS_JSON = stringPreferencesKey("api_keys_json")
-        val ACTIVE_API_KEY_ID = stringPreferencesKey("active_api_key_id")
+        val ACTIVE_API_KEY_IDS_JSON = stringPreferencesKey("active_api_key_ids_json")
         
         val SYSTEM_PROMPTS_JSON = stringPreferencesKey("system_prompts_json")
         val ACTIVE_SYSTEM_PROMPT_ID = stringPreferencesKey("active_system_prompt_id")
@@ -78,7 +79,10 @@ class SettingsManager(private val context: Context) {
         try { json.decodeFromString<List<ApiKeyEntry>>(jsonStr) } catch (e: Exception) { emptyList() }
     }
     
-    val activeApiKeyId: Flow<String?> = context.dataStore.data.map { it[ACTIVE_API_KEY_ID] }
+    val activeApiKeyIds: Flow<Map<String, String>> = context.dataStore.data.map { pref ->
+        val jsonStr = pref[ACTIVE_API_KEY_IDS_JSON] ?: "{}"
+        try { json.decodeFromString<Map<String, String>>(jsonStr) } catch (e: Exception) { emptyMap() }
+    }
 
     val systemPrompts: Flow<List<SystemPromptEntry>> = context.dataStore.data.map { pref ->
         val jsonStr = pref[SYSTEM_PROMPTS_JSON] ?: "[]"
@@ -124,10 +128,11 @@ class SettingsManager(private val context: Context) {
         context.dataStore.edit { it[API_KEYS_JSON] = json.encodeToString(keys) }
     }
 
-    suspend fun setActiveApiKeyId(id: String?) {
-        context.dataStore.edit { 
-            if (id == null) it.remove(ACTIVE_API_KEY_ID) else it[ACTIVE_API_KEY_ID] = id 
-        }
+    suspend fun setActiveApiKeyId(provider: String, id: String?) {
+        val current = context.dataStore.data.map { it[ACTIVE_API_KEY_IDS_JSON] ?: "{}" }.first()
+        val map = try { json.decodeFromString<MutableMap<String, String>>(current) } catch (e: Exception) { mutableMapOf() }
+        if (id == null) map.remove(provider) else map[provider] = id
+        context.dataStore.edit { it[ACTIVE_API_KEY_IDS_JSON] = json.encodeToString(map) }
     }
 
     suspend fun saveSystemPrompts(prompts: List<SystemPromptEntry>) {

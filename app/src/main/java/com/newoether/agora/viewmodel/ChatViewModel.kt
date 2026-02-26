@@ -72,11 +72,11 @@ class ChatViewModel(
         val enabledModels = settingsManager.enabledModels.stateIn(viewModelScope, SharingStarted.Eagerly, emptySet())
         val modelAliases = settingsManager.modelAliases.stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
     
-        val apiKeys = settingsManager.apiKeys.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
-        val activeApiKeyId = settingsManager.activeApiKeyId.stateIn(viewModelScope, SharingStarted.Eagerly, null)
-    
-        val systemPrompts = settingsManager.systemPrompts.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
-        val activeSystemPromptId = settingsManager.activeSystemPromptId.stateIn(viewModelScope, SharingStarted.Eagerly, null)
+            val apiKeys = settingsManager.apiKeys.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+            val activeApiKeyIds = settingsManager.activeApiKeyIds.stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
+            val systemPrompts = settingsManager.systemPrompts.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+            val activeSystemPromptId = settingsManager.activeSystemPromptId.stateIn(viewModelScope, SharingStarted.Eagerly, null)
+        
         val maxContextWindow = settingsManager.maxContextWindow.stateIn(viewModelScope, SharingStarted.Eagerly, 20)
         val visualizeContextRollout = settingsManager.visualizeContextRollout.stateIn(viewModelScope, SharingStarted.Eagerly, false)
         val codeExecutionEnabled = settingsManager.codeExecutionEnabled.stateIn(viewModelScope, SharingStarted.Eagerly, false)
@@ -254,18 +254,23 @@ class ChatViewModel(
         }
     }
 
-    fun addApiKey(name: String, key: String) {
+    fun addApiKey(name: String, key: String, provider: String) {
         viewModelScope.launch {
-            val newList = apiKeys.value + ApiKeyEntry(name = name, key = key)
+            val entry = ApiKeyEntry(name = name, key = key, provider = provider)
+            val newList = apiKeys.value + entry
             settingsManager.saveApiKeys(newList)
-            if (activeApiKeyId.value == null) settingsManager.setActiveApiKeyId(newList.last().id)
+            settingsManager.setActiveApiKeyId(provider, entry.id)
         }
     }
     fun deleteApiKey(id: String) {
         viewModelScope.launch {
+            val entry = apiKeys.value.find { it.id == id } ?: return@launch
+            val provider = entry.provider
             val newList = apiKeys.value.filter { it.id != id }
             settingsManager.saveApiKeys(newList)
-            if (activeApiKeyId.value == id) settingsManager.setActiveApiKeyId(newList.firstOrNull()?.id)
+            if (activeApiKeyIds.value[provider] == id) {
+                settingsManager.setActiveApiKeyId(provider, null)
+            }
         }
     }
     fun updateApiKey(id: String, name: String, key: String) {
@@ -274,7 +279,7 @@ class ChatViewModel(
             settingsManager.saveApiKeys(newList)
         }
     }
-    fun setActiveApiKey(id: String) { viewModelScope.launch { settingsManager.setActiveApiKeyId(id) } }
+    fun setActiveApiKey(provider: String, id: String) { viewModelScope.launch { settingsManager.setActiveApiKeyId(provider, id) } }
 
     fun addSystemPrompt(title: String, content: String) {
         viewModelScope.launch {
@@ -388,7 +393,9 @@ class ChatViewModel(
 
     fun regenerate(messageId: String) {
         val currentId = _currentConversationId.value ?: return
-        val activeKey = apiKeys.value.find { it.id == activeApiKeyId.value }?.key
+        val currentProvider = provider.value
+        val activeKeyId = activeApiKeyIds.value[currentProvider]
+        val activeKey = apiKeys.value.find { it.id == activeKeyId }?.key
         if (activeKey.isNullOrBlank()) return
 
         stopGeneration()
@@ -455,7 +462,9 @@ class ChatViewModel(
 
     fun editMessage(messageId: String, newText: String) {
         val currentId = _currentConversationId.value ?: return
-        val activeKey = apiKeys.value.find { it.id == activeApiKeyId.value }?.key
+        val currentProvider = provider.value
+        val activeKeyId = activeApiKeyIds.value[currentProvider]
+        val activeKey = apiKeys.value.find { it.id == activeKeyId }?.key
         if (activeKey.isNullOrBlank()) return
 
         stopGeneration()
@@ -515,7 +524,9 @@ class ChatViewModel(
     }
 
     fun sendMessage(text: String, images: List<String> = emptyList()) {
-        val activeKey = apiKeys.value.find { it.id == activeApiKeyId.value }?.key
+        val currentProvider = provider.value
+        val activeKeyId = activeApiKeyIds.value[currentProvider]
+        val activeKey = apiKeys.value.find { it.id == activeKeyId }?.key
         if (activeKey.isNullOrBlank()) {
             _allMessages.value = _allMessages.value + ChatMessage(text = "Please set API Key first!", participant = Participant.ERROR)
             return
@@ -552,7 +563,9 @@ class ChatViewModel(
     }
 
     private suspend fun generateResponse(currentId: String, text: String, modelMessageId: String, startTime: Long) {
-        val activeKey = apiKeys.value.find { it.id == activeApiKeyId.value }?.key ?: return
+        val currentProvider = provider.value
+        val activeKeyId = activeApiKeyIds.value[currentProvider]
+        val activeKey = apiKeys.value.find { it.id == activeKeyId }?.key ?: return
         _isLoading.value = true
         _streamingMessage.value = null
         var totalText = ""
@@ -674,9 +687,10 @@ class ChatViewModel(
     }
 
     fun fetchAvailableModels() {
-        val activeKey = apiKeys.value.find { it.id == activeApiKeyId.value }?.key
-        if (activeKey.isNullOrBlank()) return
         val currentProvider = provider.value
+        val activeKeyId = activeApiKeyIds.value[currentProvider]
+        val activeKey = apiKeys.value.find { it.id == activeKeyId }?.key
+        if (activeKey.isNullOrBlank()) return
         val currentBaseUrl = providerBaseUrls.value[currentProvider]
         viewModelScope.launch {
             try {

@@ -77,7 +77,7 @@ fun SettingsGroup(
 fun SettingsScreen(viewModel: ChatViewModel, onBack: () -> Unit) {
     val provider by viewModel.provider.collectAsState()
     val apiKeys by viewModel.apiKeys.collectAsState()
-    val activeApiKeyId by viewModel.activeApiKeyId.collectAsState()
+    val activeApiKeyIds by viewModel.activeApiKeyIds.collectAsState()
     val systemPrompts by viewModel.systemPrompts.collectAsState()
     val activeSystemPromptId by viewModel.activeSystemPromptId.collectAsState()
     val availableModels by viewModel.availableModels.collectAsState()
@@ -183,63 +183,62 @@ fun SettingsScreen(viewModel: ChatViewModel, onBack: () -> Unit) {
                             },
                             modifier = Modifier.clickable { showProviderDialog = true }
                         )
-
-                        if (provider != "Google") {
-                            HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-                            
-                            val baseUrlState = rememberTextFieldState(providerBaseUrls[provider] ?: "")
-                            ListItem(
-                                colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                                headlineContent = { Text("Base URL") },
-                                supportingContent = {
-                                    Box(modifier = Modifier.bringIntoViewResponder(noOpResponder).padding(top = 8.dp)) {
-                                        TextField(
-                                            state = baseUrlState,
-                                            placeholder = { 
-                                                Text(
-                                                    when(provider) {
-                                                        "OpenAI" -> "https://api.openai.com/v1"
-                                                        "Ollama" -> "http://localhost:11434/v1"
-                                                        else -> "https://api.example.com/v1"
-                                                    }
-                                                ) 
-                                            },
-                                            modifier = Modifier.fillMaxWidth(),
-                                            shape = MaterialTheme.shapes.large,
-                                            colors = TextFieldDefaults.colors(focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent)
-                                        )
-                                    }
-                                },
-                                leadingContent = {
-                                    Icon(Icons.Default.Add, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                                }
-                            )
-                            
-                            LaunchedEffect(baseUrlState.text) {
-                                viewModel.setProviderBaseUrl(provider, baseUrlState.text.toString())
-                            }
-                        }
-
                         HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-
+                        val baseUrlState = rememberTextFieldState(providerBaseUrls[provider] ?: "")
+                        ListItem(
+                            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                            headlineContent = { Text("Base URL") },
+                            supportingContent = {
+                                Box(modifier = Modifier.bringIntoViewResponder(noOpResponder).padding(top = 8.dp)) {
+                                    TextField(
+                                        state = baseUrlState,
+                                        placeholder = {
+                                            Text(
+                                                when(provider) {
+                                                    "Google" -> "https://generativelanguage.googleapis.com"
+                                                    "OpenAI" -> "https://api.openai.com/v1"
+                                                    "Ollama" -> "http://localhost:11434/v1"
+                                                    else -> "https://api.example.com/v1"
+                                                }
+                                            )
+                                                      },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        shape = MaterialTheme.shapes.large,
+                                        colors = TextFieldDefaults.colors(focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent)
+                                    )
+                                }
+                                                },
+                            leadingContent = {
+                                Icon(androidx.compose.ui.res.painterResource(id = com.newoether.agora.R.drawable.link_24), contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                            }
+                        )
+                        
+                        LaunchedEffect(baseUrlState.text) {
+                            viewModel.setProviderBaseUrl(provider, baseUrlState.text.toString())
+                        }
+                        HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                        
                         ListItem(
                             colors = ListItemDefaults.colors(containerColor = Color.Transparent),
                             headlineContent = { Text("API Keys") },
-                            supportingContent = { Text(if (apiKeys.isEmpty()) "No keys configured" else "${apiKeys.size} key(s) configured") },
+                            supportingContent = {
+                                val providerKeys = apiKeys.filter { it.provider == provider }
+                                Text(if (providerKeys.isEmpty()) "No keys configured for $provider" else "${providerKeys.size} key(s) configured")
+                                                },
                             leadingContent = {
                                 Icon(Icons.Default.Key, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                             }
                         )
-                        
-                        apiKeys.forEach { entry ->
+
+                        apiKeys.filter { it.provider == provider }.forEach { entry ->
                             var showMenu by remember { mutableStateOf(false) }
                             ListItem(
                                 colors = ListItemDefaults.colors(containerColor = Color.Transparent),
                                 headlineContent = { Text(entry.name, fontWeight = FontWeight.Medium) },
                                 supportingContent = { Text(entry.key.take(4) + "••••••••" + entry.key.takeLast(4)) },
                                 leadingContent = {
-                                    RadioButton(selected = entry.id == activeApiKeyId, onClick = { viewModel.setActiveApiKey(entry.id) })
-                                },
+                                    RadioButton(selected = entry.id == activeApiKeyIds[provider], onClick = { viewModel.setActiveApiKey(provider, entry.id) })
+                                                 },
                                 trailingContent = {
                                     Box {
                                         IconButton(onClick = { showMenu = true }) {
@@ -250,13 +249,13 @@ fun SettingsScreen(viewModel: ChatViewModel, onBack: () -> Unit) {
                                             DropdownMenuItem(text = { Text("Delete", color = MaterialTheme.colorScheme.error) }, leadingIcon = { Icon(Icons.Default.Delete, null, tint = MaterialTheme.colorScheme.error) }, onClick = { showMenu = false; showDeleteKeyConfirm = entry })
                                         }
                                     }
-                                },
-                                modifier = Modifier.clickable { viewModel.setActiveApiKey(entry.id) }.padding(start = 16.dp)
+                                                  },
+                                modifier = Modifier.clickable { viewModel.setActiveApiKey(provider, entry.id) }.padding(start = 16.dp)
                             )
                         }
-                        
+
                         TextButton(
-                            onClick = { showKeyDialog = ApiKeyEntry(name = "", key = "") },
+                            onClick = { showKeyDialog = ApiKeyEntry(name = "", key = "", provider = provider) },
                             modifier = Modifier.padding(start = 16.dp, top = 4.dp, bottom = 8.dp)
                         ) {
                             Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
@@ -264,7 +263,6 @@ fun SettingsScreen(viewModel: ChatViewModel, onBack: () -> Unit) {
                             Text("Add New Key")
                         }
                     }
-
                     // 2. Prompt Group
                     SettingsGroup(title = "PROMPT") {
                         ListItem(
@@ -578,7 +576,7 @@ fun SettingsScreen(viewModel: ChatViewModel, onBack: () -> Unit) {
                 TextButton(onClick = { 
                     val key = keyState.text.toString()
                     if (name.isNotBlank() && key.isNotBlank()) {
-                        if (isEdit) viewModel.updateApiKey(entry.id, name, key) else viewModel.addApiKey(name, key)
+                        if (isEdit) viewModel.updateApiKey(entry.id, name, key) else viewModel.addApiKey(name, key, entry.provider)
                         showKeyDialog = null 
                     } 
                 }) { Text(if (isEdit) "Save" else "Add") } 

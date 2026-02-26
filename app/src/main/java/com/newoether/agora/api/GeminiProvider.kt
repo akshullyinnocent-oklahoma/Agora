@@ -113,6 +113,7 @@ class GeminiProvider : LlmProvider {
         messages: List<ChatMessage>,
         config: ProviderConfig
     ): Flow<StreamEvent> = flow {
+        val baseUrl = config.baseUrl?.trimEnd('/') ?: "https://generativelanguage.googleapis.com"
         val cleanModelName = config.modelId.removePrefix("models/")
         
         // Context windowing
@@ -172,7 +173,7 @@ class GeminiProvider : LlmProvider {
 
         var connection: HttpURLConnection? = null
         try {
-            val url = URL("https://generativelanguage.googleapis.com/v1beta/models/$cleanModelName:streamGenerateContent?alt=sse&key=${config.apiKey}")
+            val url = URL("$baseUrl/v1beta/models/$cleanModelName:streamGenerateContent?alt=sse&key=${config.apiKey}")
             connection = url.openConnection() as HttpURLConnection
             connection.requestMethod = "POST"
             connection.setRequestProperty("Content-Type", "application/json")
@@ -272,7 +273,8 @@ class GeminiProvider : LlmProvider {
 
     override suspend fun fetchModels(apiKey: String, baseUrl: String?): List<String> = kotlinx.coroutines.withContext(Dispatchers.IO) {
         try {
-            val url = URL("https://generativelanguage.googleapis.com/v1beta/models?key=$apiKey")
+            val effectiveBaseUrl = baseUrl?.trimEnd('/') ?: "https://generativelanguage.googleapis.com"
+            val url = URL("$effectiveBaseUrl/v1beta/models?key=$apiKey")
             val connection = url.openConnection() as HttpURLConnection
             connection.requestMethod = "GET"
             val responseText = connection.inputStream.bufferedReader().use { it.readText() }
