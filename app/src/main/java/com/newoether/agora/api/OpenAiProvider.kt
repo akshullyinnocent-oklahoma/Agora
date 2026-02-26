@@ -27,6 +27,7 @@ internal data class OpenAiError(val message: String, val type: String? = null, v
 
 class OpenAiProvider : LlmProvider {
     override val name: String = "OpenAI"
+    override val defaultBaseUrl: String = "https://api.openai.com/v1"
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
 
     override fun generateResponse(

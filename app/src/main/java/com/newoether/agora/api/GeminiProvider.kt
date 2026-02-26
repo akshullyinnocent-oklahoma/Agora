@@ -107,6 +107,7 @@ internal data class ModelInfo(val name: String, val displayName: String, val sup
 
 class GeminiProvider : LlmProvider {
     override val name: String = "Google"
+    override val defaultBaseUrl: String = "https://generativelanguage.googleapis.com"
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
 
     override fun generateResponse(

@@ -186,7 +186,11 @@ fun SettingsScreen(viewModel: ChatViewModel, onBack: () -> Unit) {
                             modifier = Modifier.clickable { showProviderDialog = true }
                         )
                         HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-                        val baseUrlState = rememberTextFieldState(providerBaseUrls[provider] ?: "")
+                        val providerInstance = viewModel.getProviderInstance(provider)
+                        val baseUrlState = rememberTextFieldState(
+                            providerBaseUrls[provider] ?: if (provider != "Ollama") providerInstance.defaultBaseUrl else ""
+                        )
+                        
                         ListItem(
                             colors = ListItemDefaults.colors(containerColor = Color.Transparent),
                             headlineContent = { Text("Base URL") },
@@ -194,17 +198,8 @@ fun SettingsScreen(viewModel: ChatViewModel, onBack: () -> Unit) {
                                 Box(modifier = Modifier.bringIntoViewResponder(noOpResponder).padding(top = 8.dp)) {
                                     TextField(
                                         state = baseUrlState,
-                                        placeholder = {
-                                            Text(
-                                                when(provider) {
-                                                    "Google" -> "https://generativelanguage.googleapis.com"
-                                                    "OpenAI" -> "https://api.openai.com/v1"
-                                                    "Anthropic" -> "https://api.anthropic.com/v1"
-                                                    "DeepSeek" -> "https://api.deepseek.com"
-                                                    "Ollama" -> "http://localhost:11434"
-                                                    else -> "https://api.example.com/v1"
-                                                }
-                                            )
+                                        placeholder = { 
+                                            Text(providerInstance.defaultBaseUrl) 
                                         },
                                         modifier = Modifier.fillMaxWidth(),
                                         shape = MaterialTheme.shapes.large,

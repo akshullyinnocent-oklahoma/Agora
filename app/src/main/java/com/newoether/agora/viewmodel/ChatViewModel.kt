@@ -48,6 +48,10 @@ class ChatViewModel(
         "Open Router" to OpenAiProvider() // Open Router is OpenAI compatible
     )
 
+    fun getProviderInstance(name: String): LlmProvider {
+        return providers[name] ?: GeminiProvider()
+    }
+
     private fun getActiveProvider(): LlmProvider {
         return providers[provider.value] ?: GeminiProvider()
     }

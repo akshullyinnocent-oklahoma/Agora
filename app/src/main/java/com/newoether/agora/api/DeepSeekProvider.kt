@@ -18,6 +18,7 @@ import java.net.URL
 
 class DeepSeekProvider : LlmProvider {
     override val name: String = "DeepSeek"
+    override val defaultBaseUrl: String = "https://api.deepseek.com"
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
 
     override fun generateResponse(

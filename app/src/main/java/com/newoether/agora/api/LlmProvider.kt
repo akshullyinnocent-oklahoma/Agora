@@ -127,6 +127,7 @@ data class OpenAiModelInfo(val id: String)
 
 interface LlmProvider {
     val name: String
+    val defaultBaseUrl: String
     
     fun generateResponse(
         messages: List<ChatMessage>,
