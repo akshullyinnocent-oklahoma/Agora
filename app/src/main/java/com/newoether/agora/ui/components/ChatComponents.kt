@@ -56,6 +56,7 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.layout.onSizeChanged
+import kotlinx.coroutines.delay
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -776,8 +777,8 @@ fun ChatBottomBar(
                     Icon(Icons.Default.Add, "Add Image", modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant) 
                 }
                 var activeMenu by remember { mutableStateOf<String?>(null) }
-                var modelMenuJustDismissed by remember { mutableStateOf(false) }
-                var toolsMenuJustDismissed by remember { mutableStateOf(false) }
+                var lastModelDismissTime by remember { mutableLongStateOf(0L) }
+                var lastToolsDismissTime by remember { mutableLongStateOf(0L) }
                 
                 val displayText = when {
                     isModelValid -> modelAliases[selectedModel] ?: selectedModel.removePrefix("models/")
@@ -787,40 +788,36 @@ fun ChatBottomBar(
                 
                 ExposedDropdownMenuBox(
                     expanded = activeMenu == "model",
-                    onExpandedChange = { 
-                        if (!it) {
-                            activeMenu = null
-                            modelMenuJustDismissed = true
-                        }
-                    }
+                    onExpandedChange = { }
                 ) {
-                    Box(modifier = Modifier.menuAnchor()) {
-                        TextButton(
-                            onClick = { 
-                                if (!modelMenuJustDismissed) {
-                                    activeMenu = if (activeMenu == "model") null else "model"
-                                }
-                                modelMenuJustDismissed = false
-                                toolsMenuJustDismissed = false
-                            }, 
-                            modifier = Modifier.widthIn(max = 160.dp), 
-                            contentPadding = PaddingValues(start = 12.dp, end = 8.dp)
-                        ) { 
-                            Text(
-                                displayText, 
-                                style = MaterialTheme.typography.labelLarge, 
-                                maxLines = 1, 
-                                overflow = TextOverflow.Ellipsis, 
-                                color = if (isModelValid) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
-                            ) 
-                        }
+                    TextButton(
+                        onClick = { 
+                            val now = System.currentTimeMillis()
+                            if (activeMenu == "model") {
+                                activeMenu = null
+                            } else if (now - lastModelDismissTime > 200) {
+                                activeMenu = "model"
+                            }
+                        }, 
+                        modifier = Modifier.widthIn(max = 160.dp).menuAnchor(), 
+                        contentPadding = PaddingValues(start = 12.dp, end = 8.dp)
+                    ) { 
+                        Text(
+                            displayText, 
+                            style = MaterialTheme.typography.labelLarge, 
+                            maxLines = 1, 
+                            overflow = TextOverflow.Ellipsis, 
+                            color = if (isModelValid) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
+                        ) 
                     }
                     
                     ExposedDropdownMenu(
                         expanded = activeMenu == "model", 
                         onDismissRequest = { 
-                            activeMenu = null
-                            modelMenuJustDismissed = true
+                            if (activeMenu == "model") {
+                                activeMenu = null
+                                lastModelDismissTime = System.currentTimeMillis()
+                            }
                         },
                         matchTextFieldWidth = false,
                         focusable = false,
@@ -831,7 +828,7 @@ fun ChatBottomBar(
                                 text = { Text("No models enabled") }, 
                                 onClick = { 
                                     activeMenu = null
-                                    modelMenuJustDismissed = false
+                                    lastModelDismissTime = 0L // Reset to allow immediate re-open
                                 }, 
                                 enabled = false
                             )
@@ -842,7 +839,7 @@ fun ChatBottomBar(
                                     onClick = { 
                                         onModelSelect(model)
                                         activeMenu = null
-                                        modelMenuJustDismissed = false
+                                        lastModelDismissTime = 0L
                                     }
                                 ) 
                             }
@@ -854,33 +851,29 @@ fun ChatBottomBar(
                 
                 ExposedDropdownMenuBox(
                     expanded = activeMenu == "tools",
-                    onExpandedChange = { 
-                        if (!it) {
-                            activeMenu = null
-                            toolsMenuJustDismissed = true
-                        }
-                    }
+                    onExpandedChange = { }
                 ) {
-                    Box(modifier = Modifier.menuAnchor()) {
-                        IconButton(
-                            onClick = { 
-                                if (!toolsMenuJustDismissed) {
-                                    activeMenu = if (activeMenu == "tools") null else "tools"
-                                }
-                                toolsMenuJustDismissed = false
-                                modelMenuJustDismissed = false
-                            }, 
-                            modifier = Modifier.size(32.dp)
-                        ) { 
-                            Icon(Icons.Default.MoreVert, "Tools", modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant) 
-                        }
+                    IconButton(
+                        onClick = { 
+                            val now = System.currentTimeMillis()
+                            if (activeMenu == "tools") {
+                                activeMenu = null
+                            } else if (now - lastToolsDismissTime > 200) {
+                                activeMenu = "tools"
+                            }
+                        }, 
+                        modifier = Modifier.size(32.dp).menuAnchor()
+                    ) { 
+                        Icon(Icons.Default.MoreVert, "Tools", modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant) 
                     }
                     
                     ExposedDropdownMenu(
                         expanded = activeMenu == "tools", 
                         onDismissRequest = { 
-                            activeMenu = null
-                            toolsMenuJustDismissed = true
+                            if (activeMenu == "tools") {
+                                activeMenu = null
+                                lastToolsDismissTime = System.currentTimeMillis()
+                            }
                         },
                         matchTextFieldWidth = false,
                         focusable = false,
