@@ -26,6 +26,8 @@ import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material3.TabRowDefaults.SecondaryIndicator
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.material3.*
@@ -197,11 +199,13 @@ fun SettingsScreen(viewModel: ChatViewModel, onBack: () -> Unit) {
                                                 when(provider) {
                                                     "Google" -> "https://generativelanguage.googleapis.com"
                                                     "OpenAI" -> "https://api.openai.com/v1"
-                                                    "Ollama" -> "http://localhost:11434/v1"
+                                                    "Anthropic" -> "https://api.anthropic.com/v1"
+                                                    "DeepSeek" -> "https://api.deepseek.com"
+                                                    "Ollama" -> "http://localhost:11434"
                                                     else -> "https://api.example.com/v1"
                                                 }
                                             )
-                                                      },
+                                        },
                                         modifier = Modifier.fillMaxWidth(),
                                         shape = MaterialTheme.shapes.large,
                                         colors = TextFieldDefaults.colors(focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent)
@@ -379,40 +383,60 @@ fun SettingsScreen(viewModel: ChatViewModel, onBack: () -> Unit) {
                     SettingsGroup(title = "AVAILABLE MODELS") {
                         ListItem(
                             colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                            headlineContent = { Text("Sync from Provider") },
-                            supportingContent = { Text("Fetch the latest model list") },
+                            headlineContent = { Text("Sync from All Providers") },
+                            supportingContent = { Text("Fetch the latest model list for all configured APIs") },
                             leadingContent = {
                                 Icon(Icons.Default.Refresh, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                                             },
+                            },
                             modifier = Modifier.clickable { viewModel.fetchAvailableModels() }
                         )
 
                         if (availableModels.isNotEmpty()) {
-                            HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                            val expandedProviders = remember { mutableStateMapOf<String, Boolean>() }
+                            
+                            availableModels.forEach { (providerName, models) ->
+                                if (models.isNotEmpty()) {
+                                    HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                                    
+                                    val isExpanded = expandedProviders[providerName] ?: false
+                                    
+                                    ListItem(
+                                        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                                        headlineContent = { Text(providerName, fontWeight = FontWeight.Bold) },
+                                        supportingContent = { Text("${models.size} models available") },
+                                        trailingContent = {
+                                            Icon(if (isExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown, null)
+                                        },
+                                        modifier = Modifier.clickable { expandedProviders[providerName] = !isExpanded }
+                                    )
+                                    
+                                    if (isExpanded) {
+                                        models.forEach { model ->
+                                            val isEnabled = enabledModels.contains(model)
+                                            val alias = modelAliases[model]
+                                            val displayName = alias ?: model.removePrefix("models/")
 
-                            availableModels.forEach { model ->
-                                val isEnabled = enabledModels.contains(model)
-                                val alias = modelAliases[model]
-                                val displayName = alias ?: model.removePrefix("models/")
-
-                                ListItem(
-                                    colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                                    headlineContent = { Text(displayName) },
-                                    supportingContent = if (alias != null) { { Text(model.removePrefix("models/")) } } else null,
-                                    trailingContent = {
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            IconButton(onClick = { showModelAliasDialog = model }) {
-                                                Icon(Icons.Default.Edit, contentDescription = "Rename", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
-                                            }
-                                            Checkbox(checked = isEnabled, onCheckedChange = {
-                                                viewModel.setEnabledModels(if (it) enabledModels + model else enabledModels - model)
-                                            })
+                                            ListItem(
+                                                colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                                                headlineContent = { Text(displayName) },
+                                                supportingContent = if (alias != null) { { Text(model.removePrefix("models/")) } } else null,
+                                                trailingContent = {
+                                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                                        IconButton(onClick = { showModelAliasDialog = model }) {
+                                                            Icon(Icons.Default.Edit, contentDescription = "Rename", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+                                                        }
+                                                        Checkbox(checked = isEnabled, onCheckedChange = {
+                                                            viewModel.setEnabledModels(if (it) enabledModels + model else enabledModels - model)
+                                                        })
+                                                    }
+                                                },
+                                                modifier = Modifier.clickable {
+                                                    viewModel.setEnabledModels(if (!isEnabled) enabledModels + model else enabledModels - model)
+                                                }.padding(start = 16.dp)
+                                            )
                                         }
-                                                      },
-                                    modifier = Modifier.clickable {
-                                        viewModel.setEnabledModels(if (!isEnabled) enabledModels + model else enabledModels - model)
                                     }
-                                )
+                                }
                             }
                         }
                     }

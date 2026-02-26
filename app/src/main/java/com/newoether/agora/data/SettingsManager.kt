@@ -62,9 +62,9 @@ class SettingsManager(private val context: Context) {
         try { json.decodeFromString<Map<String, String>>(jsonStr) } catch (e: Exception) { emptyMap() }
     }
 
-    val availableModels: Flow<List<String>> = context.dataStore.data.map { pref ->
-        val jsonStr = pref[AVAILABLE_MODELS_JSON] ?: "[]"
-        try { json.decodeFromString<List<String>>(jsonStr) } catch (e: Exception) { emptyList() }
+    val availableModels: Flow<Map<String, List<String>>> = context.dataStore.data.map { pref ->
+        val jsonStr = pref[AVAILABLE_MODELS_JSON] ?: "{}"
+        try { json.decodeFromString<Map<String, List<String>>>(jsonStr) } catch (e: Exception) { emptyMap() }
     }
 
     val enabledModels: Flow<Set<String>> = context.dataStore.data.map { it[ENABLED_MODELS] ?: emptySet() }
@@ -112,8 +112,11 @@ class SettingsManager(private val context: Context) {
         context.dataStore.edit { it[SELECTED_MODEL] = model }
     }
 
-    suspend fun saveAvailableModels(models: List<String>) {
-        context.dataStore.edit { it[AVAILABLE_MODELS_JSON] = json.encodeToString(models) }
+    suspend fun saveAvailableModels(provider: String, models: List<String>) {
+        val current = context.dataStore.data.map { it[AVAILABLE_MODELS_JSON] ?: "{}" }.first()
+        val map = try { json.decodeFromString<MutableMap<String, List<String>>>(current) } catch (e: Exception) { mutableMapOf() }
+        map[provider] = models
+        context.dataStore.edit { it[AVAILABLE_MODELS_JSON] = json.encodeToString(map) }
     }
 
     suspend fun saveEnabledModels(models: Set<String>) {

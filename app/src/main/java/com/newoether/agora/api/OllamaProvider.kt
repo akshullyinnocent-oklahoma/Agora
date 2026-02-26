@@ -100,6 +100,9 @@ class OllamaProvider : LlmProvider {
             connection = url.openConnection() as HttpURLConnection
             connection.requestMethod = "POST"
             connection.setRequestProperty("Content-Type", "application/json")
+            if (config.apiKey.isNotEmpty()) {
+                connection.setRequestProperty("Authorization", "Bearer ${config.apiKey}")
+            }
             connection.doOutput = true
             
             connection.outputStream.bufferedWriter().use { 

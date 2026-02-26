@@ -68,7 +68,7 @@ class ChatViewModel(
             active ?: default
         }.stateIn(viewModelScope, SharingStarted.Eagerly, "models/gemini-1.5-flash")
     
-        val availableModels = settingsManager.availableModels.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+        val availableModels = settingsManager.availableModels.stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
         val enabledModels = settingsManager.enabledModels.stateIn(viewModelScope, SharingStarted.Eagerly, emptySet())
         val modelAliases = settingsManager.modelAliases.stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
     
@@ -523,15 +523,13 @@ class ChatViewModel(
         }
     }
 
-    fun sendMessage(text: String, images: List<String> = emptyList()) {
-        val currentProvider = provider.value
-        val activeKeyId = activeApiKeyIds.value[currentProvider]
-        val activeKey = apiKeys.value.find { it.id == activeKeyId }?.key
-        if (activeKey.isNullOrBlank()) {
-            _allMessages.value = _allMessages.value + ChatMessage(text = "Please set API Key first!", participant = Participant.ERROR)
-            return
-        }
-        stopGeneration()
+        fun sendMessage(text: String, images: List<String> = emptyList()) {
+            val currentProvider = provider.value
+            val activeKeyId = activeApiKeyIds.value[currentProvider]
+            val activeKey = apiKeys.value.find { it.id == activeKeyId }?.key ?: ""
+            
+            stopGeneration()
+    
         generationJob = viewModelScope.launch {
             val processedImages = if (images.isNotEmpty()) processImages(images) else emptyList()
             var currentId = _currentConversationId.value
@@ -565,7 +563,7 @@ class ChatViewModel(
     private suspend fun generateResponse(currentId: String, text: String, modelMessageId: String, startTime: Long) {
         val currentProvider = provider.value
         val activeKeyId = activeApiKeyIds.value[currentProvider]
-        val activeKey = apiKeys.value.find { it.id == activeKeyId }?.key ?: return
+        val activeKey = apiKeys.value.find { it.id == activeKeyId }?.key ?: ""
         _isLoading.value = true
         _streamingMessage.value = null
         var totalText = ""
@@ -687,21 +685,32 @@ class ChatViewModel(
     }
 
     fun fetchAvailableModels() {
-        val currentProvider = provider.value
-        val activeKeyId = activeApiKeyIds.value[currentProvider]
-        val activeKey = apiKeys.value.find { it.id == activeKeyId }?.key
-        if (activeKey.isNullOrBlank()) return
-        val currentBaseUrl = providerBaseUrls.value[currentProvider]
         viewModelScope.launch {
-            try {
-                val newModels = getActiveProvider().fetchModels(activeKey, currentBaseUrl)
-                if (newModels.isNotEmpty()) {
-                    settingsManager.saveAvailableModels(newModels)
-                    val newEnabled = enabledModels.value.intersect(newModels.toSet())
-                    settingsManager.saveEnabledModels(newEnabled)
-                    if (!newEnabled.contains(selectedModel.value)) settingsManager.saveSelectedModel(newEnabled.firstOrNull() ?: "")
+            providers.forEach { (name, providerInstance) ->
+                val activeKeyId = activeApiKeyIds.value[name]
+                val activeKey = apiKeys.value.find { it.id == activeKeyId }?.key ?: ""
+                
+                // For Ollama, we might not need a key, but we need a Base URL.
+                // For others, if key is blank, we skip (except Ollama).
+                if (activeKey.isBlank() && name != "Ollama") return@forEach
+                
+                val currentBaseUrl = providerBaseUrls.value[name]
+                try {
+                    val newModels = providerInstance.fetchModels(activeKey, currentBaseUrl)
+                    if (newModels.isNotEmpty()) {
+                        settingsManager.saveAvailableModels(name, newModels)
+                    }
+                } catch (e: Exception) {
+                    // Log or handle error for specific provider
                 }
-            } catch (e: Exception) { }
+            }
+            
+            // After fetching, ensure selected model is still valid if possible, 
+            // though with multiple providers it's more complex.
+            // For now, just keep the existing logic of intersecting enabled models with ALL available models.
+            val allFetchedModels = settingsManager.availableModels.first().values.flatten().toSet()
+            val newEnabled = enabledModels.value.intersect(allFetchedModels)
+            settingsManager.saveEnabledModels(newEnabled)
         }
     }
 }

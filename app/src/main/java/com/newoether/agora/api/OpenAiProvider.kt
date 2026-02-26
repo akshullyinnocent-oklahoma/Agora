@@ -106,7 +106,9 @@ class OpenAiProvider : LlmProvider {
             connection = url.openConnection() as HttpURLConnection
             connection.requestMethod = "POST"
             connection.setRequestProperty("Content-Type", "application/json")
-            connection.setRequestProperty("Authorization", "Bearer ${config.apiKey}")
+            if (config.apiKey.isNotEmpty()) {
+                connection.setRequestProperty("Authorization", "Bearer ${config.apiKey}")
+            }
             connection.doOutput = true
             
             connection.outputStream.bufferedWriter().use { 
