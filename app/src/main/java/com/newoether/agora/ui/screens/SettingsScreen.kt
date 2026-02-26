@@ -10,10 +10,12 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.MoreVert
@@ -48,9 +50,10 @@ import com.newoether.agora.viewmodel.ChatViewModel
 @Composable
 fun SettingsGroup(
     title: String,
+    modifier: Modifier = Modifier,
     content: @Composable ColumnScope.() -> Unit
 ) {
-    Column(modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp)) {
+    Column(modifier = modifier.fillMaxWidth().padding(bottom = 24.dp)) {
         Text(
             text = title,
             style = MaterialTheme.typography.labelLarge,
@@ -97,6 +100,7 @@ fun SettingsScreen(viewModel: ChatViewModel, onBack: () -> Unit) {
     var showDeletePromptConfirm by remember { mutableStateOf<SystemPromptEntry?>(null) }
     var showModelAliasDialog by remember { mutableStateOf<String?>(null) }
     var showProviderDialog by remember { mutableStateOf(false) }
+    var showActiveModelDialog by remember { mutableStateOf(false) }
     
     var selectedTab by remember { mutableIntStateOf(0) }
     val tabs = listOf("General", "Models")
@@ -306,86 +310,119 @@ fun SettingsScreen(viewModel: ChatViewModel, onBack: () -> Unit) {
                         )
                     }
                 }
-            } else {
-                // Models Tab
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .verticalScroll(rememberScrollState())
-                        .padding(horizontal = 16.dp, vertical = 16.dp)
-                ) {
-                    SettingsGroup(title = "ACTIVE MODEL") {
-                        if (enabledModels.isEmpty()) {
-                            ListItem(
-                                colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                                headlineContent = { Text("No models enabled") },
-                                supportingContent = { Text("Select models from the list below to enable them.", color = MaterialTheme.colorScheme.error) }
-                            )
                         } else {
-                            enabledModels.forEach { model ->
-                                val alias = modelAliases[model]
-                                val displayName = alias ?: model.removePrefix("models/")
-                                
-                                ListItem(
-                                    colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                                    headlineContent = { 
-                                        Text(
-                                            displayName, 
-                                            fontWeight = if (model == selectedModel) FontWeight.Bold else FontWeight.Normal
-                                        ) 
-                                    },
-                                    supportingContent = if (alias != null) { { Text(model.removePrefix("models/")) } } else null,
-                                    leadingContent = {
-                                        RadioButton(
-                                            selected = model == selectedModel,
-                                            onClick = { viewModel.setSelectedModel(model) }
-                                        )
-                                    },
-                                    trailingContent = {
-                                        IconButton(onClick = { showModelAliasDialog = model }) {
-                                            Icon(Icons.Default.Edit, contentDescription = "Rename", tint = MaterialTheme.colorScheme.primary)
-                                        }
-                                    },
-                                    modifier = Modifier.clickable { viewModel.setSelectedModel(model) }
-                                )
-                            }
-                        }
-                    }
-
-                    SettingsGroup(title = "AVAILABLE MODELS") {
-                        ListItem(
-                            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                            headlineContent = { Text("Sync from Provider") },
-                            supportingContent = { Text("Fetch the latest model list") },
-                            leadingContent = {
-                                Icon(Icons.Default.Refresh, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                            },
-                            modifier = Modifier.clickable { viewModel.fetchAvailableModels() }
-                        )
-                        
-                        if (availableModels.isNotEmpty()) {
-                            HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-                            
-                            availableModels.forEach { model ->
-                                val isEnabled = enabledModels.contains(model)
-                                ListItem(
-                                    colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                                    headlineContent = { Text(model.removePrefix("models/")) },
-                                    trailingContent = {
-                                        Checkbox(checked = isEnabled, onCheckedChange = {
-                                            viewModel.setEnabledModels(if (it) enabledModels + model else enabledModels - model)
-                                        })
-                                    },
-                                    modifier = Modifier.clickable {
-                                        viewModel.setEnabledModels(if (!isEnabled) enabledModels + model else enabledModels - model)
-                                    }
-                                )
-                            }
-                        }
-                    }
+                            // Models Tab
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .verticalScroll(rememberScrollState())
+                                    .padding(horizontal = 16.dp, vertical = 16.dp)
+                            ) {
+                                                                SettingsGroup(title = "ACTIVE MODEL") {
+                                                                    val activeAlias = modelAliases[selectedModel]
+                                                                    val activeDisplayName = activeAlias ?: selectedModel.removePrefix("models/")
+                                                                    
+                                                                    ListItem(
+                                                                        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                                                                        headlineContent = { 
+                                                                            Text(
+                                                                                if (enabledModels.isEmpty()) "No models enabled" else activeDisplayName,
+                                                                                color = if (enabledModels.isEmpty()) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
+                                                                            ) 
+                                                                        },
+                                                                        supportingContent = if (activeAlias != null && enabledModels.isNotEmpty()) { { Text(selectedModel.removePrefix("models/")) } } else null,
+                                                                        leadingContent = {
+                                                                            Icon(Icons.Default.Chat, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                                                                        },
+                                                                        modifier = Modifier.clickable(enabled = enabledModels.isNotEmpty()) { showActiveModelDialog = true }
+                                                                    )
+                                                                }            
+                                                    SettingsGroup(title = "AVAILABLE MODELS") {
+                                                        ListItem(
+                                                            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                                                            headlineContent = { Text("Sync from Provider") },
+                                                            supportingContent = { Text("Fetch the latest model list") },
+                                                            leadingContent = {
+                                                                Icon(Icons.Default.Refresh, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                                                            },
+                                                            modifier = Modifier.clickable { viewModel.fetchAvailableModels() }
+                                                        )
+                                                        
+                                                        if (availableModels.isNotEmpty()) {
+                                                            HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                                                            
+                                                            availableModels.forEach { model ->
+                                                                val isEnabled = enabledModels.contains(model)
+                                                                val alias = modelAliases[model]
+                                                                val displayName = alias ?: model.removePrefix("models/")
+                                                                
+                                                                ListItem(
+                                                                    colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                                                                    headlineContent = { Text(displayName) },
+                                                                    supportingContent = if (alias != null) { { Text(model.removePrefix("models/")) } } else null,
+                                                                    trailingContent = {
+                                                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                                                            IconButton(onClick = { showModelAliasDialog = model }) {
+                                                                                Icon(Icons.Default.Edit, contentDescription = "Rename", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+                                                                            }
+                                                                            Checkbox(checked = isEnabled, onCheckedChange = {
+                                                                                viewModel.setEnabledModels(if (it) enabledModels + model else enabledModels - model)
+                                                                            })
+                                                                        }
+                                                                    },
+                                                                    modifier = Modifier.clickable {
+                                                                        viewModel.setEnabledModels(if (!isEnabled) enabledModels + model else enabledModels - model)
+                                                                    }
+                                                                )
+                                                            }
+                                                        }
+                                                    }
                 }
             }
         }
+    }
+
+    // Active Model Dialog
+    if (showActiveModelDialog) {
+        AlertDialog(
+            onDismissRequest = { showActiveModelDialog = false },
+            title = { Text("Select Active Model") },
+            text = {
+                LazyColumn(modifier = Modifier.fillMaxWidth()) {
+                    items(enabledModels.toList()) { model ->
+                        val alias = modelAliases[model]
+                        val displayName = alias ?: model.removePrefix("models/")
+                        
+                        ListItem(
+                            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                            headlineContent = { 
+                                Text(
+                                    displayName, 
+                                    fontWeight = if (model == selectedModel) FontWeight.Bold else FontWeight.Normal
+                                ) 
+                            },
+                            supportingContent = if (alias != null) { { Text(model.removePrefix("models/")) } } else null,
+                            leadingContent = {
+                                RadioButton(
+                                    selected = model == selectedModel,
+                                    onClick = { 
+                                        viewModel.setSelectedModel(model)
+                                        showActiveModelDialog = false
+                                    }
+                                )
+                            },
+                            modifier = Modifier.clickable { 
+                                viewModel.setSelectedModel(model)
+                                showActiveModelDialog = false
+                            }
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showActiveModelDialog = false }) { Text("Close") }
+            }
+        )
     }
 
     // Provider Selection Dialog
