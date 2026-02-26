@@ -289,8 +289,13 @@ fun MainNavigation(viewModel: ChatViewModel) {
                                                 val r = if (startScale != 0f) value / startScale else 1f
                                                 
                                                 // Pivot zoom: maintain the tapped point visually stationary
-                                                offsetX = startOffsetX * r + (tapOffset.x - center.x) * (1f - r)
-                                                offsetY = startOffsetY * r + (tapOffset.y - center.y) * (1f - r)
+                                                val unconstrainedX = startOffsetX * r + (tapOffset.x - center.x) * (1f - r)
+                                                val unconstrainedY = startOffsetY * r + (tapOffset.y - center.y) * (1f - r)
+
+                                                // Clamp to valid boundaries for the CURRENT scale
+                                                val (maxX, maxY) = getMaxOffsets(value)
+                                                offsetX = unconstrainedX.coerceIn(-maxX, maxX)
+                                                offsetY = unconstrainedY.coerceIn(-maxY, maxY)
                                             }
                                         }
                                     }
