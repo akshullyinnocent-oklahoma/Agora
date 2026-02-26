@@ -227,7 +227,7 @@ fun MainNavigation(viewModel: ChatViewModel) {
                 // Helper for rubber-band resistance
                 fun rubberBandValue(fullDelta: Float, dimension: Float): Float {
                     if (dimension <= 0f) return 0f
-                    val c = 0.75f
+                    val c = 0.45f
                     return (fullDelta * c * dimension) / (dimension + c * fullDelta)
                 }
 
@@ -238,21 +238,21 @@ fun MainNavigation(viewModel: ChatViewModel) {
                         .onSizeChanged { containerSize = Size(it.width.toFloat(), it.height.toFloat()) }
                         .pointerInput(url) {
                             detectTapGestures(
-                                onTap = { 
-                                    if (scale <= 1.05f) fullScreenImageUrl = null 
-                                },
+                                onTap = {
+                                    if (scale <= 1.05f) fullScreenImageUrl = null
+                                        },
                                 onDoubleTap = { tapOffset ->
                                     animationJob?.cancel()
                                     animationJob = scope.launch {
                                         val startScale = scale
                                         val startOffsetX = offsetX
                                         val startOffsetY = offsetY
-                                        
+
                                         if (startScale > 1.05f) {
                                             // Zoom Out to 1x
                                             val targetScale = 1f
                                             val center = Offset(containerSize.width / 2f, containerSize.height / 2f)
-                                            
+
                                             AnimationState(startScale).animateTo(
                                                 targetScale,
                                                 spring(
@@ -266,7 +266,7 @@ fun MainNavigation(viewModel: ChatViewModel) {
                                                 val r = if (startScale != 0f) value / startScale else 1f
                                                 val unconstrainedX = startOffsetX * r + (tapOffset.x - center.x) * (1f - r)
                                                 val unconstrainedY = startOffsetY * r + (tapOffset.y - center.y) * (1f - r)
-                                                
+
                                                 // Clamp to valid boundaries for the CURRENT scale
                                                 val (maxX, maxY) = getMaxOffsets(value)
                                                 offsetX = unconstrainedX.coerceIn(-maxX, maxX)
@@ -276,7 +276,7 @@ fun MainNavigation(viewModel: ChatViewModel) {
                                             // Zoom In to 3x
                                             val targetScale = 3f
                                             val center = Offset(containerSize.width / 2f, containerSize.height / 2f)
-                                            
+
                                             AnimationState(startScale).animateTo(
                                                 targetScale,
                                                 spring(
@@ -287,11 +287,10 @@ fun MainNavigation(viewModel: ChatViewModel) {
                                             ) {
                                                 scale = value
                                                 val r = if (startScale != 0f) value / startScale else 1f
-                                                
+
                                                 // Pivot zoom: maintain the tapped point visually stationary
                                                 val unconstrainedX = startOffsetX * r + (tapOffset.x - center.x) * (1f - r)
                                                 val unconstrainedY = startOffsetY * r + (tapOffset.y - center.y) * (1f - r)
-
                                                 // Clamp to valid boundaries for the CURRENT scale
                                                 val (maxX, maxY) = getMaxOffsets(value)
                                                 offsetX = unconstrainedX.coerceIn(-maxX, maxX)
@@ -301,7 +300,7 @@ fun MainNavigation(viewModel: ChatViewModel) {
                                     }
                                 }
                             )
-                        },
+                                           },
                     contentAlignment = Alignment.Center
                 ) {
                     coil.compose.AsyncImage(
@@ -309,22 +308,18 @@ fun MainNavigation(viewModel: ChatViewModel) {
                         contentDescription = "Full screen image",
                         onSuccess = { state ->
                             imageSize = state.painter.intrinsicSize
-                        },
+                                    },
                         modifier = Modifier
                             .fillMaxSize()
                             .pointerInput(url) {
                                 val velocityTracker = VelocityTracker()
-
                                 awaitEachGesture {
                                     awaitFirstDown(requireUnconsumed = false)
                                     animationJob?.cancel()
-
                                     var pastTouchSlop = false
                                     val touchSlop = viewConfiguration.touchSlop
-
                                     // Reset centroid for new gesture
                                     lastCentroid = Offset.Unspecified
-
                                     // Maintain logical state for the duration of this gesture
                                     var logicalScale = scale
                                     var logicalOffsetX = offsetX
@@ -333,7 +328,6 @@ fun MainNavigation(viewModel: ChatViewModel) {
                                         val event = awaitPointerEvent()
                                         val zoomChange = event.calculateZoom()
                                         val panChange = event.calculatePan()
-
                                         if (!pastTouchSlop) {
                                             val panAmount = panChange.getDistance()
                                             if (zoomChange != 1f || panAmount > touchSlop) {
@@ -347,7 +341,6 @@ fun MainNavigation(viewModel: ChatViewModel) {
                                             }
                                             if (zoomChange != 1f || panChange != Offset.Zero) {
                                                 val oldVisualScale = scale
-
                                                 // 1. Update logical scale and map to visual scale
                                                 logicalScale = (logicalScale * zoomChange).coerceIn(0.1f, 30f)
                                                 val newVisualScale = if (logicalScale < 1f) {
@@ -360,12 +353,10 @@ fun MainNavigation(viewModel: ChatViewModel) {
                                                 // 2. Use the visual scale ratio to transform offsets (keeps centroid stable)
                                                 val r = if (oldVisualScale != 0f) newVisualScale / oldVisualScale else 1f
                                                 val center = Offset(containerSize.width / 2f, containerSize.height / 2f)
-
                                                 // Update logical offsets (used for rubber-band calculation)
                                                 logicalOffsetX = logicalOffsetX * r + (centroid.x - center.x) * (1f - r) + panChange.x
                                                 logicalOffsetY = logicalOffsetY * r + (centroid.y - center.y) * (1f - r) + panChange.y
                                                 val (maxX, maxY) = getMaxOffsets(newVisualScale)
-
                                                 scale = newVisualScale
                                                 offsetX = if (logicalOffsetX > maxX) maxX + rubberBandValue(logicalOffsetX - maxX, containerSize.width)
                                                 else if (logicalOffsetX < -maxX) -maxX - rubberBandValue(-maxX - logicalOffsetX, containerSize.width)
@@ -373,7 +364,6 @@ fun MainNavigation(viewModel: ChatViewModel) {
                                                 offsetY = if (logicalOffsetY > maxY) maxY + rubberBandValue(logicalOffsetY - maxY, containerSize.height)
                                                 else if (logicalOffsetY < -maxY) -maxY - rubberBandValue(-maxY - logicalOffsetY, containerSize.height)
                                                 else logicalOffsetY
-
                                                 event.changes.forEach { if (it.positionChanged()) it.consume() }
                                             }
                                         }
@@ -385,111 +375,110 @@ fun MainNavigation(viewModel: ChatViewModel) {
                                         }
                                     } while (event.changes.any { it.pressed })
                                     // Release handler: Snap-back or Fling
-                                    val (boundX, boundY) = getMaxOffsets(scale)
-                                    val isOutOfBounds = scale < 1f || scale > 10f ||
-                                            offsetX > boundX || offsetX < -boundX ||
-                                            offsetY > boundY || offsetY < -boundY
-
-                                    // Calculate velocity before launching the coroutine to avoid race with resetTracking
                                     val rawVelocity = velocityTracker.calculateVelocity()
+                                    val maxV = with(density) { 2500.dp.toPx() }
                                     val velocity = Velocity(
-                                        x = if (rawVelocity.x.isNaN()) 0f else rawVelocity.x,
-                                        y = if (rawVelocity.y.isNaN()) 0f else rawVelocity.y
+                                        x = if (rawVelocity.x.isNaN()) 0f else rawVelocity.x.coerceIn(-maxV, maxV),
+                                        y = if (rawVelocity.y.isNaN()) 0f else rawVelocity.y.coerceIn(-maxV, maxV)
                                     )
-                                    
+
                                     animationJob = scope.launch {
-                                        if (isOutOfBounds) {
+                                        val rbCoeff = 0.45f
+                                        if (scale < 0.95f || scale > 10.05f) {
                                             val sS = scale
                                             val sX = offsetX
                                             val sY = offsetY
-
                                             val targetS = scale.coerceIn(1f, 10f)
                                             val (targetMaxX, targetMaxY) = getMaxOffsets(targetS)
-
-                                            // If we have a pivot from the gesture, use it to make the zoom feel natural
                                             val center = Offset(containerSize.width / 2f, containerSize.height / 2f)
                                             val pivot = if (lastCentroid != Offset.Unspecified) lastCentroid else center
-
-                                            // Calculate where the offset SHOULD be at the target scale to keep the pivot stationary
                                             val targetR = if (sS != 0f) targetS / sS else 1f
                                             val finalPivotX = sX * targetR + (pivot.x - center.x) * (1f - targetR)
                                             val finalPivotY = sY * targetR + (pivot.y - center.y) * (1f - targetR)
-                                            // The actual target is the pivot-based destination, clamped to valid boundaries
                                             val targetX = finalPivotX.coerceIn(-targetMaxX, targetMaxX)
                                             val targetY = finalPivotY.coerceIn(-targetMaxY, targetMaxY)
-
                                             AnimationState(0f).animateTo(
                                                 1f,
-                                                spring(stiffness = Spring.StiffnessMediumLow, dampingRatio = Spring.DampingRatioNoBouncy)
+                                                spring(stiffness = Spring.StiffnessLow, dampingRatio = Spring.DampingRatioNoBouncy)
                                             ) {
                                                 val currentScale = sS + (targetS - sS) * value
                                                 scale = currentScale
-
                                                 val r = if (sS != 0f) currentScale / sS else 1f
-                                                // Calculate the "ideal" offset at this point in the animation if we were strictly pivoting
                                                 val pivotOffsetX = sX * r + (pivot.x - center.x) * (1f - r)
                                                 val pivotOffsetY = sY * r + (pivot.y - center.y) * (1f - r)
-
-                                                // Interpolate from the ideal pivot path to the actual (clamped) target
-                                                // This adds a smooth "slide" correction if the pivot target was out of bounds
                                                 offsetX = pivotOffsetX + (targetX - finalPivotX) * value
                                                 offsetY = pivotOffsetY + (targetY - finalPivotY) * value
                                             }
-                                        } else if (scale > 1f) {
-                                            val decay = splineBasedDecay<Offset>(density)
-                                            var hitBoundary = false
-                                            var velocityAtBoundary = Offset.Zero
-                                            var positionAtBoundary = Offset.Zero
-                                            
-                                            // 1. Decay until we hit a boundary
-                                            AnimationState(
-                                                typeConverter = Offset.VectorConverter,
-                                                initialValue = Offset(offsetX, offsetY),
-                                                initialVelocity = Offset(velocity.x, velocity.y)
-                                            ).animateDecay(decay) {
-                                                val (maxX, maxY) = getMaxOffsets(scale)
-                                                if (value.x > maxX || value.x < -maxX || value.y > maxY || value.y < -maxY) {
-                                                    val rawV = this.velocity
-                                                    velocityAtBoundary = Offset(
-                                                        x = if (rawV.x.isNaN()) 0f else rawV.x,
-                                                        y = if (rawV.y.isNaN()) 0f else rawV.y
-                                                    )
-                                                    positionAtBoundary = value
-                                                    hitBoundary = true
-                                                    cancelAnimation()
-                                                } else {
-                                                    offsetX = value.x
-                                                    offsetY = value.y
+                                        } else {
+                                            // Handle axes independently
+                                            launch {
+                                                val (maxX, _) = getMaxOffsets(scale)
+                                                if (offsetX > maxX || offsetX < -maxX) {
+                                                    val targetX = offsetX.coerceIn(-maxX, maxX)
+                                                    // Use damped velocity for visual snap-back to avoid "kick"
+                                                    AnimationState(initialValue = offsetX, initialVelocity = velocity.x * rbCoeff)
+                                                        .animateTo(targetX, spring(stiffness = Spring.StiffnessLow, dampingRatio = Spring.DampingRatioNoBouncy)) {
+                                                            offsetX = value
+                                                        }
+                                                } else if (velocity.x != 0f) {
+                                                    val decay = splineBasedDecay<Float>(density)
+                                                    var hitX = false
+                                                    var velX = 0f
+                                                    var posX = 0f
+                                                    AnimationState(initialValue = offsetX, initialVelocity = velocity.x)
+                                                        .animateDecay(decay) {
+                                                            val (curMaxX, _) = getMaxOffsets(scale)
+                                                            if (value > curMaxX || value < -curMaxX) {
+                                                                velX = this.velocity
+                                                                posX = value
+                                                                hitX = true
+                                                                cancelAnimation()
+                                                            } else {
+                                                                offsetX = value
+                                                            }
+                                                        }
+                                                    if (hitX) {
+                                                        val (curMaxX, _) = getMaxOffsets(scale)
+                                                        val finalTargetX = posX.coerceIn(-curMaxX, curMaxX)
+                                                        AnimationState(initialValue = posX, initialVelocity = velX * rbCoeff)
+                                                            .animateTo(finalTargetX, spring(stiffness = Spring.StiffnessLow, dampingRatio = Spring.DampingRatioNoBouncy)) {
+                                                                offsetX = value
+                                                            }
+                                                    }
                                                 }
                                             }
-                                            
-                                            // 2. If hit, hand off to a spring animation (target is the boundary)
-                                            // A spring with initial velocity and DampingRatioNoBouncy will overshoot and pull back.
-                                            if (hitBoundary) {
-                                                val (maxX, maxY) = getMaxOffsets(scale)
-                                                val targetX = positionAtBoundary.x.coerceIn(-maxX, maxX)
-                                                val targetY = positionAtBoundary.y.coerceIn(-maxY, maxY)
-                                                
-                                                AnimationState(
-                                                    typeConverter = Offset.VectorConverter,
-                                                    initialValue = positionAtBoundary,
-                                                    initialVelocity = velocityAtBoundary
-                                                ).animateTo(
-                                                    targetValue = Offset(targetX, targetY),
-                                                    animationSpec = spring(
-                                                        stiffness = Spring.StiffnessMediumLow,
-                                                        dampingRatio = Spring.DampingRatioNoBouncy
-                                                    )
-                                                ) {
-                                                    offsetX = when {
-                                                        value.x > maxX -> maxX + rubberBandValue(value.x - maxX, containerSize.width)
-                                                        value.x < -maxX -> -maxX - rubberBandValue(-maxX - value.x, containerSize.width)
-                                                        else -> value.x
-                                                    }
-                                                    offsetY = when {
-                                                        value.y > maxY -> maxY + rubberBandValue(value.y - maxY, containerSize.height)
-                                                        value.y < -maxY -> -maxY - rubberBandValue(-maxY - value.y, containerSize.height)
-                                                        else -> value.y
+                                            launch {
+                                                val (_, maxY) = getMaxOffsets(scale)
+                                                if (offsetY > maxY || offsetY < -maxY) {
+                                                    val targetY = offsetY.coerceIn(-maxY, maxY)
+                                                    AnimationState(initialValue = offsetY, initialVelocity = velocity.y * rbCoeff)
+                                                        .animateTo(targetY, spring(stiffness = Spring.StiffnessLow, dampingRatio = Spring.DampingRatioNoBouncy)) {
+                                                            offsetY = value
+                                                        }
+                                                } else if (velocity.y != 0f) {
+                                                    val decay = splineBasedDecay<Float>(density)
+                                                    var hitY = false
+                                                    var velY = 0f
+                                                    var posY = 0f
+                                                    AnimationState(initialValue = offsetY, initialVelocity = velocity.y)
+                                                        .animateDecay(decay) {
+                                                            val (_, curMaxY) = getMaxOffsets(scale)
+                                                            if (value > curMaxY || value < -curMaxY) {
+                                                                velY = this.velocity
+                                                                posY = value
+                                                                hitY = true
+                                                                cancelAnimation()
+                                                            } else {
+                                                                offsetY = value
+                                                            }
+                                                        }
+                                                    if (hitY) {
+                                                        val (_, curMaxY) = getMaxOffsets(scale)
+                                                        val finalTargetY = posY.coerceIn(-curMaxY, curMaxY)
+                                                        AnimationState(initialValue = posY, initialVelocity = velY * rbCoeff)
+                                                            .animateTo(finalTargetY, spring(stiffness = Spring.StiffnessLow, dampingRatio = Spring.DampingRatioNoBouncy)) {
+                                                                offsetY = value
+                                                            }
                                                     }
                                                 }
                                             }
@@ -498,15 +487,14 @@ fun MainNavigation(viewModel: ChatViewModel) {
                                     velocityTracker.resetTracking()
                                 }
                             }
-                            .graphicsLayer(
-                                scaleX = scale,
-                                scaleY = scale,
-                                translationX = offsetX,
-                                translationY = offsetY
-                            ),
+                                .graphicsLayer(
+                                    scaleX = scale,
+                                    scaleY = scale,
+                                    translationX = offsetX,
+                                    translationY = offsetY
+                                ),
                         contentScale = ContentScale.Fit
                     )
-                    
                     // Close button
                     IconButton(
                         onClick = { fullScreenImageUrl = null },
