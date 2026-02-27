@@ -88,6 +88,25 @@ fun SettingsScreen(viewModel: ChatViewModel, onBack: () -> Unit) {
     val selectedModel by viewModel.selectedModel.collectAsState()
     val maxContextWindow by viewModel.maxContextWindow.collectAsState()
     val visualizeContextRollout by viewModel.visualizeContextRollout.collectAsState()
+    val isSyncingModels by viewModel.isSyncingModels.collectAsState()
+
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    LaunchedEffect(isSyncingModels) {
+        if (isSyncingModels) {
+            snackbarHostState.showSnackbar(
+                message = "Fetching available models...",
+                duration = SnackbarDuration.Indefinite
+            )
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        viewModel.snackbarMessage.collect { message ->
+            snackbarHostState.currentSnackbarData?.dismiss()
+            snackbarHostState.showSnackbar(message)
+        }
+    }
 
     val noOpResponder = remember {
         object : BringIntoViewResponder {
@@ -127,6 +146,7 @@ fun SettingsScreen(viewModel: ChatViewModel, onBack: () -> Unit) {
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             Column {
                 TopAppBar(
@@ -187,55 +207,69 @@ fun SettingsScreen(viewModel: ChatViewModel, onBack: () -> Unit) {
                         )
                         HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
                         val providerInstance = viewModel.getProviderInstance(provider)
-                        val baseUrlState = remember(provider) {
-                            TextFieldState(
-                                providerBaseUrls[provider] ?: if (provider != "Ollama") providerInstance.defaultBaseUrl else ""
-                            )
+                        val baseUrlState = remember(provider) { 
+                            val saved = providerBaseUrls[provider]
+                            val initial = if (saved.isNullOrBlank() && provider != "Ollama") {
+                                providerInstance.defaultBaseUrl 
+                            } else {
+                                saved ?: ""
+                            }
+                            TextFieldState(initial) 
                         }
                         
-                        ListItem(
-                            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                            headlineContent = { Text("Base URL") },
-                            supportingContent = {
-                                Column {
+                        // Sync with settings whenever the text changes
+                        LaunchedEffect(baseUrlState.text) {
+                            viewModel.setProviderBaseUrl(provider, baseUrlState.text.toString())
+                        }
+                        
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 16.dp, bottom = 8.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                                verticalAlignment = Alignment.Top
+                            ) {
+                                Icon(
+                                    painter = androidx.compose.ui.res.painterResource(id = com.newoether.agora.R.drawable.link_24),
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.padding(top = 2.dp)
+                                )
+                                Spacer(modifier = Modifier.width(16.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = "Base URL",
+                                        style = MaterialTheme.typography.bodyLarge,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
                                     Box(modifier = Modifier.bringIntoViewResponder(noOpResponder).padding(top = 8.dp)) {
                                         TextField(
                                             state = baseUrlState,
                                             placeholder = { 
-                                                Text(providerInstance.defaultBaseUrl) 
+                                                Text(providerInstance.defaultBaseUrl, style = MaterialTheme.typography.bodyMedium) 
                                             },
                                             modifier = Modifier.fillMaxWidth(),
                                             shape = MaterialTheme.shapes.large,
-                                            colors = TextFieldDefaults.colors(focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent)
+                                            colors = TextFieldDefaults.colors(
+                                                focusedIndicatorColor = Color.Transparent, 
+                                                unfocusedIndicatorColor = Color.Transparent,
+                                                focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                                                unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+                                            ),
+                                            textStyle = MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
                                         )
                                     }
                                     Spacer(modifier = Modifier.height(12.dp))
                                 }
-                            },
-                            leadingContent = {
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Icon(androidx.compose.ui.res.painterResource(id = com.newoether.agora.R.drawable.link_24), contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                                    Spacer(modifier = Modifier.height(64.dp))
-                                }
-                            }
-                        )
-
-                        LaunchedEffect(baseUrlState.text) {
-                            val currentText = baseUrlState.text.toString()
-                            if (currentText.isBlank() && provider != "Ollama") {
-                                baseUrlState.edit { 
-                                    replace(0, length, providerInstance.defaultBaseUrl)
-                                }
-                                viewModel.setProviderBaseUrl(provider, providerInstance.defaultBaseUrl)
-                            } else {
-                                viewModel.setProviderBaseUrl(provider, currentText)
                             }
                         }
                         HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
                         
                         ListItem(
                             colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                            headlineContent = { Text("API Keys") },
+                            headlineContent = { Text(if (provider == "Ollama") "API Keys (Optional)" else "API Keys") },
                             supportingContent = {
                                 val providerKeys = apiKeys.filter { it.provider == provider }
                                 Text(if (providerKeys.isEmpty()) "No keys configured for $provider" else "${providerKeys.size} key(s) configured")
@@ -325,12 +359,34 @@ fun SettingsScreen(viewModel: ChatViewModel, onBack: () -> Unit) {
 
                     // 3. Context Group
                     SettingsGroup(title = "CONTEXT") {
-                        ListItem(
-                            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                            headlineContent = { Text("Context Window") },
-                            supportingContent = { 
-                                Column {
-                                    Text("Retain $maxContextWindow recent messages")
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 16.dp, bottom = 8.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                                verticalAlignment = Alignment.Top
+                            ) {
+                                Icon(
+                                    Icons.Default.Memory,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.padding(top = 2.dp)
+                                )
+                                Spacer(modifier = Modifier.width(16.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = "Context Window",
+                                        style = MaterialTheme.typography.bodyLarge,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                    Text(
+                                        text = "Retain $maxContextWindow recent messages",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.padding(top = 4.dp)
+                                    )
                                     Slider(
                                         value = maxContextWindow.toFloat(),
                                         onValueChange = { viewModel.setMaxContextWindow(it.toInt()) },
@@ -340,14 +396,8 @@ fun SettingsScreen(viewModel: ChatViewModel, onBack: () -> Unit) {
                                     )
                                     Spacer(modifier = Modifier.height(12.dp))
                                 }
-                            },
-                            leadingContent = {
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Icon(Icons.Default.Memory, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                                    Spacer(modifier = Modifier.height(64.dp))
-                                }
                             }
-                        )
+                        }
 
                         HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
 

@@ -98,6 +98,12 @@ class ChatViewModel(
     private val _allMessages = MutableStateFlow<List<ChatMessage>>(emptyList())
     val allMessages: StateFlow<List<ChatMessage>> = _allMessages.asStateFlow()
 
+    private val _isSyncingModels = MutableStateFlow(false)
+    val isSyncingModels: StateFlow<Boolean> = _isSyncingModels.asStateFlow()
+
+    private val _snackbarMessage = MutableSharedFlow<String>()
+    val snackbarMessage = _snackbarMessage.asSharedFlow()
+
     private val _streamingMessage = MutableStateFlow<ChatMessage?>(null)
     private val _selectedChildren = MutableStateFlow<Map<String?, String>>(emptyMap())
 
@@ -690,31 +696,57 @@ class ChatViewModel(
 
     fun fetchAvailableModels() {
         viewModelScope.launch {
+            _isSyncingModels.value = true
+            val successProviders = mutableListOf<String>()
+            val failedProviders = mutableListOf<String>()
+            var skippedCount = 0
+
             providers.forEach { (name, providerInstance) ->
                 val activeKeyId = activeApiKeyIds.value[name]
                 val activeKey = apiKeys.value.find { it.id == activeKeyId }?.key ?: ""
-                
-                // For Ollama, we might not need a key, but we need a Base URL.
-                // For others, if key is blank, we skip (except Ollama).
-                if (activeKey.isBlank() && name != "Ollama") return@forEach
-                
                 val currentBaseUrl = providerBaseUrls.value[name]
+                
+                val isConfigured = if (name == "Ollama") {
+                    !currentBaseUrl.isNullOrBlank()
+                } else {
+                    activeKey.isNotBlank()
+                }
+
+                if (!isConfigured) {
+                    skippedCount++
+                    return@forEach
+                }
+                
                 try {
                     val newModels = providerInstance.fetchModels(activeKey, currentBaseUrl)
                     if (newModels.isNotEmpty()) {
                         settingsManager.saveAvailableModels(name, newModels)
+                        successProviders.add(name)
+                    } else {
+                        failedProviders.add(name)
                     }
                 } catch (e: Exception) {
-                    // Log or handle error for specific provider
+                    failedProviders.add(name)
                 }
             }
             
-            // After fetching, ensure selected model is still valid if possible, 
-            // though with multiple providers it's more complex.
-            // For now, just keep the existing logic of intersecting enabled models with ALL available models.
             val allFetchedModels = settingsManager.availableModels.first().values.flatten().toSet()
             val newEnabled = enabledModels.value.intersect(allFetchedModels)
             settingsManager.saveEnabledModels(newEnabled)
+            
+            _isSyncingModels.value = false
+
+            // Construct result message
+            val message = when {
+                successProviders.isNotEmpty() && failedProviders.isEmpty() -> 
+                    "Successfully synced ${successProviders.size} provider(s)"
+                successProviders.isNotEmpty() && failedProviders.isNotEmpty() -> 
+                    "Synced: ${successProviders.joinToString()}; Failed: ${failedProviders.joinToString()}"
+                successProviders.isEmpty() && failedProviders.isNotEmpty() -> 
+                    "Failed to sync: ${failedProviders.joinToString()}"
+                else -> if (skippedCount > 0) "No providers configured to sync" else "Sync completed"
+            }
+            _snackbarMessage.emit(message)
         }
     }
 }

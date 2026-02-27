@@ -107,14 +107,14 @@ internal data class ModelInfo(val name: String, val displayName: String, val sup
 
 class GeminiProvider : LlmProvider {
     override val name: String = "Google"
-    override val defaultBaseUrl: String = "https://generativelanguage.googleapis.com"
+    override val defaultBaseUrl: String = "https://generativelanguage.googleapis.com/v1beta"
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
 
     override fun generateResponse(
         messages: List<ChatMessage>,
         config: ProviderConfig
     ): Flow<StreamEvent> = flow {
-        val baseUrl = config.baseUrl?.trimEnd('/') ?: "https://generativelanguage.googleapis.com"
+        val baseUrl = config.baseUrl?.trimEnd('/') ?: defaultBaseUrl
         val cleanModelName = config.modelId.removePrefix("models/")
         
         // Context windowing
@@ -174,7 +174,14 @@ class GeminiProvider : LlmProvider {
 
         var connection: HttpURLConnection? = null
         try {
-            val url = URL("$baseUrl/v1beta/models/$cleanModelName:streamGenerateContent?alt=sse&key=${config.apiKey}")
+            // Determine if baseUrl already includes versioning
+            val finalUrlString = if (baseUrl.contains("/v1") || baseUrl.contains("/v1beta")) {
+                "$baseUrl/models/$cleanModelName:streamGenerateContent?alt=sse&key=${config.apiKey}"
+            } else {
+                "$baseUrl/v1beta/models/$cleanModelName:streamGenerateContent?alt=sse&key=${config.apiKey}"
+            }
+            
+            val url = URL(finalUrlString)
             connection = url.openConnection() as HttpURLConnection
             connection.requestMethod = "POST"
             connection.setRequestProperty("Content-Type", "application/json")
@@ -274,8 +281,14 @@ class GeminiProvider : LlmProvider {
 
     override suspend fun fetchModels(apiKey: String, baseUrl: String?): List<String> = kotlinx.coroutines.withContext(Dispatchers.IO) {
         try {
-            val effectiveBaseUrl = baseUrl?.trimEnd('/') ?: "https://generativelanguage.googleapis.com"
-            val url = URL("$effectiveBaseUrl/v1beta/models?key=$apiKey")
+            val effectiveBaseUrl = baseUrl?.trimEnd('/') ?: defaultBaseUrl
+            val finalUrlString = if (effectiveBaseUrl.contains("/v1") || effectiveBaseUrl.contains("/v1beta")) {
+                "$effectiveBaseUrl/models?key=$apiKey"
+            } else {
+                "$effectiveBaseUrl/v1beta/models?key=$apiKey"
+            }
+            
+            val url = URL(finalUrlString)
             val connection = url.openConnection() as HttpURLConnection
             connection.requestMethod = "GET"
             val responseText = connection.inputStream.bufferedReader().use { it.readText() }

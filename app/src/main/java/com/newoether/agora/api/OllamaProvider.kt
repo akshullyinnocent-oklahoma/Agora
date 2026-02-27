@@ -185,6 +185,7 @@ class OllamaProvider : LlmProvider {
             val json = Json { ignoreUnknownKeys = true }
             json.decodeFromString<OllamaTagsResponse>(responseText).models.map { it.name }
         } catch (e: Exception) {
+            Log.e("AgoraAPI", "Ollama fetch failed: ${e.message}", e)
             emptyList()
         }
     }
