@@ -17,6 +17,7 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.gestures.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -1280,17 +1281,15 @@ fun ChatApp(
             onDismissRequest = { showRenameDialog = null },
             title = { Text("Rename Chat") },
             text = {
-                TextField(
+                val fm = androidx.compose.ui.platform.LocalFocusManager.current
+                Box(Modifier.fillMaxWidth().clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) { fm.clearFocus() }) {
+                    OutlinedTextField(
                     value = conversationToRename,
                     onValueChange = { conversationToRename = it },
                     singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = MaterialTheme.shapes.large,
-                    colors = TextFieldDefaults.colors(
-                        focusedIndicatorColor = Color.Transparent,
-                        unfocusedIndicatorColor = Color.Transparent
-                    )
+                    modifier = Modifier.fillMaxWidth()
                 )
+                }
             },
             confirmButton = {
                 TextButton(onClick = {

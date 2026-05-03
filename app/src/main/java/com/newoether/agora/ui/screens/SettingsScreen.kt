@@ -3,6 +3,8 @@ package com.newoether.agora.ui.screens
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
@@ -189,10 +191,12 @@ fun SettingsScreen(viewModel: ChatViewModel, onBack: () -> Unit) {
             modifier = Modifier.padding(padding)
         ) { page ->
             if (page == 0) {
+                val fm = LocalFocusManager.current
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
                         .verticalScroll(rememberScrollState())
+                        .clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) { fm.clearFocus() }
                         .padding(horizontal = 16.dp, vertical = 16.dp)
                 ) {
                     // 1. API Group
@@ -246,19 +250,12 @@ fun SettingsScreen(viewModel: ChatViewModel, onBack: () -> Unit) {
                                         color = MaterialTheme.colorScheme.onSurface
                                     )
                                     Box(modifier = Modifier.bringIntoViewResponder(noOpResponder).padding(top = 8.dp)) {
-                                        TextField(
+                                        OutlinedTextField(
                                             state = baseUrlState,
                                             placeholder = {
                                                 Text(providerInstance.defaultBaseUrl, style = MaterialTheme.typography.bodyMedium)
                                                           },
                                             modifier = Modifier.fillMaxWidth(),
-                                            shape = MaterialTheme.shapes.large,
-                                            colors = TextFieldDefaults.colors(
-                                                focusedIndicatorColor = Color.Transparent,
-                                                unfocusedIndicatorColor = Color.Transparent,
-                                                focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
-                                                unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
-                                            ),
                                             textStyle = MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
                                         )
                                     }
@@ -445,7 +442,7 @@ fun SettingsScreen(viewModel: ChatViewModel, onBack: () -> Unit) {
                                     }
                                     Text(displayName)
                                 },
-                                leadingContent = { Icon(Icons.Default.Psychology, null, tint = MaterialTheme.colorScheme.primary) },
+                                leadingContent = { Icon(Icons.Default.Chat, null, tint = MaterialTheme.colorScheme.primary) },
                                 modifier = Modifier.clickable { showTitleModelDialog = true }
                             )
                         }
@@ -455,7 +452,7 @@ fun SettingsScreen(viewModel: ChatViewModel, onBack: () -> Unit) {
                         val enabledModelsList = enabledModels.toList()
                         AlertDialog(
                             onDismissRequest = { showTitleModelDialog = false },
-                            title = { Text("Select Title Generation Model") },
+                            title = { Text("Select Title Model") },
                             text = {
                                 LazyColumn(modifier = Modifier.fillMaxWidth()) {
                                     item {
@@ -502,10 +499,12 @@ fun SettingsScreen(viewModel: ChatViewModel, onBack: () -> Unit) {
                 }
             } else if (page == 1) {
                 // Models Tab
+                val fm = LocalFocusManager.current
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
                         .verticalScroll(rememberScrollState())
+                        .clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) { fm.clearFocus() }
                         .padding(horizontal = 16.dp, vertical = 16.dp)
                 ) {
                     SettingsGroup(title = "DEFAULT MODEL") {
@@ -611,10 +610,12 @@ fun SettingsScreen(viewModel: ChatViewModel, onBack: () -> Unit) {
                     memoryFiles = viewModel.memoryManager.listFiles()
                 }
 
+                val fm = LocalFocusManager.current
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
                         .verticalScroll(rememberScrollState())
+                        .clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) { fm.clearFocus() }
                         .padding(horizontal = 16.dp, vertical = 16.dp)
                 ) {
                     // Active Memory
@@ -736,7 +737,8 @@ fun SettingsScreen(viewModel: ChatViewModel, onBack: () -> Unit) {
                             Text(if (isActiveMemory) "Edit Active Memory" else "Edit File")
                         },
                         text = {
-                            Column {
+                            val fm = LocalFocusManager.current
+                            Column(Modifier.fillMaxWidth().clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) { fm.clearFocus() }) {
                                 if (isActiveMemory) {
                                     Text(
                                         "This content is included in every API call. Write facts, preferences, or context the model should always remember.",
@@ -750,7 +752,7 @@ fun SettingsScreen(viewModel: ChatViewModel, onBack: () -> Unit) {
                                         onValueChange = { editFileName = it },
                                         label = { Text("File Name") },
                                         singleLine = true,
-                                        modifier = Modifier.fillMaxWidth()
+                                                                                modifier = Modifier.fillMaxWidth()
                                     )
                                     Spacer(modifier = Modifier.height(12.dp))
                                 }
@@ -758,7 +760,7 @@ fun SettingsScreen(viewModel: ChatViewModel, onBack: () -> Unit) {
                                     value = editContent,
                                     onValueChange = { editContent = it },
                                     label = { Text("Content") },
-                                    modifier = Modifier
+                                                                        modifier = Modifier
                                         .fillMaxWidth()
                                         .heightIn(min = 200.dp, max = 400.dp),
                                     textStyle = MaterialTheme.typography.bodySmall.copy(
@@ -800,20 +802,21 @@ fun SettingsScreen(viewModel: ChatViewModel, onBack: () -> Unit) {
                         onDismissRequest = { showNewFileDialog = false },
                         title = { Text("Create Memory File") },
                         text = {
-                            Column {
+                            val fm = LocalFocusManager.current
+                            Column(Modifier.fillMaxWidth().clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) { fm.clearFocus() }) {
                                 OutlinedTextField(
                                     value = newFileName,
                                     onValueChange = { newFileName = it },
                                     label = { Text("File name") },
                                     singleLine = true,
-                                    modifier = Modifier.fillMaxWidth()
+                                                                        modifier = Modifier.fillMaxWidth()
                                 )
                                 Spacer(modifier = Modifier.height(12.dp))
                                 OutlinedTextField(
                                     value = newFileContent,
                                     onValueChange = { newFileContent = it },
                                     label = { Text("Content") },
-                                    modifier = Modifier
+                                                                        modifier = Modifier
                                         .fillMaxWidth()
                                         .heightIn(min = 150.dp),
                                     textStyle = MaterialTheme.typography.bodySmall.copy(
@@ -950,17 +953,16 @@ fun SettingsScreen(viewModel: ChatViewModel, onBack: () -> Unit) {
             onDismissRequest = { showModelAliasDialog = null },
             title = { Text("Rename Model") },
             text = {
-                Column {
+                val fm = LocalFocusManager.current
+                Column(Modifier.fillMaxWidth().clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) { fm.clearFocus() }) {
                     Text("Current ID: ${model.removePrefix("models/")}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Spacer(modifier = Modifier.height(8.dp))
                     Box(modifier = Modifier.bringIntoViewResponder(noOpResponder)) {
-                        TextField(
+                        OutlinedTextField(
                             state = aliasState,
                             label = { Text("Alias") },
                             modifier = Modifier.fillMaxWidth(),
-                            shape = MaterialTheme.shapes.large,
-                            placeholder = { Text(model.removePrefix("models/")) },
-                            colors = TextFieldDefaults.colors(focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent)
+                                                        placeholder = { Text(model.removePrefix("models/")) }
                         )
                     }
                 }
@@ -987,24 +989,21 @@ fun SettingsScreen(viewModel: ChatViewModel, onBack: () -> Unit) {
             onDismissRequest = { showKeyDialog = null },
             title = { Text(if (isEdit) "Edit API Key" else "Add API Key") },
             text = {
-                Column {
-                    TextField(
-                        value = name, onValueChange = { name = it }, 
-                        label = { Text("Name (e.g. Workspace)") }, 
-                        modifier = Modifier
+                val fm = LocalFocusManager.current
+                Column(Modifier.fillMaxWidth().clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) { fm.clearFocus() }) {
+                    OutlinedTextField(
+                        value = name, onValueChange = { name = it },
+                        label = { Text("Name (e.g. Workspace)") },
+                                                modifier = Modifier
                             .fillMaxWidth()
-                            .bringIntoViewResponder(noOpResponder),
-                        shape = MaterialTheme.shapes.large,
-                        colors = TextFieldDefaults.colors(focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent)
+                            .bringIntoViewResponder(noOpResponder)
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Box(modifier = Modifier.bringIntoViewResponder(noOpResponder)) {
-                        TextField(
+                        OutlinedTextField(
                             state = keyState,
                             label = { Text("${entry.provider} API Key") }, 
                             modifier = Modifier.fillMaxWidth(),
-                            shape = MaterialTheme.shapes.large,
-                            colors = TextFieldDefaults.colors(focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent)
                         )
                     }
                 }
@@ -1032,25 +1031,22 @@ fun SettingsScreen(viewModel: ChatViewModel, onBack: () -> Unit) {
             onDismissRequest = { showPromptDialog = null },
             title = { Text(if (isEdit) "Edit System Prompt" else "Add System Prompt") },
             text = {
-                Column {
-                    TextField(
-                        value = title, onValueChange = { title = it }, 
-                        label = { Text("Title (e.g. Translator)") }, 
-                        modifier = Modifier
+                val fm = LocalFocusManager.current
+                Column(Modifier.fillMaxWidth().clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) { fm.clearFocus() }) {
+                    OutlinedTextField(
+                        value = title, onValueChange = { title = it },
+                        label = { Text("Title (e.g. Translator)") },
+                                                modifier = Modifier
                             .fillMaxWidth()
-                            .bringIntoViewResponder(noOpResponder),
-                        shape = MaterialTheme.shapes.large,
-                        colors = TextFieldDefaults.colors(focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent)
+                            .bringIntoViewResponder(noOpResponder)
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Box(modifier = Modifier.bringIntoViewResponder(noOpResponder)) {
-                        TextField(
+                        OutlinedTextField(
                             state = contentState,
                             label = { Text("System Prompt") },
                             modifier = Modifier.fillMaxWidth(),
                             lineLimits = TextFieldLineLimits.MultiLine(1, 10),
-                            shape = MaterialTheme.shapes.large,
-                            colors = TextFieldDefaults.colors(focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent)
                         )
                     }
                 }
