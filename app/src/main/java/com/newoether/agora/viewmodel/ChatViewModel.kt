@@ -159,7 +159,12 @@ class ChatViewModel(
                 selectedMessage = streaming
             }
             
-            path.add(selectedMessage)
+            // Skip synthetic tool call/result messages (hidden from UI, API context only)
+            // Identified by ID prefix: "tool_" for tool calls, "result_" for tool results
+            val isSynthetic = selectedMessage.id.startsWith("tool_") || selectedMessage.id.startsWith("result_")
+            if (!isSynthetic || (streaming != null && selectedMessage.id == streaming.id)) {
+                path.add(selectedMessage)
+            }
             currentParentId = selectedMessage.id
         }
 
@@ -249,9 +254,6 @@ class ChatViewModel(
                                 timestamp = it.timestamp,
                                 thoughtTimeMs = it.thoughtTimeMs,
                                 modelName = it.modelName,
-                                toolCall = it.toolCallJson?.let { json ->
-                                    try { Json.decodeFromString(ToolCallData.serializer(), json) } catch (_: Exception) { null }
-                                },
                                 segments = it.toolCallJson?.let { json ->
                                     try { Json.decodeFromString<List<MessageSegment>>(json) } catch (_: Exception) { null }
                                 }
@@ -367,6 +369,7 @@ class ChatViewModel(
 
     fun createNewChat() {
         switchingJob?.cancel()
+        stopGeneration()
         if (!_isNewChatMode.value) {
             _pendingSystemPromptId.value = null
         }
@@ -666,7 +669,8 @@ class ChatViewModel(
             triggerScrollToMessage(userMessageId)
             generateResponse(currentId, text, modelMessageId, startTime)
             // Auto-generate title after first successful response
-            if (wasNewChat && titleGenerationEnabled.value && generationJob?.isActive == true) {
+            val lastMsg = _allMessages.value.find { it.id == modelMessageId }
+            if (wasNewChat && titleGenerationEnabled.value && generationJob?.isActive == true && lastMsg?.status != MessageStatus.ERROR) {
                 generateTitle(currentId)
             }
         }
@@ -760,6 +764,14 @@ class ChatViewModel(
         }
     }
 
+    private fun buildLiveSegments(flushed: List<MessageSegment>, buf: StringBuilder): List<MessageSegment>? {
+        val result = flushed.toMutableList()
+        if (buf.isNotEmpty()) {
+            result.add(MessageSegment(type = "thought", content = buf.toString()))
+        }
+        return result.ifEmpty { null }
+    }
+
     private suspend fun generateResponse(currentId: String, text: String, modelMessageId: String, startTime: Long) {
         val modelIdWithPrefix = currentActiveModel.value
         val providerName = getProviderForModel(modelIdWithPrefix)
@@ -779,6 +791,7 @@ class ChatViewModel(
         var currentThoughtBuf = StringBuilder()
         val placeholder = chatDao.getMessagesForConversation(currentId).first().find { it.id == modelMessageId }
         val parentId = placeholder?.parentId
+        var toolPath = emptyList<ChatMessage>()
 
         try {
             val dbMessages = chatDao.getMessagesForConversation(currentId).first()
@@ -790,7 +803,7 @@ class ChatViewModel(
                 currId = msg.parentId
             }
             val currentPath = pathEntities.map {
-                ChatMessage(id = it.id, parentId = it.parentId, text = it.text, images = it.images, thoughts = it.thoughts, thoughtTitle = it.thoughtTitle, tokenCount = it.tokenCount, status = it.status, participant = it.participant, timestamp = it.timestamp, thoughtTimeMs = it.thoughtTimeMs, toolCall = it.toolCallJson?.let { json -> try { Json.decodeFromString(ToolCallData.serializer(), json) } catch (_: Exception) { null } }, segments = it.toolCallJson?.let { json -> try { Json.decodeFromString<List<MessageSegment>>(json) } catch (_: Exception) { null } })
+                ChatMessage(id = it.id, parentId = it.parentId, text = it.text, images = it.images, thoughts = it.thoughts, thoughtTitle = it.thoughtTitle, tokenCount = it.tokenCount, status = it.status, participant = it.participant, timestamp = it.timestamp, thoughtTimeMs = it.thoughtTimeMs, segments = it.toolCallJson?.let { json -> try { Json.decodeFromString<List<MessageSegment>>(json) } catch (_: Exception) { null } })
             }.filter { it.participant != Participant.ERROR }
             
             val conversation = chatDao.getConversation(currentId)
@@ -826,7 +839,6 @@ class ChatViewModel(
             var toolCallData: ToolCallData? = null
 
             getActiveProvider().generateResponse(currentPath, config).collect { event ->
-                if (toolCallData != null) return@collect
                 when (event) {
                     is StreamEvent.TextChunk -> {
                         if (currentStatus == MessageStatus.THINKING) {
@@ -845,35 +857,28 @@ class ChatViewModel(
                         if (totalText.isEmpty()) {
                             currentStatus = MessageStatus.THINKING
                             if (totalThoughtTimeMs == null) totalThoughtTimeMs = System.currentTimeMillis() - startTime
-                            if (totalThoughts.isEmpty()) {
-                                totalThoughts = "Thinking..."
-                            }
+                            if (totalThoughts.isEmpty()) totalThoughts = "Thinking..."
                         }
                         if (event.thought.isNotEmpty()) {
                             currentThoughtBuf.append(event.thought)
-                            if (totalThoughts == "Thinking...") {
-                                totalThoughts = event.thought
-                            } else {
-                                totalThoughts += event.thought
-                            }
+                            if (totalThoughts == "Thinking...") totalThoughts = event.thought
+                            else totalThoughts += event.thought
                         }
-                        if (event.title != null) {
-                            totalThoughtTitle = event.title
-                        }
+                        if (event.title != null) totalThoughtTitle = event.title
                     }
                     is StreamEvent.UsageUpdate -> {
                         if (event.tokenCount > 0) totalTokenCount = event.tokenCount
                         if (totalText.isEmpty() && event.thoughtsTokenCount > 0) {
                             currentStatus = MessageStatus.THINKING
                             if (totalThoughtTimeMs == null) totalThoughtTimeMs = System.currentTimeMillis() - startTime
-                            if (totalThoughts.isEmpty()) {
-                                totalThoughts = "Thinking..."
-                            }
+                            if (totalThoughts.isEmpty()) totalThoughts = "Thinking..."
                         }
                     }
                     is StreamEvent.Error -> {
-                        totalText = event.message
-                        currentStatus = MessageStatus.ERROR
+                        if (toolCallData == null) {
+                            totalText = event.message
+                            currentStatus = MessageStatus.ERROR
+                        }
                     }
                     is StreamEvent.ToolCallRequest -> {
                         if (currentThoughtBuf.isNotEmpty()) {
@@ -900,36 +905,46 @@ class ChatViewModel(
                     thoughtTimeMs = totalThoughtTimeMs,
                     modelName = currentActiveModel.value,
                     toolCall = toolCallData,
-                    segments = segments.toList().ifEmpty { null }
+                    segments = buildLiveSegments(segments, currentThoughtBuf)
                 )
             }
 
             // Multi-tool loop: keep calling tools until the model responds with text
             var toolRound = 0
             val maxToolRounds = 5
-            var toolPath = currentPath
+            toolPath = currentPath
 
             while (toolCallData != null && currentStatus != MessageStatus.ERROR && currentCoroutineContext().isActive && toolRound < maxToolRounds) {
                 toolRound++
+                val prevLastId = toolPath.lastOrNull()?.id
+                val toolMsgId = "tool_${UUID.randomUUID()}"
+                val resultMsgId = "result_${UUID.randomUUID()}"
                 toolPath = toolPath.toMutableList().apply {
                     add(ChatMessage(
-                        id = "tool_${UUID.randomUUID()}",
-                        parentId = lastOrNull()?.id,
-                        text = "",
-                        participant = Participant.MODEL,
-                        status = MessageStatus.SUCCESS,
-                        toolCall = toolCallData
+                        id = toolMsgId, parentId = prevLastId,
+                        text = "", participant = Participant.MODEL,
+                        status = MessageStatus.SUCCESS, toolCall = toolCallData
                     ))
                     add(ChatMessage(
-                        id = "result_${UUID.randomUUID()}",
-                        parentId = lastOrNull()?.id,
+                        id = resultMsgId, parentId = toolMsgId,
                         text = toolCallData!!.result,
-                        participant = Participant.USER,
-                        status = MessageStatus.SUCCESS
+                        participant = Participant.USER, status = MessageStatus.SUCCESS
                     ))
                 }
+                // Persist tool call + result to DB so they appear in conversation history
+                val tcSegments = listOf(MessageSegment(type = "tool", toolName = toolCallData!!.toolName, toolArgs = toolCallData!!.arguments, toolResult = toolCallData!!.result))
+                chatDao.upsertMessage(MessageEntity(
+                    id = toolMsgId, conversationId = currentId, parentId = prevLastId,
+                    text = "", thoughts = null, status = MessageStatus.SUCCESS,
+                    participant = Participant.MODEL, timestamp = System.currentTimeMillis(),
+                    toolCallJson = Json.encodeToString(tcSegments)
+                ))
+                chatDao.upsertMessage(MessageEntity(
+                    id = resultMsgId, conversationId = currentId, parentId = toolMsgId,
+                    text = toolCallData!!.result, thoughts = null, status = MessageStatus.SUCCESS,
+                    participant = Participant.USER, timestamp = System.currentTimeMillis()
+                ))
 
-                val nextToolCall = ToolCallData(toolCallData!!.toolName, toolCallData!!.arguments, toolCallData!!.result)
                 toolCallData = null
 
                 getActiveProvider().generateResponse(toolPath, config).collect { event ->
@@ -961,7 +976,7 @@ class ChatViewModel(
                             if (event.title != null) totalThoughtTitle = event.title
                         }
                         is StreamEvent.UsageUpdate -> {
-                            if (event.tokenCount > 0) totalTokenCount = event.tokenCount
+                            if (event.tokenCount > 0) totalTokenCount += event.tokenCount
                         }
                         is StreamEvent.Error -> {
                             totalText = event.message
@@ -991,8 +1006,8 @@ class ChatViewModel(
                         timestamp = startTime,
                         thoughtTimeMs = totalThoughtTimeMs,
                         modelName = currentActiveModel.value,
-                        toolCall = nextToolCall,
-                        segments = segments.toList().ifEmpty { null }
+                        toolCall = toolCallData,
+                        segments = buildLiveSegments(segments, currentThoughtBuf)
                     )
                 }
             }
@@ -1011,17 +1026,21 @@ class ChatViewModel(
             }
         } finally {
             withContext(NonCancellable) {
-                // Only persist if the conversation still exists to avoid FK constraint crashes on deletion
-                val conversationExists = chatDao.getConversation(currentId) != null
-                if (conversationExists) {
-                    val finalStreamingMsg = _streamingMessage.value
-                    val segmentsJson = finalStreamingMsg?.segments?.let { Json.encodeToString(it) }
-                    if (finalStreamingMsg != null) {
-                        chatDao.upsertMessage(MessageEntity(id = finalStreamingMsg.id, conversationId = currentId, parentId = finalStreamingMsg.parentId, text = finalStreamingMsg.text, thoughts = finalStreamingMsg.thoughts, thoughtTitle = finalStreamingMsg.thoughtTitle, tokenCount = finalStreamingMsg.tokenCount, status = currentStatus, participant = finalStreamingMsg.participant, timestamp = finalStreamingMsg.timestamp, thoughtTimeMs = finalStreamingMsg.thoughtTimeMs, modelName = finalStreamingMsg.modelName, toolCallJson = segmentsJson))
-                    } else {
-                        chatDao.upsertMessage(MessageEntity(id = modelMessageId, conversationId = currentId, parentId = parentId, text = totalText, thoughts = totalThoughts.ifBlank { null }, thoughtTitle = totalThoughtTitle, tokenCount = totalTokenCount, status = currentStatus, participant = Participant.MODEL, timestamp = startTime, thoughtTimeMs = totalThoughtTimeMs, modelName = currentActiveModel.value, toolCallJson = segmentsJson))
+                try {
+                    val conversationExists = chatDao.getConversation(currentId) != null
+                    if (conversationExists) {
+                        val finalStreamingMsg = _streamingMessage.value
+                        val finalSegments = finalStreamingMsg?.segments ?: segments.toList().ifEmpty { null }
+                        val segmentsJson = finalSegments?.let { Json.encodeToString(it) }
+                        // Use toolPath's last message as parentId so the chain is correct after tool calls
+                        val effectiveParentId = toolPath.lastOrNull()?.id ?: parentId
+                        if (finalStreamingMsg != null) {
+                            chatDao.upsertMessage(MessageEntity(id = finalStreamingMsg.id, conversationId = currentId, parentId = effectiveParentId, text = finalStreamingMsg.text, thoughts = finalStreamingMsg.thoughts, thoughtTitle = finalStreamingMsg.thoughtTitle, tokenCount = finalStreamingMsg.tokenCount, status = currentStatus, participant = finalStreamingMsg.participant, timestamp = finalStreamingMsg.timestamp, thoughtTimeMs = finalStreamingMsg.thoughtTimeMs, modelName = finalStreamingMsg.modelName, toolCallJson = segmentsJson))
+                        } else {
+                            chatDao.upsertMessage(MessageEntity(id = modelMessageId, conversationId = currentId, parentId = effectiveParentId, text = totalText, thoughts = totalThoughts.ifBlank { null }, thoughtTitle = totalThoughtTitle, tokenCount = totalTokenCount, status = currentStatus, participant = Participant.MODEL, timestamp = startTime, thoughtTimeMs = totalThoughtTimeMs, modelName = currentActiveModel.value, toolCallJson = segmentsJson))
+                        }
                     }
-                }
+                } catch (_: Exception) {}
                 _isLoading.value = false
                 _streamingMessage.value = null
             }

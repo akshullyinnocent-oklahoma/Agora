@@ -558,11 +558,16 @@ fun MessageItem(
                                                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
                                                     fontWeight = FontWeight.SemiBold
                                                 )
-                                                SelectionContainer {
-                                                    Text(
-                                                        (seg.toolResult ?: ""), style = MaterialTheme.typography.bodySmall.copy(fontSize = 10.sp, lineHeight = 13.sp),
-                                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                                    )
+                                                val density = androidx.compose.ui.platform.LocalDensity.current
+                                                CompositionLocalProvider(
+                                                    androidx.compose.ui.platform.LocalDensity provides androidx.compose.ui.unit.Density(density.density, density.fontScale * 0.8f)
+                                                ) {
+                                                    SelectionContainer {
+                                                        Markdown(
+                                                            (seg.toolResult ?: ""), modifier = Modifier.fillMaxWidth().bringIntoViewResponder(noOpResponder),
+                                                            typography = thoughtTypography, padding = thoughtMarkdownPadding
+                                                        )
+                                                    }
                                                 }
                                             }
                                             if (idx < segs.lastIndex) {
@@ -749,12 +754,18 @@ fun MessageItem(
                                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
                                             fontWeight = FontWeight.SemiBold
                                         )
-                                        SelectionContainer {
-                                            Text(
-                                                message.toolCall!!.result,
-                                                style = MaterialTheme.typography.bodySmall.copy(fontSize = 10.sp, lineHeight = 13.sp),
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                                            )
+                                        val density = androidx.compose.ui.platform.LocalDensity.current
+                                        CompositionLocalProvider(
+                                            androidx.compose.ui.platform.LocalDensity provides androidx.compose.ui.unit.Density(density.density, density.fontScale * 0.8f)
+                                        ) {
+                                            SelectionContainer {
+                                                Markdown(
+                                                    message.toolCall!!.result,
+                                                    modifier = Modifier.fillMaxWidth().bringIntoViewResponder(noOpResponder),
+                                                    typography = thoughtTypography,
+                                                    padding = thoughtMarkdownPadding
+                                                )
+                                            }
                                         }
                                     }
                                 }
