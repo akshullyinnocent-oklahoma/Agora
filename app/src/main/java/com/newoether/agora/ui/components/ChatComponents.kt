@@ -89,7 +89,8 @@ import com.newoether.agora.model.MessageStatus
 import com.newoether.agora.model.Participant
 import com.newoether.agora.ui.theme.MonoFamily
 import com.newoether.agora.ui.components.parseLatexSpans
-
+import com.newoether.agora.ui.components.inlineLatexToMarkdown
+import com.newoether.agora.ui.components.LatexImageTransformer
 import com.newoether.agora.ui.components.renderLatexToBitmap
 import com.mikepenz.markdown.m3.Markdown
 import com.mikepenz.markdown.m3.markdownTypography
@@ -419,6 +420,13 @@ fun MessageItem(
         )
     }
 
+    val latexImageTransformer = remember(textColor) {
+        LatexImageTransformer(
+            textSize = 56f,
+            color = textColor.toArgb(),
+        )
+    }
+
     val shouldAnimate = !isFirstComposition && !isSwitching
 
     Column(
@@ -661,7 +669,8 @@ fun MessageItem(
                                                         Markdown(
                                                             seg.content, modifier = Modifier.fillMaxWidth().bringIntoViewResponder(noOpResponder),
                                                             typography = thoughtTypography, padding = thoughtMarkdownPadding,
-                                                            components = customMarkdownComponents
+                                                            components = customMarkdownComponents,
+                                                            imageTransformer = latexImageTransformer
                                                         )
                                                     }
                                             } else if (seg.type == "tool") {
@@ -780,7 +789,8 @@ fun MessageItem(
                                                     .bringIntoViewResponder(noOpResponder),
                                                 typography = thoughtTypography,
                                                 padding = thoughtMarkdownPadding, // Use tighter padding for thoughts
-                                                components = customMarkdownComponents
+                                                components = customMarkdownComponents,
+                                                imageTransformer = latexImageTransformer
                                             )
                                         }
                                     }
@@ -899,7 +909,8 @@ fun MessageItem(
                                             modifier = Modifier.fillMaxWidth(),
                                             typography = customTypography,
                                             padding = customMarkdownPadding,
-                                            components = customMarkdownComponents
+                                            components = customMarkdownComponents,
+                                            imageTransformer = latexImageTransformer
                                         )
                                     }
                                 } else {
@@ -909,7 +920,7 @@ fun MessageItem(
                                             if (span.isLatex && span.display) {
                                                 if (mergedMarkdown.isNotBlank()) {
                                                     SelectionContainer {
-                                                        Markdown(content = mergedMarkdown, modifier = Modifier.fillMaxWidth(), typography = customTypography, padding = customMarkdownPadding, components = customMarkdownComponents)
+                                                        Markdown(content = mergedMarkdown, modifier = Modifier.fillMaxWidth(), typography = customTypography, padding = customMarkdownPadding, components = customMarkdownComponents, imageTransformer = latexImageTransformer)
                                                     }
                                                     mergedMarkdown = ""
                                                 }
@@ -919,16 +930,18 @@ fun MessageItem(
                                                     Image(bitmap = bmp.asImageBitmap(), contentDescription = span.content, modifier = Modifier.fillMaxWidth().wrapContentWidth(Alignment.CenterHorizontally).padding(vertical = 12.dp))
                                                 } else {
                                                     SelectionContainer {
-                                                        Markdown(content = "```\n${span.content}\n```", modifier = Modifier.fillMaxWidth(), typography = customTypography, padding = customMarkdownPadding, components = customMarkdownComponents)
+                                                        Markdown(content = "```\n${span.content}\n```", modifier = Modifier.fillMaxWidth(), typography = customTypography, padding = customMarkdownPadding, components = customMarkdownComponents, imageTransformer = latexImageTransformer)
                                                     }
                                                 }
+                                            } else if (span.isLatex) {
+                                                mergedMarkdown += inlineLatexToMarkdown(span.content)
                                             } else {
                                                 mergedMarkdown += span.content
                                             }
                                         }
                                         if (mergedMarkdown.isNotBlank()) {
                                             SelectionContainer {
-                                                Markdown(content = mergedMarkdown, modifier = Modifier.fillMaxWidth(), typography = customTypography, padding = customMarkdownPadding, components = customMarkdownComponents)
+                                                Markdown(content = mergedMarkdown, modifier = Modifier.fillMaxWidth(), typography = customTypography, padding = customMarkdownPadding, components = customMarkdownComponents, imageTransformer = latexImageTransformer)
                                             }
                                         }
                                     }
