@@ -184,6 +184,8 @@ class ChatViewModel(
 
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
+    private val _generatingInConversationId = MutableStateFlow<String?>(null)
+    val generatingInConversationId: StateFlow<String?> = _generatingInConversationId.asStateFlow()
 
     private val _isSwitching = MutableStateFlow(false)
     val isSwitching: StateFlow<Boolean> = _isSwitching.asStateFlow()
@@ -391,7 +393,7 @@ class ChatViewModel(
 
     fun selectConversation(id: String) {
         if (_currentConversationId.value == id && !_isNewChatMode.value) return
-        
+
         switchingJob?.cancel()
         _isTransitioningToNewChat.value = false
         _isSwitching.value = true
@@ -507,6 +509,7 @@ class ChatViewModel(
         generationJob?.cancel()
         _isLoading.value = false
         _streamingMessage.value = null
+        _generatingInConversationId.value = null
     }
 
     fun regenerate(messageId: String) {
@@ -791,6 +794,7 @@ class ChatViewModel(
         val activeKeyId = activeApiKeyIds.value[providerName]
         val activeKey = apiKeys.value.find { it.id == activeKeyId }?.key ?: ""
         _isLoading.value = true
+        _generatingInConversationId.value = currentId
         _streamingMessage.value = null
         var totalText = ""
         var totalThoughts = ""
@@ -1059,6 +1063,7 @@ class ChatViewModel(
                 } catch (_: Exception) {}
                 _isLoading.value = false
                 _streamingMessage.value = null
+                _generatingInConversationId.value = null
             }
         }
     }

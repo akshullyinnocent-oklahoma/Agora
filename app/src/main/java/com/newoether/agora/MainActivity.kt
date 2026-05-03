@@ -634,6 +634,7 @@ fun ChatApp(
     val allMessages by viewModel.allMessages.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val currentConversationId by viewModel.currentConversationId.collectAsState()
+    val generatingInConversationId by viewModel.generatingInConversationId.collectAsState()
     val selectedModel by viewModel.currentActiveModel.collectAsState()
     val enabledModels by viewModel.enabledModels.collectAsState()
     val modelAliases by viewModel.modelAliases.collectAsState()
@@ -920,7 +921,7 @@ fun ChatApp(
                                     DropdownMenuItem(
                                         text = { Text("Generate Title") },
                                         leadingIcon = { Icon(Icons.Default.Refresh, contentDescription = null) },
-                                        enabled = !isSwitching,
+                                        enabled = !isSwitching && !isLoading,
                                         onClick = {
                                             showMenu = false
                                             viewModel.generateTitle(conversation.id)
@@ -929,7 +930,7 @@ fun ChatApp(
                                     DropdownMenuItem(
                                         text = { Text("Rename") },
                                         leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) },
-                                        enabled = !isSwitching,
+                                        enabled = !isSwitching && !isLoading,
                                         onClick = {
                                             showMenu = false
                                             showRenameDialog = conversation.id
@@ -937,9 +938,9 @@ fun ChatApp(
                                         }
                                     )
                                     DropdownMenuItem(
-                                        text = { Text("Delete", color = if (!isSwitching) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.error.copy(alpha = 0.5f)) },
-                                        leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = if (!isSwitching) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.error.copy(alpha = 0.5f)) },
-                                        enabled = !isSwitching,
+                                        text = { Text("Delete", color = if (!isSwitching && !isLoading) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.error.copy(alpha = 0.5f)) },
+                                        leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = if (!isSwitching && !isLoading) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.error.copy(alpha = 0.5f)) },
+                                        enabled = !isSwitching && !isLoading,
                                         onClick = {
                                             showMenu = false
                                             showDeleteConfirmDialog = conversation.id
@@ -1074,7 +1075,7 @@ fun ChatApp(
                                 allMessages = allMessages,
                                 modifier = Modifier.fillMaxSize(),
                                 state = listState,
-                                isLoading = isLoading,
+                                isLoading = isLoading && generatingInConversationId == currentConversationId,
                                 isSwitching = isSwitching,
                                 visualizeContextRollout = visualizeContextRollout,
                                 maxContextWindow = maxContextWindow,

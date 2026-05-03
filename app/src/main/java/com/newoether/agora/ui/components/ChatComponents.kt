@@ -105,6 +105,7 @@ fun MessageList(
     onImageClick: (String) -> Unit = {}
 ) {
     var editingMessageId by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(isLoading) { if (isLoading) editingMessageId = null }
     val density = androidx.compose.ui.platform.LocalDensity.current
     
     // Calculate which messages are in context
@@ -152,7 +153,8 @@ fun MessageList(
                         editingMessageId = null
                     },
                     isStreaming = isLastMessage && isLoading && message.participant == Participant.MODEL,
-                    isEditingAllowed = !isLoading && (editingMessageId == null || editingMessageId == message.id),
+                    isLoading = isLoading,
+                    isEditingAllowed = editingMessageId == null || editingMessageId == message.id,
                     isEditing = editingMessageId == message.id,
                     isSwitching = isSwitching,
                     isInContext = isInContext,
@@ -180,6 +182,7 @@ fun MessageItem(
     message: ChatMessage, 
     onEdit: (String, String) -> Unit, 
     isStreaming: Boolean = false,
+    isLoading: Boolean = false,
     isEditingAllowed: Boolean = true,
     isEditing: Boolean = false,
     isSwitching: Boolean = false,
@@ -824,8 +827,8 @@ fun MessageItem(
                                 IconButton(onClick = { clipboardManager.setText(AnnotatedString(message.text)) }, modifier = Modifier.size(40.dp)) {
                                     Icon(Icons.Default.ContentCopy, null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f))
                                 }
-                                IconButton(onClick = { onRegenerate(message.id) }, modifier = Modifier.size(40.dp)) {
-                                    Icon(Icons.Default.Refresh, null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f))
+                                IconButton(onClick = { onRegenerate(message.id) }, enabled = !isLoading, modifier = Modifier.size(40.dp)) {
+                                    Icon(Icons.Default.Refresh, null, modifier = Modifier.size(20.dp), tint = if (isLoading) MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f) else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f))
                                 }
                                 IconButton(onClick = { showInfoDialog = true }, modifier = Modifier.size(40.dp)) {
                                     Icon(Icons.Default.Info, null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f))
