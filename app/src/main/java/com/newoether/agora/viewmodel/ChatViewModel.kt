@@ -29,6 +29,8 @@ import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.NonCancellable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -45,6 +47,7 @@ class ChatViewModel(
 
     private val generationScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var generationJob: Job? = null
+    private var generationId = 0
 
     val listState = LazyListState()
     val messageHeights = androidx.compose.runtime.mutableStateMapOf<String, Int>()
@@ -512,7 +515,21 @@ class ChatViewModel(
     fun stopGeneration() {
         generationJob?.cancel()
         _isLoading.value = false
-        _streamingMessage.value = _streamingMessage.value?.copy(status = MessageStatus.STOPPED)
+        val stoppedMsg = _streamingMessage.value?.copy(status = MessageStatus.STOPPED)
+        _streamingMessage.value = stoppedMsg
+        // Also update _allMessages entity immediately so UI reacts without flowOn delay
+        if (stoppedMsg != null) {
+            _allMessages.value = _allMessages.value.map {
+                if (it.id == stoppedMsg.id) stoppedMsg else it
+            }
+        } else {
+            // _streamingMessage was null — find the in-flight model message directly
+            _allMessages.value = _allMessages.value.map {
+                if (it.participant == Participant.MODEL &&
+                    (it.status == MessageStatus.SENDING || it.status == MessageStatus.THINKING)
+                ) it.copy(status = MessageStatus.STOPPED) else it
+            }
+        }
         _generatingInConversationId.value = null
         AgoraForegroundService.stop(getApplication())
     }
@@ -543,8 +560,8 @@ class ChatViewModel(
                             modelMessageId = messageId
                             chatDao.upsertMessage(MessageEntity(
                                 id = modelMessageId, conversationId = currentId, parentId = parentId,
-                                text = messageToRegenerate.text, thoughts = messageToRegenerate.thoughts, thoughtTitle = messageToRegenerate.thoughtTitle, status = MessageStatus.SENDING, participant = Participant.MODEL, timestamp = startTime,
-                                modelName = currentActiveModel.value
+                                text = "", thoughts = null, thoughtTitle = null, status = MessageStatus.SENDING, participant = Participant.MODEL, timestamp = startTime,
+                                modelName = currentActiveModel.value, toolCallJson = null
                             ))
                             val newMap = _selectedChildren.value.toMutableMap()
                             newMap[parentId] = modelMessageId
@@ -792,6 +809,7 @@ class ChatViewModel(
     }
 
     private suspend fun generateResponse(currentId: String, text: String, modelMessageId: String, startTime: Long, isRegenerate: Boolean = false) {
+        val myGenerationId = ++generationId
         val modelIdWithPrefix = currentActiveModel.value
         val providerName = getProviderForModel(modelIdWithPrefix)
         val modelId = modelIdWithPrefix.substringAfter(":")
@@ -862,75 +880,84 @@ class ChatViewModel(
 
             var toolCallData: ToolCallData? = null
 
-            getActiveProvider().generateResponse(currentPath, config).collect { event ->
-                when (event) {
-                    is StreamEvent.TextChunk -> {
-                        if (currentStatus == MessageStatus.THINKING) {
-                            totalThoughtTimeMs = System.currentTimeMillis() - startTime
-                            if (currentThoughtBuf.isNotEmpty()) {
-                                segments.add(MessageSegment(type = "thought", content = currentThoughtBuf.toString()))
-                                currentThoughtBuf = StringBuilder()
+            try {
+                withTimeout(30000) {
+                    getActiveProvider().generateResponse(currentPath, config).collect { event ->
+                        when (event) {
+                            is StreamEvent.TextChunk -> {
+                                if (currentStatus == MessageStatus.THINKING) {
+                                    totalThoughtTimeMs = System.currentTimeMillis() - startTime
+                                    if (currentThoughtBuf.isNotEmpty()) {
+                                        segments.add(MessageSegment(type = "thought", content = currentThoughtBuf.toString()))
+                                        currentThoughtBuf = StringBuilder()
+                                    }
+                                    totalText += event.text.trimStart()
+                                } else {
+                                    totalText += event.text
+                                }
+                                currentStatus = MessageStatus.SENDING
                             }
-                            totalText += event.text.trimStart()
-                        } else {
-                            totalText += event.text
+                            is StreamEvent.ThoughtChunk -> {
+                                if (totalText.isEmpty()) {
+                                    currentStatus = MessageStatus.THINKING
+                                    if (totalThoughtTimeMs == null) totalThoughtTimeMs = System.currentTimeMillis() - startTime
+                                    if (totalThoughts.isEmpty()) totalThoughts = "Thinking..."
+                                }
+                                if (event.thought.isNotEmpty()) {
+                                    currentThoughtBuf.append(event.thought)
+                                    if (totalThoughts == "Thinking...") totalThoughts = event.thought
+                                    else totalThoughts += event.thought
+                                }
+                                if (event.title != null) totalThoughtTitle = event.title
+                            }
+                            is StreamEvent.UsageUpdate -> {
+                                if (event.tokenCount > 0) totalTokenCount = event.tokenCount
+                                if (totalText.isEmpty() && event.thoughtsTokenCount > 0) {
+                                    currentStatus = MessageStatus.THINKING
+                                    if (totalThoughtTimeMs == null) totalThoughtTimeMs = System.currentTimeMillis() - startTime
+                                    if (totalThoughts.isEmpty()) totalThoughts = "Thinking..."
+                                }
+                            }
+                            is StreamEvent.Error -> {
+                                if (toolCallData == null) {
+                                    totalText = event.message
+                                    currentStatus = MessageStatus.ERROR
+                                }
+                            }
+                            is StreamEvent.ToolCallRequest -> {
+                                if (currentThoughtBuf.isNotEmpty()) {
+                                    segments.add(MessageSegment(type = "thought", content = currentThoughtBuf.toString()))
+                                    currentThoughtBuf = StringBuilder()
+                                }
+                                val result = executeTool(event.name, event.arguments)
+                                toolCallData = ToolCallData(event.name, event.arguments, result)
+                                segments.add(MessageSegment(type = "tool", toolName = event.name, toolArgs = event.arguments, toolResult = result))
+                                currentStatus = MessageStatus.SENDING
+                            }
                         }
-                        currentStatus = MessageStatus.SENDING
-                    }
-                    is StreamEvent.ThoughtChunk -> {
-                        if (totalText.isEmpty()) {
-                            currentStatus = MessageStatus.THINKING
-                            if (totalThoughtTimeMs == null) totalThoughtTimeMs = System.currentTimeMillis() - startTime
-                            if (totalThoughts.isEmpty()) totalThoughts = "Thinking..."
-                        }
-                        if (event.thought.isNotEmpty()) {
-                            currentThoughtBuf.append(event.thought)
-                            if (totalThoughts == "Thinking...") totalThoughts = event.thought
-                            else totalThoughts += event.thought
-                        }
-                        if (event.title != null) totalThoughtTitle = event.title
-                    }
-                    is StreamEvent.UsageUpdate -> {
-                        if (event.tokenCount > 0) totalTokenCount = event.tokenCount
-                        if (totalText.isEmpty() && event.thoughtsTokenCount > 0) {
-                            currentStatus = MessageStatus.THINKING
-                            if (totalThoughtTimeMs == null) totalThoughtTimeMs = System.currentTimeMillis() - startTime
-                            if (totalThoughts.isEmpty()) totalThoughts = "Thinking..."
-                        }
-                    }
-                    is StreamEvent.Error -> {
-                        if (toolCallData == null) {
-                            totalText = event.message
-                            currentStatus = MessageStatus.ERROR
-                        }
-                    }
-                    is StreamEvent.ToolCallRequest -> {
-                        if (currentThoughtBuf.isNotEmpty()) {
-                            segments.add(MessageSegment(type = "thought", content = currentThoughtBuf.toString()))
-                            currentThoughtBuf = StringBuilder()
-                        }
-                        val result = executeTool(event.name, event.arguments)
-                        toolCallData = ToolCallData(event.name, event.arguments, result)
-                        segments.add(MessageSegment(type = "tool", toolName = event.name, toolArgs = event.arguments, toolResult = result))
-                        currentStatus = MessageStatus.SENDING
+
+                        _streamingMessage.value = ChatMessage(
+                            id = modelMessageId,
+                            parentId = parentId,
+                            text = totalText,
+                            thoughts = totalThoughts.ifBlank { null },
+                            thoughtTitle = totalThoughtTitle,
+                            tokenCount = totalTokenCount,
+                            status = currentStatus,
+                            participant = Participant.MODEL,
+                            timestamp = startTime,
+                            thoughtTimeMs = totalThoughtTimeMs,
+                            modelName = currentActiveModel.value,
+                            toolCall = toolCallData,
+                            segments = buildLiveSegments(segments, currentThoughtBuf)
+                        )
                     }
                 }
-
-                _streamingMessage.value = ChatMessage(
-                    id = modelMessageId,
-                    parentId = parentId,
-                    text = totalText,
-                    thoughts = totalThoughts.ifBlank { null },
-                    thoughtTitle = totalThoughtTitle,
-                    tokenCount = totalTokenCount,
-                    status = currentStatus,
-                    participant = Participant.MODEL,
-                    timestamp = startTime,
-                    thoughtTimeMs = totalThoughtTimeMs,
-                    modelName = currentActiveModel.value,
-                    toolCall = toolCallData,
-                    segments = buildLiveSegments(segments, currentThoughtBuf)
-                )
+            } catch (e: TimeoutCancellationException) {
+                if (currentStatus < MessageStatus.SUCCESS) {
+                    totalText = "Request timed out. Please check your internet connection."
+                    currentStatus = MessageStatus.ERROR
+                }
             }
 
             // Multi-tool loop: keep calling tools until the model responds with text
@@ -962,74 +989,83 @@ class ChatViewModel(
 
                 toolCallData = null
 
-                getActiveProvider().generateResponse(toolPath, config).collect { event ->
-                    when (event) {
-                        is StreamEvent.TextChunk -> {
-                            if (currentStatus == MessageStatus.THINKING) {
-                                totalThoughtTimeMs = System.currentTimeMillis() - startTime
-                                if (currentThoughtBuf.isNotEmpty()) {
-                                    segments.add(MessageSegment(type = "thought", content = currentThoughtBuf.toString()))
-                                    currentThoughtBuf = StringBuilder()
+                try {
+                    withTimeout(30000) {
+                        getActiveProvider().generateResponse(toolPath, config).collect { event ->
+                            when (event) {
+                                is StreamEvent.TextChunk -> {
+                                    if (currentStatus == MessageStatus.THINKING) {
+                                        totalThoughtTimeMs = System.currentTimeMillis() - startTime
+                                        if (currentThoughtBuf.isNotEmpty()) {
+                                            segments.add(MessageSegment(type = "thought", content = currentThoughtBuf.toString()))
+                                            currentThoughtBuf = StringBuilder()
+                                        }
+                                        totalText += event.text.trimStart()
+                                    } else {
+                                        totalText += event.text
+                                    }
+                                    currentStatus = MessageStatus.SENDING
                                 }
-                                totalText += event.text.trimStart()
-                            } else {
-                                totalText += event.text
+                                is StreamEvent.ThoughtChunk -> {
+                                    if (totalText.isEmpty()) {
+                                        currentStatus = MessageStatus.THINKING
+                                        if (totalThoughtTimeMs == null) totalThoughtTimeMs = System.currentTimeMillis() - startTime
+                                        if (totalThoughts.isEmpty()) totalThoughts = "Thinking..."
+                                    }
+                                    if (event.thought.isNotEmpty()) {
+                                        currentThoughtBuf.append(event.thought)
+                                        if (totalThoughts == "Thinking...") totalThoughts = event.thought
+                                        else totalThoughts += event.thought
+                                    }
+                                    if (event.title != null) totalThoughtTitle = event.title
+                                }
+                                is StreamEvent.UsageUpdate -> {
+                                    if (event.tokenCount > 0) totalTokenCount += event.tokenCount
+                                }
+                                is StreamEvent.Error -> {
+                                    totalText = event.message
+                                    currentStatus = MessageStatus.ERROR
+                                }
+                                is StreamEvent.ToolCallRequest -> {
+                                    if (currentThoughtBuf.isNotEmpty()) {
+                                        segments.add(MessageSegment(type = "thought", content = currentThoughtBuf.toString()))
+                                        currentThoughtBuf = StringBuilder()
+                                    }
+                                    val result = executeTool(event.name, event.arguments)
+                                    toolCallData = ToolCallData(event.name, event.arguments, result)
+                                    segments.add(MessageSegment(type = "tool", toolName = event.name, toolArgs = event.arguments, toolResult = result))
+                                    currentStatus = MessageStatus.SENDING
+                                }
                             }
-                            currentStatus = MessageStatus.SENDING
-                        }
-                        is StreamEvent.ThoughtChunk -> {
-                            if (totalText.isEmpty()) {
-                                currentStatus = MessageStatus.THINKING
-                                if (totalThoughtTimeMs == null) totalThoughtTimeMs = System.currentTimeMillis() - startTime
-                                if (totalThoughts.isEmpty()) totalThoughts = "Thinking..."
-                            }
-                            if (event.thought.isNotEmpty()) {
-                                currentThoughtBuf.append(event.thought)
-                                if (totalThoughts == "Thinking...") totalThoughts = event.thought
-                                else totalThoughts += event.thought
-                            }
-                            if (event.title != null) totalThoughtTitle = event.title
-                        }
-                        is StreamEvent.UsageUpdate -> {
-                            if (event.tokenCount > 0) totalTokenCount += event.tokenCount
-                        }
-                        is StreamEvent.Error -> {
-                            totalText = event.message
-                            currentStatus = MessageStatus.ERROR
-                        }
-                        is StreamEvent.ToolCallRequest -> {
-                            if (currentThoughtBuf.isNotEmpty()) {
-                                segments.add(MessageSegment(type = "thought", content = currentThoughtBuf.toString()))
-                                currentThoughtBuf = StringBuilder()
-                            }
-                            val result = executeTool(event.name, event.arguments)
-                            toolCallData = ToolCallData(event.name, event.arguments, result)
-                            segments.add(MessageSegment(type = "tool", toolName = event.name, toolArgs = event.arguments, toolResult = result))
-                            currentStatus = MessageStatus.SENDING
+
+                            _streamingMessage.value = ChatMessage(
+                                id = modelMessageId,
+                                parentId = parentId,
+                                text = totalText,
+                                thoughts = totalThoughts.ifBlank { null },
+                                thoughtTitle = totalThoughtTitle,
+                                tokenCount = totalTokenCount,
+                                status = currentStatus,
+                                participant = Participant.MODEL,
+                                timestamp = startTime,
+                                thoughtTimeMs = totalThoughtTimeMs,
+                                modelName = currentActiveModel.value,
+                                toolCall = toolCallData,
+                                segments = buildLiveSegments(segments, currentThoughtBuf)
+                            )
                         }
                     }
-
-                    _streamingMessage.value = ChatMessage(
-                        id = modelMessageId,
-                        parentId = parentId,
-                        text = totalText,
-                        thoughts = totalThoughts.ifBlank { null },
-                        thoughtTitle = totalThoughtTitle,
-                        tokenCount = totalTokenCount,
-                        status = currentStatus,
-                        participant = Participant.MODEL,
-                        timestamp = startTime,
-                        thoughtTimeMs = totalThoughtTimeMs,
-                        modelName = currentActiveModel.value,
-                        toolCall = toolCallData,
-                        segments = buildLiveSegments(segments, currentThoughtBuf)
-                    )
+                } catch (e: TimeoutCancellationException) {
+                    if (currentStatus < MessageStatus.SUCCESS) {
+                        totalText = "Request timed out. Please check your internet connection."
+                        currentStatus = MessageStatus.ERROR
+                    }
                 }
             }
 
             // Persist synthetic tool messages from toolPath to DB (batch, not during streaming)
             // Skip for regenerate — the model response must stay a sibling of the original
-            if (!isRegenerate) for (msg in toolPath) {
+            if (!isRegenerate && generationId == myGenerationId) for (msg in toolPath) {
                 if (msg.id.startsWith("tool_") || msg.id.startsWith("result_")) {
                     val exists = chatDao.getMessagesForConversation(currentId).first().any { it.id == msg.id }
                     if (!exists) {
@@ -1060,22 +1096,26 @@ class ChatViewModel(
         } finally {
             withContext(NonCancellable) {
                 try {
-                    val conversationExists = chatDao.getConversation(currentId) != null
-                    if (conversationExists) {
-                        val finalStreamingMsg = _streamingMessage.value
-                        val finalSegments = finalStreamingMsg?.segments ?: segments.toList().ifEmpty { null }
-                        val segmentsJson = finalSegments?.let { Json.encodeToString(it) }
-                        val effectiveParentId = if (isRegenerate) parentId else (toolPath.lastOrNull()?.id ?: parentId)
-                        if (finalStreamingMsg != null) {
-                            chatDao.upsertMessage(MessageEntity(id = finalStreamingMsg.id, conversationId = currentId, parentId = effectiveParentId, text = finalStreamingMsg.text, thoughts = finalStreamingMsg.thoughts, thoughtTitle = finalStreamingMsg.thoughtTitle, tokenCount = finalStreamingMsg.tokenCount, status = currentStatus, participant = finalStreamingMsg.participant, timestamp = finalStreamingMsg.timestamp, thoughtTimeMs = finalStreamingMsg.thoughtTimeMs, modelName = finalStreamingMsg.modelName, toolCallJson = segmentsJson))
-                        } else {
-                            chatDao.upsertMessage(MessageEntity(id = modelMessageId, conversationId = currentId, parentId = effectiveParentId, text = totalText, thoughts = totalThoughts.ifBlank { null }, thoughtTitle = totalThoughtTitle, tokenCount = totalTokenCount, status = currentStatus, participant = Participant.MODEL, timestamp = startTime, thoughtTimeMs = totalThoughtTimeMs, modelName = currentActiveModel.value, toolCallJson = segmentsJson))
+                    if (generationId == myGenerationId) {
+                        val conversationExists = chatDao.getConversation(currentId) != null
+                        if (conversationExists) {
+                            val finalStreamingMsg = _streamingMessage.value
+                            val finalSegments = finalStreamingMsg?.segments ?: segments.toList().ifEmpty { null }
+                            val segmentsJson = finalSegments?.let { Json.encodeToString(it) }
+                            val effectiveParentId = if (isRegenerate) parentId else (toolPath.lastOrNull()?.id ?: parentId)
+                            if (finalStreamingMsg != null) {
+                                chatDao.upsertMessage(MessageEntity(id = finalStreamingMsg.id, conversationId = currentId, parentId = effectiveParentId, text = finalStreamingMsg.text, thoughts = finalStreamingMsg.thoughts, thoughtTitle = finalStreamingMsg.thoughtTitle, tokenCount = finalStreamingMsg.tokenCount, status = currentStatus, participant = finalStreamingMsg.participant, timestamp = finalStreamingMsg.timestamp, thoughtTimeMs = finalStreamingMsg.thoughtTimeMs, modelName = finalStreamingMsg.modelName, toolCallJson = segmentsJson))
+                            } else {
+                                chatDao.upsertMessage(MessageEntity(id = modelMessageId, conversationId = currentId, parentId = effectiveParentId, text = totalText, thoughts = totalThoughts.ifBlank { null }, thoughtTitle = totalThoughtTitle, tokenCount = totalTokenCount, status = currentStatus, participant = Participant.MODEL, timestamp = startTime, thoughtTimeMs = totalThoughtTimeMs, modelName = currentActiveModel.value, toolCallJson = segmentsJson))
+                            }
                         }
                     }
                 } catch (_: Exception) {}
-                _isLoading.value = false
-                _streamingMessage.value = null
-                _generatingInConversationId.value = null
+                if (generationId == myGenerationId) {
+                    _isLoading.value = false
+                    _streamingMessage.value = null
+                    _generatingInConversationId.value = null
+                }
                 AgoraForegroundService.stop(getApplication())
             }
         }
