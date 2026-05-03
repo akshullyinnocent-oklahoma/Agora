@@ -47,6 +47,7 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.Velocity
@@ -614,9 +615,20 @@ fun ChatApp(
     onOpenSettings: () -> Unit,
     onImageClick: (String) -> Unit
 ) {
-    val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
-    
+    val density = LocalDensity.current
+    val focusManager = LocalFocusManager.current
+
+    val drawerState = rememberDrawerState(
+        initialValue = DrawerValue.Closed,
+        confirmStateChange = { newValue ->
+            if (newValue != DrawerValue.Closed) {
+                focusManager.clearFocus()
+            }
+            true
+        }
+    )
+
     val conversations by viewModel.conversations.collectAsState()
     val messages by viewModel.messages.collectAsState()
     val allMessages by viewModel.allMessages.collectAsState()
@@ -642,8 +654,8 @@ fun ChatApp(
     var conversationToRename by remember { mutableStateOf("") }
     var showDeleteConfirmDialog by remember { mutableStateOf<String?>(null) }
     var showPromptDialog by remember { mutableStateOf(false) }
+    var isExpanded by remember { mutableStateOf(false) }
 
-    val density = LocalDensity.current
     val configuration = LocalConfiguration.current
     val drawerWidth = configuration.screenWidthDp.dp * 0.8f
     var bottomBarHeightPx by rememberSaveable { mutableFloatStateOf(0f) }
@@ -800,6 +812,14 @@ fun ChatApp(
         scope.launch { drawerState.close() }
     }
 
+    // Collapse expanded text panel and clear focus when drawer opens
+    LaunchedEffect(drawerState.currentValue) {
+        if (drawerState.currentValue != DrawerValue.Closed) {
+            isExpanded = false
+            focusManager.clearFocus()
+        }
+    }
+
     ModalNavigationDrawer(
         drawerState = drawerState,
         gesturesEnabled = true,
@@ -933,7 +953,8 @@ fun ChatApp(
                     HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
                     
                     FilledTonalButton(
-                        onClick = { 
+                        onClick = {
+                            focusManager.clearFocus()
                             onOpenSettings()
                             scope.launch { drawerState.close() }
                         },
@@ -951,6 +972,7 @@ fun ChatApp(
         Box(
             modifier = Modifier
                 .fillMaxSize()
+                .pointerInput(Unit) { detectTapGestures { focusManager.clearFocus() } }
                 .onSizeChanged { viewportHeightPx = it.height }
         ) {
             // Global static background
@@ -988,7 +1010,7 @@ fun ChatApp(
                                     }
                                 },
                                 navigationIcon = {
-                                    IconButton(onClick = { scope.launch { drawerState.open() } }) {
+                                    IconButton(onClick = { focusManager.clearFocus(); scope.launch { drawerState.open() } }) {
                                         Icon(Icons.Default.Menu, contentDescription = "Menu")
                                     }
                                 },
@@ -996,7 +1018,7 @@ fun ChatApp(
                                     IconButton(onClick = { showPromptDialog = true }) {
                                         Icon(Icons.Default.Psychology, contentDescription = "System Prompt")
                                     }
-                                    IconButton(onClick = { viewModel.createNewChat() }) {
+                                    IconButton(onClick = { focusManager.clearFocus(); isExpanded = false; viewModel.createNewChat() }) {
                                         Icon(Icons.Default.Add, contentDescription = "New Chat")
                                     }
                                 },
@@ -1266,10 +1288,17 @@ fun ChatApp(
                         onGoogleSearchToggle = { viewModel.setGoogleSearchEnabled(it) },
                         onThinkingToggle = { viewModel.setThinkingEnabled(it) },
                         onModelSelect = { viewModel.setActiveModel(it) },
-                        onOpenSettings = onOpenSettings,
+                        onOpenSettings = {
+                            focusManager.clearFocus()
+                            isExpanded = false
+                            onOpenSettings()
+                        },
                         onImageClick = onImageClick,
                         modifier = Modifier,
-                        textFieldState = textFieldState
+                        textFieldState = textFieldState,
+                        isExpanded = isExpanded,
+                        onCollapse = { isExpanded = false },
+                        onExpand = { isExpanded = true }
                     )
                 }
             }
