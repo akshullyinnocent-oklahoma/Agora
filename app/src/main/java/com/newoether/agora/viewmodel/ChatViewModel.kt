@@ -1045,11 +1045,13 @@ class ChatViewModel(
 
             while (toolCallDataList.isNotEmpty() && currentStatus != MessageStatus.ERROR && currentCoroutineContext().isActive && toolRound < maxToolRounds) {
                 toolRound++
-                val roundSegments = roundToolSegments.toList()
+                val roundToolList = roundToolSegments.toList()
                 roundToolSegments.clear()
+                val lastThought = segments.lastOrNull { it.type == "thought" }
+                val txedSegments = if (lastThought != null) listOf(lastThought) + roundToolList else roundToolList
                 val prevLastId = if (toolRound == 1 && chainRootId != null) chainRootId else toolPath.lastOrNull()?.id
                 val toolMsgId = "tool_${UUID.randomUUID()}"
-                val toolMsgSegs = roundSegments.ifEmpty { null }
+                val toolMsgSegs = txedSegments.ifEmpty { null }
                 val tcds = toolCallDataList
                 val allSegmentsJson = Json.encodeToString(toolMsgSegs ?: tcds.map { tc ->
                     MessageSegment(type = "tool", toolName = tc.toolName, toolArgs = tc.arguments, toolResult = tc.result)
