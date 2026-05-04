@@ -1,8 +1,10 @@
 package com.newoether.agora.api
 
 import android.util.Log
+import com.newoether.agora.api.util.convertToOpenAiMessages
 import com.newoether.agora.model.ChatMessage
 import com.newoether.agora.model.Participant
+import com.newoether.agora.util.Constants
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.currentCoroutineContext
@@ -35,82 +37,11 @@ class DeepSeekProvider : LlmProvider {
             messages
         }
 
-        val apiMessages = mutableListOf<OpenAiMessage>()
-        if (!config.systemPrompt.isNullOrBlank()) {
-            apiMessages.add(OpenAiMessage(role = "system", content = listOf(OpenAiContentPart(type = "text", text = config.systemPrompt))))
-        }
-
-        apiMessages.addAll(limitedPath.flatMap { msg ->
-            val entries = mutableListOf<OpenAiMessage>()
-
-            // tool_ messages: assistant turn with tool_calls (+ reasoning from thought segments)
-            if (msg.id.startsWith("tool_")) {
-                val toolSegs = msg.segments?.filter { it.type == "tool" }
-                val thoughtContent = msg.segments?.lastOrNull { it.type == "thought" }?.content
-                if (!toolSegs.isNullOrEmpty()) {
-                    val toolCalls = toolSegs.map { seg ->
-                        val tid = "call_${seg.toolName}_${(seg.toolArgs ?: "{}").hashCode().toUInt().toString(16)}"
-                        OpenAiRequestToolCall(
-                            id = tid,
-                            function = OpenAiRequestFunction(name = seg.toolName ?: "", arguments = seg.toolArgs ?: "{}")
-                        )
-                    }
-                    entries.add(OpenAiMessage(
-                        role = "assistant",
-                        content = listOf(OpenAiContentPart(type = "text", text = " ")),
-                        toolCalls = toolCalls,
-                        reasoningContent = thoughtContent?.ifEmpty { null }
-                    ))
-                } else if (msg.toolCall != null) {
-                    val tc = msg.toolCall!!
-                    val toolId = "call_${tc.toolName}_${tc.arguments.hashCode().toUInt().toString(16)}"
-                    entries.add(OpenAiMessage(
-                        role = "assistant",
-                        content = listOf(OpenAiContentPart(type = "text", text = " ")),
-                        toolCalls = listOf(OpenAiRequestToolCall(
-                            id = toolId,
-                            function = OpenAiRequestFunction(name = tc.toolName, arguments = tc.arguments)
-                        )),
-                        reasoningContent = thoughtContent?.ifEmpty { null }
-                    ))
-                }
-                return@flatMap entries
-            }
-
-            // result_ messages: tool result
-            if (msg.id.startsWith("result_") && msg.toolCall != null) {
-                val tc = msg.toolCall!!
-                val toolId = "call_${tc.toolName}_${tc.arguments.hashCode().toUInt().toString(16)}"
-                entries.add(OpenAiMessage(
-                    role = "tool",
-                    content = listOf(OpenAiContentPart(type = "text", text = tc.result)),
-                    toolCallId = toolId
-                ))
-                return@flatMap entries
-            }
-
-            // Normal message: text + images only
-            val parts = mutableListOf<OpenAiContentPart>()
-            if (msg.text.isNotEmpty()) parts.add(OpenAiContentPart(type = "text", text = msg.text))
-            for (imagePath in msg.images) {
-                try {
-                    val file = File(imagePath)
-                    if (file.exists()) {
-                        val bytes = file.readBytes()
-                        val base64 = android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP)
-                        parts.add(OpenAiContentPart(type = "image_url", imageUrl = OpenAiImageUrl(url = "data:image/jpeg;base64,$base64")))
-                    }
-                } catch (e: Exception) {
-                    Log.e("AgoraAPI", "Failed to encode image: $imagePath", e)
-                }
-            }
-            if (parts.isEmpty()) parts.add(OpenAiContentPart(type = "text", text = " "))
-            entries.add(OpenAiMessage(
-                role = if (msg.participant == Participant.USER) "user" else "assistant",
-                content = parts
-            ))
-            entries
-        })
+        val apiMessages = convertToOpenAiMessages(
+            messages = limitedPath,
+            systemPrompt = config.systemPrompt,
+            includeImages = true
+        )
 
         val requestBody = OpenAiChatRequest(
             model = modelName,

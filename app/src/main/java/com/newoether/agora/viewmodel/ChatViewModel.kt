@@ -1,6 +1,7 @@
 package com.newoether.agora.viewmodel
 
 import android.app.Application
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -13,6 +14,7 @@ import com.newoether.agora.data.local.ChatDao
 import com.newoether.agora.data.local.ChatEntity
 import com.newoether.agora.data.local.MessageEntity
 import com.newoether.agora.model.ChatConversation
+import com.newoether.agora.util.Constants
 import com.newoether.agora.model.ChatMessage
 import com.newoether.agora.model.MessageSegment
 import com.newoether.agora.model.MessageStatus
@@ -46,6 +48,11 @@ class ChatViewModel(
     private val generationScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var generationJob: Job? = null
     private var generationId = 0
+
+    override fun onCleared() {
+        super.onCleared()
+        generationScope.coroutineContext[Job]?.cancel()
+    }
 
     val listState = LazyListState()
     val messageHeights = androidx.compose.runtime.mutableStateMapOf<String, Int>()
@@ -160,8 +167,7 @@ class ChatViewModel(
             }
             
             // Skip synthetic tool call/result messages (hidden from UI, API context only)
-            // Identified by ID prefix: "tool_" for tool calls, "result_" for tool results
-            val isSynthetic = selectedMessage.id.startsWith("tool_") || selectedMessage.id.startsWith("result_")
+            val isSynthetic = selectedMessage.id.startsWith(Constants.TOOL_MSG_PREFIX) || selectedMessage.id.startsWith(Constants.RESULT_MSG_PREFIX)
             if (!isSynthetic || (streaming != null && selectedMessage.id == streaming.id)) {
                 path.add(selectedMessage)
             }
@@ -273,7 +279,7 @@ class ChatViewModel(
                         // They inherit the parent tool_ message's ToolCallData so the provider can
                         // format them as proper "tool" role messages with matching tool_call_id.
                         _allMessages.value = mapped.map { msg ->
-                            if (msg.id.startsWith("result_") && msg.toolCall == null) {
+                            if (msg.id.startsWith(Constants.RESULT_MSG_PREFIX) && msg.toolCall == null) {
                                 val parentTool = mapped.find { it.id == msg.parentId }
                                 if (parentTool != null && parentTool.toolCall != null) {
                                     msg.copy(toolCall = parentTool.toolCall)
@@ -562,7 +568,7 @@ class ChatViewModel(
         val messageToRegenerate = _allMessages.value.find { it.id == messageId } ?: return
         val parentId = messageToRegenerate.parentId ?: return
         val isErrorOrStopped = messageToRegenerate.status == MessageStatus.ERROR || messageToRegenerate.status == MessageStatus.STOPPED
-        val hasChildren = _allMessages.value.any { it.parentId == messageId && !it.id.startsWith("tool_") && !it.id.startsWith("result_") }
+        val hasChildren = _allMessages.value.any { it.parentId == messageId && !it.id.startsWith(Constants.TOOL_MSG_PREFIX) && !it.id.startsWith(Constants.RESULT_MSG_PREFIX) }
         val isLatest = !hasChildren
         val modelMessageId = if (isErrorOrStopped && isLatest) messageId else UUID.randomUUID().toString()
         val startTime = System.currentTimeMillis() + 1
@@ -605,7 +611,7 @@ class ChatViewModel(
 
     fun switchBranch(parentId: String?, direction: Int) {
         if (_isLoading.value) return
-        val siblings = _allMessages.value.filter { it.parentId == parentId && !it.id.startsWith("tool_") && !it.id.startsWith("result_") }.sortedBy { it.timestamp }
+        val siblings = _allMessages.value.filter { it.parentId == parentId && !it.id.startsWith(Constants.TOOL_MSG_PREFIX) && !it.id.startsWith(Constants.RESULT_MSG_PREFIX) }.sortedBy { it.timestamp }
         if (siblings.size < 2) return
         val currentId = _selectedChildren.value[parentId] ?: siblings.last().id
         val currentIndex = siblings.indexOfFirst { it.id == currentId }
@@ -895,8 +901,8 @@ class ChatViewModel(
             }.filter { it.participant != Participant.ERROR }
                 .let { path ->
                     if (isRegenerate) {
-                        // Exclude old model response and all synthetic tool_/result_ messages
-                        path.filterNot { it.id.startsWith("tool_") || it.id.startsWith("result_") }
+                        // Exclude old model response and all synthetic tool/result messages
+                        path.filterNot { it.id.startsWith(Constants.TOOL_MSG_PREFIX) || it.id.startsWith(Constants.RESULT_MSG_PREFIX) }
                             .let { filtered ->
                                 if (replaceMessageId != null) {
                                     val oldIdx = filtered.indexOfFirst { it.id == replaceMessageId }
@@ -1050,14 +1056,14 @@ class ChatViewModel(
                 val lastThought = segments.lastOrNull { it.type == "thought" }
                 val txedSegments = if (lastThought != null) listOf(lastThought) + roundToolList else roundToolList
                 val prevLastId = if (toolRound == 1 && chainRootId != null) chainRootId else toolPath.lastOrNull()?.id
-                val toolMsgId = "tool_${UUID.randomUUID()}"
+                val toolMsgId = "${Constants.TOOL_MSG_PREFIX}${UUID.randomUUID()}"
                 val toolMsgSegs = txedSegments.ifEmpty { null }
                 val tcds = toolCallDataList
                 val allSegmentsJson = Json.encodeToString(toolMsgSegs ?: tcds.map { tc ->
                     MessageSegment(type = "tool", toolName = tc.toolName, toolArgs = tc.arguments, toolResult = tc.result)
                 })
                 val resultMsgs = tcds.map { tcData ->
-                    val rid = "result_${UUID.randomUUID()}"
+                    val rid = "${Constants.RESULT_MSG_PREFIX}${UUID.randomUUID()}"
                     rid to ChatMessage(
                         id = rid, parentId = toolMsgId,
                         text = tcData.result,
@@ -1187,7 +1193,7 @@ class ChatViewModel(
             // Persist synthetic tool messages from toolPath to DB (batch, not during streaming)
             // Skip for regenerate — the model response must stay a sibling of the original
             if (!isRegenerate && generationId == myGenerationId) for (msg in toolPath) {
-                if (msg.id.startsWith("tool_") || msg.id.startsWith("result_")) {
+                if (msg.id.startsWith(Constants.TOOL_MSG_PREFIX) || msg.id.startsWith(Constants.RESULT_MSG_PREFIX)) {
                     val exists = chatDao.getMessagesForConversation(currentId).first().any { it.id == msg.id }
                     if (!exists) {
                         chatDao.upsertMessage(MessageEntity(
@@ -1232,7 +1238,9 @@ class ChatViewModel(
                             }
                         }
                     }
-                } catch (_: Exception) {}
+                } catch (e: Exception) {
+                    Log.e("AgoraVM", "Failed to persist message to DB", e)
+                }
                 if (generationId == myGenerationId) {
                     _isLoading.value = false
                     _streamingMessage.value = null

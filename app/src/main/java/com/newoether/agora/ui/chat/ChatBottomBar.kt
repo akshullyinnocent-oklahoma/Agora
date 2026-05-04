@@ -1,0 +1,411 @@
+package com.newoether.agora.ui.chat
+
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.*
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.material3.Icon
+import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.ui.draw.rotate
+import androidx.compose.foundation.ScrollState
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.input.*
+import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CloseFullscreen
+import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AddPhotoAlternate
+import androidx.compose.material.icons.filled.OpenInFull
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Build
+import androidx.compose.material.icons.filled.Psychology
+import androidx.compose.material.icons.filled.Terminal
+import androidx.compose.material.icons.filled.Language
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.draw.scale
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.relocation.BringIntoViewResponder
+import androidx.compose.foundation.relocation.bringIntoViewResponder
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.layout.onSizeChanged
+import kotlinx.coroutines.delay
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.jsonObject
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.DpOffset
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.newoether.agora.model.ChatMessage
+import com.newoether.agora.model.MessageSegment
+import com.newoether.agora.model.MessageStatus
+import com.newoether.agora.model.Participant
+import com.newoether.agora.ui.theme.MonoFamily
+import com.newoether.agora.ui.components.parseLatexSpans
+import com.newoether.agora.ui.components.LatexImageTransformer
+import com.newoether.agora.ui.components.LatexAwareText
+import com.newoether.agora.ui.components.renderLatexToBitmap
+import com.mikepenz.markdown.m3.Markdown
+import com.mikepenz.markdown.m3.markdownTypography
+import com.mikepenz.markdown.model.markdownPadding
+import com.mikepenz.markdown.compose.components.markdownComponents
+import com.mikepenz.markdown.compose.elements.MarkdownTable
+import com.mikepenz.markdown.compose.elements.MarkdownTableHeader
+import com.mikepenz.markdown.compose.elements.MarkdownTableRow
+
+fun Modifier.verticalScrollbar(
+    scrollState: ScrollState,
+    color: Color,
+    width: androidx.compose.ui.unit.Dp = 3.dp
+): Modifier = drawWithContent {
+    drawContent()
+    if (scrollState.maxValue > 0) {
+        val viewPortHeight = size.height
+        val totalHeight = scrollState.maxValue + viewPortHeight
+        val thumbHeight = (viewPortHeight / totalHeight) * viewPortHeight
+        val thumbOffset = (scrollState.value / totalHeight.toFloat()) * viewPortHeight
+        drawRoundRect(color = color, topLeft = Offset(size.width - width.toPx() - 4.dp.toPx(), thumbOffset), size = Size(width.toPx(), thumbHeight), cornerRadius = CornerRadius(width.toPx() / 2))
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ChatBottomBar(
+    onSendMessage: (String, List<String>) -> Unit,
+    onStopGeneration: () -> Unit = {},
+    isLoading: Boolean,
+    isSwitching: Boolean = false,
+    enabledModels: Set<String>,
+    selectedModel: String,
+    modelAliases: Map<String, String> = emptyMap(),
+    codeExecutionEnabled: Boolean = false,
+    googleSearchEnabled: Boolean = false,
+    thinkingEnabled: Boolean = true,
+    onCodeExecutionToggle: (Boolean) -> Unit = {},
+    onGoogleSearchToggle: (Boolean) -> Unit = {},
+    onThinkingToggle: (Boolean) -> Unit = {},
+    onModelSelect: (String) -> Unit,
+    onOpenSettings: () -> Unit,
+    onImageClick: (String) -> Unit = {},
+    modifier: Modifier = Modifier,
+    textFieldState: TextFieldState = rememberSaveable(saver = TextFieldState.Saver) { TextFieldState() },
+    isExpanded: Boolean = false,
+    onCollapse: () -> Unit = {},
+    onExpand: () -> Unit = {}
+) {
+    val scrollState = rememberScrollState()
+    BackHandler(enabled = isExpanded) { onCollapse() }
+    val isModelValid = selectedModel.isNotBlank() && enabledModels.contains(selectedModel)
+
+    val noOpResponder = remember {
+        object : BringIntoViewResponder {
+            override fun calculateRectForParent(localRect: Rect): Rect = localRect
+            override suspend fun bringChildIntoView(localRect: () -> Rect?) {}
+        }
+    }
+
+    var selectedImageUris by rememberSaveable { mutableStateOf<List<String>>(emptyList()) }
+    val launcher = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.PickMultipleVisualMedia()
+    ) { uris ->
+        selectedImageUris = selectedImageUris + uris.map { it.toString() }
+    }
+
+    Column(modifier = modifier.fillMaxWidth().then(if (isExpanded) Modifier.fillMaxHeight().statusBarsPadding() else Modifier).padding(8.dp)) {
+        if (isExpanded) {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                IconButton(onClick = onCollapse) { Icon(Icons.Default.CloseFullscreen, "Collapse", tint = MaterialTheme.colorScheme.primary) }
+            }
+        }
+        
+        if (selectedImageUris.isNotEmpty() && !isExpanded) {
+            androidx.compose.foundation.lazy.LazyRow(
+                modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp, start = 8.dp, end = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                items(selectedImageUris) { uriStr ->
+                    Box {
+                        coil.compose.AsyncImage(
+                            model = uriStr,
+                            contentDescription = null,
+                            modifier = Modifier
+                                .size(64.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable { onImageClick(uriStr) },
+                            contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                        )
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .offset(x = 5.dp, y = (-5).dp)
+                                .size(18.dp)
+                                .background(Color.Black.copy(alpha = 0.8f), CircleShape)
+                                .clip(RoundedCornerShape(18.dp))
+                                .clickable { selectedImageUris = selectedImageUris - uriStr },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "Remove",
+                                tint = Color.White,
+                                modifier = Modifier.size(10.dp)
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        Box(modifier = Modifier.fillMaxWidth().then(if (isExpanded) Modifier.weight(1f) else Modifier).bringIntoViewResponder(noOpResponder)) {
+            TextField(state = textFieldState, scrollState = scrollState, modifier = Modifier.fillMaxWidth().then(if (isExpanded) Modifier.fillMaxHeight() else Modifier).verticalScrollbar(scrollState, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)), placeholder = { Text("Ask Agora anything...", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)) }, enabled = true, lineLimits = TextFieldLineLimits.MultiLine(1, if (isExpanded) Int.MAX_VALUE else 6), colors = TextFieldDefaults.colors(focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent, disabledIndicatorColor = Color.Transparent, focusedContainerColor = Color.Transparent, unfocusedContainerColor = Color.Transparent, disabledContainerColor = Color.Transparent, cursorColor = MaterialTheme.colorScheme.primary), textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface))
+            if (!isExpanded) {
+                val elevatedSurface = MaterialTheme.colorScheme.surfaceColorAtElevation(2.dp)
+                IconButton(onClick = onExpand, modifier = Modifier.align(Alignment.TopEnd).padding(end = 4.dp, top = 4.dp).size(32.dp).background(Brush.radialGradient(listOf(elevatedSurface, elevatedSurface.copy(alpha = 0.5f), Color.Transparent)), CircleShape)) { Icon(Icons.Default.OpenInFull, "Expand", modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)) }
+            }
+        }
+
+        Row(modifier = Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f), RoundedCornerShape(100)).padding(horizontal = 8.dp, vertical = 2.dp)) {
+                IconButton(
+                    onClick = { 
+                        launcher.launch(androidx.activity.result.PickVisualMediaRequest(androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia.ImageOnly))
+                    }, 
+                    modifier = Modifier.size(32.dp)
+                ) { 
+                    Icon(Icons.Default.Add, "Add Image", modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant) 
+                }
+                var activeMenu by remember { mutableStateOf<String?>(null) }
+                var lastModelDismissTime by remember { mutableLongStateOf(0L) }
+                var lastToolsDismissTime by remember { mutableLongStateOf(0L) }
+
+                val modelId = selectedModel.removePrefix("models/").substringAfter(":")
+                val provider = selectedModel.removePrefix("models/").substringBefore(":")
+                
+                val displayText = when {
+                    isModelValid -> modelAliases[selectedModel] ?: ("$modelId ($provider)")
+                    enabledModels.isNotEmpty() -> "Select Model"
+                    else -> "No model selected"
+                }
+                
+                ExposedDropdownMenuBox(
+                    expanded = activeMenu == "model",
+                    onExpandedChange = { }
+                ) {
+                    TextButton(
+                        onClick = { 
+                            val now = System.currentTimeMillis()
+                            if (activeMenu == "model") {
+                                activeMenu = null
+                            } else if (now - lastModelDismissTime > 200) {
+                                activeMenu = "model"
+                            }
+                        }, 
+                        modifier = Modifier.widthIn(max = 160.dp).menuAnchor(),
+                        contentPadding = PaddingValues(start = 12.dp, end = 8.dp)
+                    ) { 
+                        Text(
+                            displayText, 
+                            style = MaterialTheme.typography.labelLarge, 
+                            maxLines = 1, 
+                            overflow = TextOverflow.Ellipsis, 
+                            color = if (isModelValid) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
+                        ) 
+                    }
+                    
+                    ExposedDropdownMenu(
+                        expanded = activeMenu == "model", 
+                        onDismissRequest = { 
+                            if (activeMenu == "model") {
+                                activeMenu = null
+                                lastModelDismissTime = System.currentTimeMillis()
+                            }
+                        },
+                        matchTextFieldWidth = false,
+                        focusable = false,
+                        shape = MaterialTheme.shapes.medium
+                    ) {
+                        if (enabledModels.isEmpty()) {
+                            DropdownMenuItem(
+                                text = { Text("No models enabled") }, 
+                                onClick = { 
+                                    activeMenu = null
+                                    lastModelDismissTime = 0L // Reset to allow immediate re-open
+                                }, 
+                                enabled = false
+                            )
+                        } else {
+                            enabledModels.forEach { model ->
+                                DropdownMenuItem(
+                                    text = {
+                                        val modelId = model.removePrefix("models/").substringAfter(":")
+                                        val provider = model.removePrefix("models/").substringBefore(":")
+                                        Text(modelAliases[model] ?: ("$modelId ($provider)"))
+                                    },
+                                    onClick = {
+                                        onModelSelect(model)
+                                        activeMenu = null
+                                        lastModelDismissTime = 0L
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+                
+                IconButton(onClick = onOpenSettings, modifier = Modifier.size(32.dp)) { Icon(Icons.Default.Settings, "Settings", modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant) }
+                
+                ExposedDropdownMenuBox(
+                    expanded = activeMenu == "tools",
+                    onExpandedChange = { }
+                ) {
+                    IconButton(
+                        onClick = { 
+                            val now = System.currentTimeMillis()
+                            if (activeMenu == "tools") {
+                                activeMenu = null
+                            } else if (now - lastToolsDismissTime > 200) {
+                                activeMenu = "tools"
+                            }
+                        }, 
+                        modifier = Modifier.size(32.dp).menuAnchor()
+                    ) { 
+                        Icon(Icons.Default.MoreVert, "Tools", modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant) 
+                    }
+                    
+                    ExposedDropdownMenu(
+                        expanded = activeMenu == "tools", 
+                        onDismissRequest = { 
+                            if (activeMenu == "tools") {
+                                activeMenu = null
+                                lastToolsDismissTime = System.currentTimeMillis()
+                            }
+                        },
+                        matchTextFieldWidth = false,
+                        focusable = false,
+                        shape = RoundedCornerShape(16.dp)
+                    ) {
+                        DropdownMenuItem(
+                            text = { 
+                                Row(verticalAlignment = Alignment.CenterVertically) { 
+                                    Icon(Icons.Default.Terminal, null, modifier = Modifier.size(18.dp))
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Text("Code Execution") 
+                                } 
+                            }, 
+                            trailingIcon = { 
+                                Switch(
+                                    checked = codeExecutionEnabled, 
+                                    onCheckedChange = { onCodeExecutionToggle(it) }, 
+                                    modifier = Modifier.scale(0.7f)
+                                ) 
+                            }, 
+                            onClick = { onCodeExecutionToggle(!codeExecutionEnabled) }
+                        )
+                        DropdownMenuItem(
+                            text = { 
+                                Row(verticalAlignment = Alignment.CenterVertically) { 
+                                    Icon(Icons.Default.Language, null, modifier = Modifier.size(18.dp))
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Text("Web Search")
+                                } 
+                            }, 
+                            trailingIcon = { 
+                                Switch(
+                                    checked = googleSearchEnabled, 
+                                    onCheckedChange = { onGoogleSearchToggle(it) }, 
+                                    modifier = Modifier.scale(0.7f)
+                                ) 
+                            }, 
+                            onClick = { onGoogleSearchToggle(!googleSearchEnabled) }
+                        )
+                        DropdownMenuItem(
+                            text = { 
+                                Row(verticalAlignment = Alignment.CenterVertically) { 
+                                    Icon(androidx.compose.ui.res.painterResource(id = com.newoether.agora.R.drawable.neurology_24), null, modifier = Modifier.size(18.dp))
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Text("Thinking") 
+                                } 
+                            }, 
+                            trailingIcon = { 
+                                Switch(
+                                    checked = thinkingEnabled, 
+                                    onCheckedChange = { onThinkingToggle(it) }, 
+                                    modifier = Modifier.scale(0.7f)
+                                ) 
+                            }, 
+                            onClick = { onThinkingToggle(!thinkingEnabled) }
+                        )
+                    }
+                }
+            }
+            val canSend = (textFieldState.text.isNotBlank() || selectedImageUris.isNotEmpty()) && !isLoading && isModelValid && !isSwitching
+            val isActionable = (isLoading || canSend) && !isSwitching
+            FloatingActionButton(
+                onClick = { 
+                    if (isSwitching) return@FloatingActionButton
+                    if (isLoading) onStopGeneration() 
+                    else if (canSend) { 
+                        onSendMessage(textFieldState.text.toString(), selectedImageUris)
+                        selectedImageUris = emptyList()
+                        textFieldState.edit { replace(0, length, "") }
+                        onCollapse()
+                    } 
+                }, 
+                containerColor = if (isActionable) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant, 
+                contentColor = if (isActionable) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant, 
+                modifier = Modifier.size(48.dp), 
+                shape = CircleShape, 
+                elevation = FloatingActionButtonDefaults.elevation(0.dp, 0.dp, 0.dp, 0.dp)
+            ) { 
+                Icon(if (isLoading) Icons.Default.Stop else Icons.AutoMirrored.Filled.Send, "Action", modifier = Modifier.size(24.dp)) 
+            }
+        }
+    }
+}

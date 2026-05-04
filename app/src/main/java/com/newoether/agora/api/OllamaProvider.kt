@@ -3,6 +3,7 @@ package com.newoether.agora.api
 import android.util.Log
 import com.newoether.agora.model.ChatMessage
 import com.newoether.agora.model.Participant
+import com.newoether.agora.util.Constants
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.flow.Flow
@@ -82,12 +83,12 @@ class OllamaProvider : LlmProvider {
             val entries = mutableListOf<OllamaMessage>()
 
             // tool_ messages: assistant turn with tool_calls (and thinking from segments)
-            if (msg.id.startsWith("tool_")) {
+            if (msg.id.startsWith(Constants.TOOL_MSG_PREFIX)) {
                 val toolSegs = msg.segments?.filter { it.type == "tool" }
                 val thinkingContent = msg.segments?.lastOrNull { it.type == "thought" }?.content
                 if (!toolSegs.isNullOrEmpty()) {
                     val toolCalls = toolSegs.map { seg ->
-                        val tid = "call_${seg.toolName}_${(seg.toolArgs ?: "{}").hashCode().toUInt().toString(16)}"
+                        val tid = "${Constants.TOOL_CALL_ID_PREFIX}${seg.toolName}_${(seg.toolArgs ?: "{}").hashCode().toUInt().toString(16)}"
                         val argsObj = try { json.parseToJsonElement(seg.toolArgs ?: "{}") as? JsonObject } catch (_: Exception) { JsonObject(emptyMap()) }
                         OpenAiToolCall(
                             id = tid,
@@ -102,7 +103,7 @@ class OllamaProvider : LlmProvider {
                         toolCalls = toolCalls
                     ))
                 } else if (msg.toolCall != null) {
-                    val toolId = "call_${msg.toolCall!!.toolName}_${msg.toolCall!!.arguments.hashCode().toUInt().toString(16)}"
+                    val toolId = "${Constants.TOOL_CALL_ID_PREFIX}${msg.toolCall!!.toolName}_${msg.toolCall!!.arguments.hashCode().toUInt().toString(16)}"
                     val argsObj = try { json.parseToJsonElement(msg.toolCall!!.arguments) as? JsonObject } catch (_: Exception) { JsonObject(emptyMap()) }
                     entries.add(OllamaMessage(
                         role = "assistant",
@@ -119,7 +120,7 @@ class OllamaProvider : LlmProvider {
             }
 
             // result_ messages carry the tool result
-            if (msg.id.startsWith("result_") && msg.toolCall != null) {
+            if (msg.id.startsWith(Constants.RESULT_MSG_PREFIX) && msg.toolCall != null) {
                 entries.add(OllamaMessage(
                     role = "user",
                     content = msg.toolCall!!.result
@@ -198,7 +199,7 @@ class OllamaProvider : LlmProvider {
 
                             // 2. Handle tool calls
                             msg.toolCalls?.firstOrNull()?.let { tc ->
-                                val id = tc.id ?: "call_0"
+                                val id = tc.id ?: "${Constants.TOOL_CALL_ID_PREFIX}0"
                                 val name = tc.function?.name ?: ""
                                 val args = tc.function?.arguments?.let { if (it is kotlinx.serialization.json.JsonPrimitive) it.content else it.toString() } ?: ""
                                 if (name.isNotEmpty()) {

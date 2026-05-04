@@ -1,4 +1,4 @@
-package com.newoether.agora.ui.screens
+package com.newoether.agora.ui.settings
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background

@@ -1,8 +1,10 @@
 package com.newoether.agora.api
 
 import android.util.Log
+import com.newoether.agora.api.util.convertToOpenAiMessages
 import com.newoether.agora.model.ChatMessage
 import com.newoether.agora.model.Participant
+import com.newoether.agora.util.Constants
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.flow.Flow
@@ -31,64 +33,11 @@ class QwenProvider : LlmProvider {
             messages
         }
 
-        val apiMessages = mutableListOf<OpenAiMessage>()
-        if (!config.systemPrompt.isNullOrBlank()) {
-            apiMessages.add(OpenAiMessage(role = "system", content = listOf(OpenAiContentPart(type = "text", text = config.systemPrompt))))
-        }
-        apiMessages.addAll(limitedPath.flatMap { msg ->
-            val entries = mutableListOf<OpenAiMessage>()
-
-            if (msg.id.startsWith("tool_")) {
-                val toolSegs = msg.segments?.filter { it.type == "tool" }
-                val thoughtContent = msg.segments?.lastOrNull { it.type == "thought" }?.content
-                if (!toolSegs.isNullOrEmpty()) {
-                    val toolCalls = toolSegs.map { seg ->
-                        val tid = "call_${seg.toolName}_${(seg.toolArgs ?: "{}").hashCode().toUInt().toString(16)}"
-                        OpenAiRequestToolCall(
-                            id = tid,
-                            function = OpenAiRequestFunction(name = seg.toolName ?: "", arguments = seg.toolArgs ?: "{}")
-                        )
-                    }
-                    entries.add(OpenAiMessage(
-                        role = "assistant",
-                        content = listOf(OpenAiContentPart(type = "text", text = " ")),
-                        toolCalls = toolCalls,
-                        reasoningContent = thoughtContent?.ifEmpty { null }
-                    ))
-                } else if (msg.toolCall != null) {
-                    val toolId = "call_${msg.toolCall!!.toolName}_${msg.toolCall!!.arguments.hashCode().toUInt().toString(16)}"
-                    entries.add(OpenAiMessage(
-                        role = "assistant",
-                        content = listOf(OpenAiContentPart(type = "text", text = " ")),
-                        toolCalls = listOf(OpenAiRequestToolCall(
-                            id = toolId,
-                            function = OpenAiRequestFunction(name = msg.toolCall!!.toolName, arguments = msg.toolCall!!.arguments)
-                        )),
-                        reasoningContent = thoughtContent?.ifEmpty { null }
-                    ))
-                }
-                return@flatMap entries
-            }
-
-            if (msg.id.startsWith("result_") && msg.toolCall != null) {
-                val toolId = "call_${msg.toolCall!!.toolName}_${msg.toolCall!!.arguments.hashCode().toUInt().toString(16)}"
-                entries.add(OpenAiMessage(
-                    role = "tool",
-                    content = listOf(OpenAiContentPart(type = "text", text = msg.toolCall!!.result)),
-                    toolCallId = toolId
-                ))
-                return@flatMap entries
-            }
-
-            // Normal message: text only (no images for Qwen)
-            val parts = mutableListOf<OpenAiContentPart>()
-            parts.add(OpenAiContentPart(type = "text", text = msg.text))
-            entries.add(OpenAiMessage(
-                role = if (msg.participant == Participant.USER) "user" else "assistant",
-                content = parts
-            ))
-            entries
-        })
+        val apiMessages = convertToOpenAiMessages(
+            messages = limitedPath,
+            systemPrompt = config.systemPrompt,
+            includeImages = false
+        )
 
         val requestBody = OpenAiChatRequest(
             model = config.modelId,

@@ -3,6 +3,7 @@ package com.newoether.agora.api
 import android.util.Log
 import com.newoether.agora.model.ChatMessage
 import com.newoether.agora.model.Participant
+import com.newoether.agora.util.Constants
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.withContext
@@ -134,7 +135,7 @@ class AnthropicProvider : LlmProvider {
             val entries = mutableListOf<AnthropicMessage>()
 
             // tool_ messages: assistant turn with tool_use (thinking blocks omitted — signatures unavailable in streaming)
-            if (msg.id.startsWith("tool_") && msg.toolCall != null) {
+            if (msg.id.startsWith(Constants.TOOL_MSG_PREFIX) && msg.toolCall != null) {
                 val toolId = "tool_${msg.toolCall!!.toolName}_${msg.toolCall!!.arguments.hashCode().toUInt().toString(16)}"
                 entries.add(AnthropicMessage(
                     role = "assistant",
@@ -149,7 +150,7 @@ class AnthropicProvider : LlmProvider {
             }
 
             // result_ messages carry the tool_result
-            if (msg.id.startsWith("result_") && msg.toolCall != null) {
+            if (msg.id.startsWith(Constants.RESULT_MSG_PREFIX) && msg.toolCall != null) {
                 val toolId = "tool_${msg.toolCall!!.toolName}_${msg.toolCall!!.arguments.hashCode().toUInt().toString(16)}"
                 entries.add(AnthropicMessage(
                     role = "user",

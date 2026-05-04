@@ -3,6 +3,7 @@ package com.newoether.agora.api
 import android.util.Log
 import com.newoether.agora.model.ChatMessage
 import com.newoether.agora.model.Participant
+import com.newoether.agora.util.Constants
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.flow.Flow
@@ -165,7 +166,7 @@ class GeminiProvider : LlmProvider {
             // tool_ messages: model turn with functionCall
             // Note: Gemini 3 requires thought to be boolean in requests, so we omit thought strings
             // and only include thoughtSignature on the functionCall part
-            if (msg.id.startsWith("tool_") && msg.toolCall != null) {
+            if (msg.id.startsWith(Constants.TOOL_MSG_PREFIX) && msg.toolCall != null) {
                 val args = try {
                     json.parseToJsonElement(msg.toolCall!!.arguments) as? JsonObject
                 } catch (_: Exception) { JsonObject(emptyMap()) }
@@ -184,7 +185,7 @@ class GeminiProvider : LlmProvider {
             }
 
             // result_ messages carry the function response
-            if (msg.id.startsWith("result_") && msg.toolCall != null) {
+            if (msg.id.startsWith(Constants.RESULT_MSG_PREFIX) && msg.toolCall != null) {
                 val response = try {
                     json.parseToJsonElement(msg.toolCall!!.result) as? JsonObject
                 } catch (_: Exception) {

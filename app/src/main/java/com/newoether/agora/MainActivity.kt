@@ -65,9 +65,9 @@ import com.newoether.agora.data.SettingsManager
 import com.newoether.agora.service.AgoraForegroundService
 import com.newoether.agora.data.local.ChatDatabase
 import com.newoether.agora.model.Participant
-import com.newoether.agora.ui.components.ChatBottomBar
-import com.newoether.agora.ui.components.MessageList
-import com.newoether.agora.ui.screens.SettingsScreen
+import com.newoether.agora.ui.chat.ChatBottomBar
+import com.newoether.agora.ui.chat.MessageList
+import com.newoether.agora.ui.settings.SettingsScreen
 import com.newoether.agora.ui.theme.AgoraTheme
 import com.newoether.agora.viewmodel.ChatViewModel
 import com.newoether.agora.viewmodel.ChatViewModelFactory
@@ -91,77 +91,8 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-        val MIGRATION_2_3 = object : Migration(2, 3) {
-            override fun migrate(db: SupportSQLiteDatabase) {
-                db.execSQL("ALTER TABLE conversations ADD COLUMN selectedBranchesJson TEXT")
-            }
-        }
-        
-        val MIGRATION_3_4 = object : Migration(3, 4) {
-            override fun migrate(db: SupportSQLiteDatabase) {
-                db.execSQL("ALTER TABLE messages ADD COLUMN thoughtTimeMs INTEGER")
-            }
-        }
-
-        val MIGRATION_4_5 = object : Migration(4, 5) {
-            override fun migrate(db: SupportSQLiteDatabase) {
-                db.execSQL("ALTER TABLE messages ADD COLUMN modelName TEXT")
-            }
-        }
-
-        val MIGRATION_5_6 = object : Migration(5, 6) {
-            override fun migrate(db: SupportSQLiteDatabase) {
-                db.execSQL("ALTER TABLE conversations ADD COLUMN systemPromptId TEXT")
-            }
-        }
-
-        val MIGRATION_6_7 = object : Migration(6, 7) {
-            override fun migrate(db: SupportSQLiteDatabase) {
-                db.execSQL("ALTER TABLE conversations ADD COLUMN modelId TEXT")
-            }
-        }
-
-        val MIGRATION_7_8 = object : Migration(7, 8) {
-            override fun migrate(db: SupportSQLiteDatabase) {
-                db.execSQL("ALTER TABLE messages ADD COLUMN thoughtTitle TEXT")
-            }
-        }
-
-        val MIGRATION_8_9 = object : Migration(8, 9) {
-            override fun migrate(db: SupportSQLiteDatabase) {
-                db.execSQL("ALTER TABLE messages ADD COLUMN toolCallJson TEXT")
-            }
-        }
-
-        val dbPath = getDatabasePath("agora_db")
-        val targetVersion = 9
-
-        val needsErrorDialog = if (dbPath.exists()) {
-            try {
-                val db = SQLiteDatabase.openDatabase(dbPath.path, null, SQLiteDatabase.OPEN_READONLY)
-                val version = db.version
-                db.close()
-                version > targetVersion
-            } catch (e: Exception) {
-                false
-            }
-        } else false
-
-        val database = if (!needsErrorDialog) {
-            Room.databaseBuilder(
-                applicationContext,
-                ChatDatabase::class.java,
-                "agora_db"
-            ).addMigrations(
-                MIGRATION_2_3,
-                MIGRATION_3_4,
-                MIGRATION_4_5,
-                MIGRATION_5_6,
-                MIGRATION_6_7,
-                MIGRATION_7_8,
-                MIGRATION_8_9
-            ).build()
-        } else null
+        val storedVersion = ChatDatabase.getStoredVersion(this)
+        val needsErrorDialog = storedVersion > ChatDatabase.CURRENT_VERSION
 
         val memoryManager = MemoryManager(applicationContext)
         val settingsManager = SettingsManager(applicationContext)
@@ -181,37 +112,19 @@ class MainActivity : ComponentActivity() {
                         },
                         confirmButton = {
                             TextButton(onClick = {
-                                applicationContext.deleteDatabase("agora_db")
+                                applicationContext.deleteDatabase(ChatDatabase.DB_NAME)
                                 activity?.recreate()
                             }) { Text("Clear Database") }
                         }
                     )
                 } else {
-                    val factory = ChatViewModelFactory(application, settingsManager, database!!.chatDao(), memoryManager)
+                    val database = ChatDatabase.build(this)
+                    val factory = ChatViewModelFactory(application, settingsManager, database.chatDao(), memoryManager)
                     val viewModel: ChatViewModel = viewModel(factory = factory)
                     MainNavigation(viewModel)
                 }
             }
         }
-    }
-}
-
-@Composable
-fun SloganItem(title: String, description: String) {
-    Column(modifier = Modifier.fillMaxWidth()) {
-        Text(
-            text = title,
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onBackground
-        )
-        Spacer(modifier = Modifier.height(4.dp))
-        Text(
-            text = description,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-            lineHeight = 20.sp
-        )
     }
 }
 
