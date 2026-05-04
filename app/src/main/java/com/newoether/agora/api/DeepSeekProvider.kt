@@ -113,6 +113,8 @@ class DeepSeekProvider : LlmProvider {
             connection.setRequestProperty("Authorization", "Bearer ${config.apiKey}")
             connection.doOutput = true
             val requestBodyJson = json.encodeToString(OpenAiChatRequest.serializer(), requestBody)
+            Log.d("AgoraAPI", "[DeepSeek] REQ → $baseUrl/chat/completions | model=$modelName | msgs=${apiMessages.size} | thinking=${config.thinkingEnabled} | tools=${config.tools?.size ?: 0}")
+            Log.d("AgoraAPI", "[DeepSeek] BODY: ${requestBodyJson.take(4000)}")
             connection.outputStream.bufferedWriter().use {
                 it.write(requestBodyJson)
             }

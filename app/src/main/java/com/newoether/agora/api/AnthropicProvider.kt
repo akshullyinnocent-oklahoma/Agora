@@ -163,11 +163,11 @@ class AnthropicProvider : LlmProvider {
             }
 
             val parts = mutableListOf<AnthropicContentPart>()
-            val segs = msg.segments
 
-
-            // Note: thinking blocks from segments are not emitted because Anthropic
-            // requires valid signatures which aren't available from streaming responses
+            // Thinking blocks omitted from history: Anthropic requires a valid signature
+            // for every thinking block sent back in a multi-turn request. Signatures are
+            // available during streaming but may not survive segment reconstruction, so
+            // omitting thinking blocks is safer than risking a 400 signature mismatch.
 
             if (msg.text.isNotEmpty()) {
                 parts.add(AnthropicContentPart(type = "text", text = msg.text))
@@ -200,12 +200,19 @@ class AnthropicProvider : LlmProvider {
                         "type" to JsonPrimitive(td.function.parameters.type),
                         "properties" to JsonObject(
                             td.function.parameters.properties.mapValues { (_, prop) ->
-                                JsonObject(
-                                    mapOf(
-                                        "type" to JsonPrimitive(prop.type),
-                                        "description" to JsonPrimitive(prop.description)
-                                    )
+                                val propMap = mutableMapOf<String, kotlinx.serialization.json.JsonElement>(
+                                    "type" to JsonPrimitive(prop.type),
+                                    "description" to JsonPrimitive(prop.description)
                                 )
+                                if (prop.items != null) {
+                                    propMap["items"] = JsonObject(
+                                        mapOf(
+                                            "type" to JsonPrimitive(prop.items.type),
+                                            "description" to JsonPrimitive(prop.items.description)
+                                        )
+                                    )
+                                }
+                                JsonObject(propMap)
                             }
                         ),
                         "required" to kotlinx.serialization.json.JsonArray(
@@ -236,6 +243,8 @@ class AnthropicProvider : LlmProvider {
             connection.setRequestProperty("anthropic-version", "2023-06-01")
             connection.doOutput = true
             val requestBodyJson = json.encodeToString(AnthropicRequest.serializer(), requestBody)
+            Log.d("AgoraAPI", "[Anthropic] REQ → $baseUrl/messages | model=$modelName | msgs=${apiMessages.size} | thinking=${thinking != null} | tools=${anthropicTools?.size ?: 0}")
+            Log.d("AgoraAPI", "[Anthropic] BODY: ${requestBodyJson.take(4000)}")
             connection.outputStream.bufferedWriter().use {
                 it.write(requestBodyJson)
             }

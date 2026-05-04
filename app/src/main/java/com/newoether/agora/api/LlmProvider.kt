@@ -50,7 +50,8 @@ data class ToolParameters(
 @Serializable
 data class ToolProperty(
     val type: String,
-    val description: String
+    val description: String,
+    val items: ToolProperty? = null
 )
 
 @Serializable

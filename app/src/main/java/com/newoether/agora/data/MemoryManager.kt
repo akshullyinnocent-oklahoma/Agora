@@ -49,11 +49,19 @@ class MemoryManager(context: Context) {
         return "Created ${file.name}"
     }
 
-    fun editFile(name: String, content: String): String {
+    fun editFile(name: String, content: String? = null, newName: String? = null): String {
         val file = resolveFile(name)
         if (!file.exists()) throw IllegalArgumentException("File not found: $name")
-        file.writeText(content)
-        return "Updated ${file.name}"
+        if (content != null) file.writeText(content)
+        if (newName != null && newName != name) {
+            val newFile = resolveFile(newName)
+            if (newFile.exists()) throw IllegalArgumentException("Target file already exists: ${newFile.name}")
+            file.renameTo(newFile)
+            if (content != null) return "Updated and renamed to ${newFile.name}"
+            return "Renamed to ${newFile.name}"
+        }
+        if (content != null) return "Updated ${file.name}"
+        return "No changes made."
     }
 
     fun deleteFile(name: String): String {

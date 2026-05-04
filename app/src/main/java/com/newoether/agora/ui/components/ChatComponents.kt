@@ -127,30 +127,60 @@ private fun toolDisplayName(toolName: String?): String {
 
 private fun toolSummary(seg: MessageSegment): String {
     val name = seg.toolName ?: ""
-    val fileName = try {
-        val args = Json.parseToJsonElement(seg.toolArgs ?: "{}")
-        args.jsonObject["name"]?.let { (it as? JsonPrimitive)?.content }
-    } catch (_: Exception) { null }
+    val argsJson = try { Json.parseToJsonElement(seg.toolArgs ?: "{}").jsonObject } catch (_: Exception) { null }
+    val fileName = argsJson?.get("name")?.let { (it as? JsonPrimitive)?.content }
+        ?: argsJson?.get("names")?.let { names ->
+            val arr = names as? kotlinx.serialization.json.JsonArray
+            if (arr != null && arr.size == 1) (arr[0] as? JsonPrimitive)?.content else null
+        }
+    val nameCount = argsJson?.get("names")?.let { (it as? kotlinx.serialization.json.JsonArray)?.size }
     val content = seg.toolResult ?: ""
+    val isError = content.startsWith("Error")
     val fileCount = Regex("Memory files:\\s*\\n((?:- .+\\n?)*)").find(content)?.groupValues?.get(1)?.lines()?.count { it.isNotBlank() }
     return when (name) {
-        "read_memory_file" -> if (fileName != null) "Read $fileName" else "Read memory"
-        "create_memory_file" -> if (fileName != null) "Saved $fileName" else "Saved a memory"
-        "edit_memory_file" -> if (fileName != null) "Updated $fileName" else "Updated a memory"
-        "delete_memory_file" -> if (fileName != null) "Removed $fileName" else "Removed a memory"
-        "list_memory_files" -> if (fileCount != null) "Looked through $fileCount saved memories" else "Looked through saved memories"
-        "update_active_memory" -> "Updated active memory"
+        "read_memory_file" -> when {
+            isError -> content.lines().firstOrNull()?.take(100) ?: "Read memory"
+            nameCount != null && nameCount > 1 -> "Read $nameCount memories"
+            fileName != null -> "Read $fileName"
+            else -> "Read memory"
+        }
+        "create_memory_file" -> when {
+            isError -> content.lines().firstOrNull()?.take(100) ?: "Save memory failed"
+            fileName != null -> "Saved $fileName"
+            else -> "Saved a memory"
+        }
+        "edit_memory_file" -> when {
+            isError -> content.lines().firstOrNull()?.take(100) ?: "Edit memory failed"
+            fileName != null -> "Updated $fileName"
+            else -> "Updated a memory"
+        }
+        "delete_memory_file" -> when {
+            isError -> content.lines().firstOrNull()?.take(100) ?: "Remove memory failed"
+            fileName != null -> "Removed $fileName"
+            else -> "Removed a memory"
+        }
+        "list_memory_files" -> if (isError) "Look up memories failed" else (if (fileCount != null) "Looked through $fileCount saved memories" else "Looked through saved memories")
+        "update_active_memory" -> if (isError) "Update active memory failed" else "Updated active memory"
         else -> content.lines().firstOrNull()?.take(100) ?: "Done"
     }
 }
 
-private fun toolResultSummary(toolName: String, toolArgs: String): String {
-    val fileName = try {
-        val args = Json.parseToJsonElement(toolArgs.ifBlank { "{}" })
-        args.jsonObject["name"]?.let { (it as? JsonPrimitive)?.content }
-    } catch (_: Exception) { null }
+private fun toolResultSummary(toolName: String, toolArgs: String, result: String = ""): String {
+    val isError = result.startsWith("Error")
+    if (isError) return result.lines().firstOrNull()?.take(100) ?: "Tool call failed"
+    val argsJson = try { Json.parseToJsonElement(toolArgs.ifBlank { "{}" }).jsonObject } catch (_: Exception) { null }
+    val fileName = argsJson?.get("name")?.let { (it as? JsonPrimitive)?.content }
+        ?: argsJson?.get("names")?.let { names ->
+            val arr = names as? kotlinx.serialization.json.JsonArray
+            if (arr != null && arr.size == 1) (arr[0] as? JsonPrimitive)?.content else null
+        }
+    val nameCount = argsJson?.get("names")?.let { (it as? kotlinx.serialization.json.JsonArray)?.size }
     return when (toolName) {
-        "read_memory_file" -> if (fileName != null) "Read $fileName" else "Read memory"
+        "read_memory_file" -> when {
+            nameCount != null && nameCount > 1 -> "Read $nameCount memories"
+            fileName != null -> "Read $fileName"
+            else -> "Read memory"
+        }
         "create_memory_file" -> if (fileName != null) "Saved $fileName" else "Saved a memory"
         "edit_memory_file" -> if (fileName != null) "Updated $fileName" else "Updated a memory"
         "delete_memory_file" -> if (fileName != null) "Removed $fileName" else "Removed a memory"
@@ -683,16 +713,17 @@ fun MessageItem(
                                                         )
                                                     }
                                             } else if (seg.type == "tool") {
+                                                val isToolError = (seg.toolResult ?: "").startsWith("Error")
                                                 Text(
                                                     toolDisplayName(seg.toolName),
                                                     style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
-                                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                                                    color = if (isToolError) MaterialTheme.colorScheme.error.copy(alpha = 0.8f) else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
                                                     fontWeight = FontWeight.SemiBold
                                                 )
                                                 Text(
                                                     text = toolSummary(seg),
                                                     style = MaterialTheme.typography.bodySmall.copy(fontSize = 10.sp, lineHeight = 13.sp),
-                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                    color = if (isToolError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
                                                 )
                                             }
                                             if (idx < segs.lastIndex) {
@@ -876,7 +907,7 @@ fun MessageItem(
                                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
                                             fontWeight = FontWeight.SemiBold
                                         )
-                                        val summary = toolResultSummary(message.toolCall!!.toolName, message.toolCall!!.arguments)
+                                        val summary = toolResultSummary(message.toolCall!!.toolName, message.toolCall!!.arguments, message.toolCall!!.result)
                                         SelectionContainer {
                                             Text(
                                                 summary,

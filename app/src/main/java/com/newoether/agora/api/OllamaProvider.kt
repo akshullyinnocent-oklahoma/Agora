@@ -145,6 +145,8 @@ class OllamaProvider : LlmProvider {
             }
             connection.doOutput = true
             val requestBodyJson = json.encodeToString(OllamaChatRequest.serializer(), requestBody)
+            Log.d("AgoraAPI", "[Ollama] REQ → $baseUrl/api/chat | model=${config.modelId} | msgs=${apiMessages.size} | tools=${config.tools?.size ?: 0}")
+            Log.d("AgoraAPI", "[Ollama] BODY: ${requestBodyJson.take(4000)}")
             connection.outputStream.bufferedWriter().use {
                 it.write(requestBodyJson)
             }

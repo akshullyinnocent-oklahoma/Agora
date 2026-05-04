@@ -25,8 +25,17 @@ class QwenProvider : LlmProvider {
     ): Flow<StreamEvent> = flow {
         val baseUrl = config.baseUrl?.trimEnd('/') ?: defaultBaseUrl
         val modelName = config.modelId
-        val limitedPath = messages.takeLast(config.maxContextWindow)
-        val apiMessages = limitedPath.flatMap { msg ->
+        val limitedPath = if (messages.size > config.maxContextWindow) {
+            messages.takeLast(config.maxContextWindow)
+        } else {
+            messages
+        }
+
+        val apiMessages = mutableListOf<OpenAiMessage>()
+        if (!config.systemPrompt.isNullOrBlank()) {
+            apiMessages.add(OpenAiMessage(role = "system", content = listOf(OpenAiContentPart(type = "text", text = config.systemPrompt))))
+        }
+        apiMessages.addAll(limitedPath.flatMap { msg ->
             val entries = mutableListOf<OpenAiMessage>()
 
             if (msg.id.startsWith("tool_") && msg.toolCall != null) {
@@ -62,7 +71,7 @@ class QwenProvider : LlmProvider {
                 content = parts
             ))
             entries
-        }
+        })
 
         val requestBody = OpenAiChatRequest(
             model = config.modelId,
@@ -84,6 +93,8 @@ class QwenProvider : LlmProvider {
             }
             connection.doOutput = true
             val requestBodyJson = json.encodeToString(OpenAiChatRequest.serializer(), requestBody)
+            Log.d("AgoraAPI", "[Qwen] REQ → $baseUrl/chat/completions | model=$modelName | msgs=${apiMessages.size} | thinking=${config.thinkingEnabled} | tools=${config.tools?.size ?: 0}")
+            Log.d("AgoraAPI", "[Qwen] BODY: ${requestBodyJson.take(4000)}")
             connection.outputStream.bufferedWriter().use {
                 it.write(requestBodyJson)
             }
@@ -113,6 +124,11 @@ class QwenProvider : LlmProvider {
                             var toolCallArgs = ""
 
                             choice?.delta?.let { delta ->
+                                delta.reasoningContent?.let { reasoning ->
+                                    if (reasoning.isNotEmpty() && config.thinkingEnabled) {
+                                        emit(StreamEvent.ThoughtChunk(reasoning))
+                                    }
+                                }
                                 delta.content?.let { if (it.isNotEmpty()) emit(StreamEvent.TextChunk(it)) }
                                 delta.toolCalls?.forEach { tc ->
                                     if (tc.id != null) toolCallId = tc.id
@@ -139,8 +155,18 @@ class QwenProvider : LlmProvider {
                 Log.e("AgoraAPI", "[Qwen] ERR $responseCode: $errorRaw")
                 emit(StreamEvent.Error("Error $responseCode: $errorRaw"))
             }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: java.net.SocketTimeoutException) {
+            emit(StreamEvent.Error("Request timed out. The server took too long to respond."))
+        } catch (e: java.net.ConnectException) {
+            emit(StreamEvent.Error("Connection refused. Please check your internet connection or if the service is available."))
+        } catch (e: java.net.UnknownHostException) {
+            emit(StreamEvent.Error("Network error: Unable to reach the server. Please check your internet connection."))
         } catch (e: Exception) {
-            if (currentCoroutineContext().isActive) emit(StreamEvent.Error("Error: ${e.localizedMessage}"))
+            if (currentCoroutineContext().isActive) {
+                emit(StreamEvent.Error("Error: ${e.localizedMessage ?: "An unexpected error occurred."}"))
+            }
         } finally {
             connection?.disconnect()
         }

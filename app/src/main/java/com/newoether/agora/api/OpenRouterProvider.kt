@@ -120,6 +120,8 @@ class OpenRouterProvider : LlmProvider {
             connection.setRequestProperty("X-Title", "Agora")
             connection.doOutput = true
             val requestBodyJson = json.encodeToString(OpenAiChatRequest.serializer(), requestBody)
+            Log.d("AgoraAPI", "[OpenRouter] REQ → $baseUrl/chat/completions | model=${config.modelId} | msgs=${apiMessages.size} | thinking=${config.thinkingEnabled} | reasoning=${requestBody.reasoning != null} | tools=${config.tools?.size ?: 0}")
+            Log.d("AgoraAPI", "[OpenRouter] BODY: ${requestBodyJson.take(4000)}")
             connection.outputStream.bufferedWriter().use {
                 it.write(requestBodyJson)
             }

@@ -143,6 +143,8 @@ class OpenAiProvider : LlmProvider {
             }
             connection.doOutput = true
             val requestBodyJson = json.encodeToString(OpenAiChatRequest.serializer(), requestBody)
+            Log.d("AgoraAPI", "[OpenAI] REQ → $baseUrl/chat/completions | model=$modelName | msgs=${apiMessages.size} | thinking=${config.thinkingEnabled} | reasoningEffort=${requestBody.reasoningEffort ?: "none"} | tools=${config.tools?.size ?: 0}")
+            Log.d("AgoraAPI", "[OpenAI] BODY: ${requestBodyJson.take(4000)}")
             connection.outputStream.bufferedWriter().use {
                 it.write(requestBodyJson)
             }

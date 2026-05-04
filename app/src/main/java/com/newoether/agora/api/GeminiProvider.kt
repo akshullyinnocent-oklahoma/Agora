@@ -246,12 +246,19 @@ class GeminiProvider : LlmProvider {
                         "type" to JsonPrimitive(td.function.parameters.type),
                         "properties" to JsonObject(
                             td.function.parameters.properties.mapValues { (_, prop) ->
-                                JsonObject(
-                                    mapOf(
-                                        "type" to JsonPrimitive(prop.type),
-                                        "description" to JsonPrimitive(prop.description)
-                                    )
+                                val propMap = mutableMapOf<String, kotlinx.serialization.json.JsonElement>(
+                                    "type" to JsonPrimitive(prop.type),
+                                    "description" to JsonPrimitive(prop.description)
                                 )
+                                if (prop.items != null) {
+                                    propMap["items"] = JsonObject(
+                                        mapOf(
+                                            "type" to JsonPrimitive(prop.items.type),
+                                            "description" to JsonPrimitive(prop.items.description)
+                                        )
+                                    )
+                                }
+                                JsonObject(propMap)
                             }
                         ),
                         "required" to kotlinx.serialization.json.JsonArray(
@@ -305,6 +312,8 @@ class GeminiProvider : LlmProvider {
             connection.setRequestProperty("Content-Type", "application/json")
             connection.doOutput = true
             val requestJson = json.encodeToString(ApiGenerateContentRequest.serializer(), requestBody)
+            Log.d("AgoraAPI", "[Gemini] REQ → $finalUrlString | model=$cleanModelName | msgs=${apiContents.size} | thinking=${config.thinkingEnabled} | tools=${tools.size}")
+            Log.d("AgoraAPI", "[Gemini] BODY: ${requestJson.take(4000)}")
             connection.outputStream.bufferedWriter().use { it.write(requestJson) }
 
             val responseCode = connection.responseCode

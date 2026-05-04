@@ -64,11 +64,6 @@ class ChatViewModel(
         return providers[name] ?: GeminiProvider()
     }
 
-    private fun getActiveProvider(): LlmProvider {
-        val modelId = currentActiveModel.value
-        val providerName = getProviderForModel(modelId)
-        return providers[providerName] ?: GeminiProvider()
-    }
 
     private val _scrollToMessage = MutableSharedFlow<String?>(replay = 0)
     val scrollToMessage = _scrollToMessage.asSharedFlow()
@@ -248,24 +243,42 @@ class ChatViewModel(
                     }
 
                     chatDao.getMessagesForConversation(id).collect { entities ->
-                        _allMessages.value = entities.map { 
+                        val mapped = entities.map {
                             ChatMessage(
-                                id = it.id, 
+                                id = it.id,
                                 parentId = it.parentId,
-                                text = it.text, 
+                                text = it.text,
                                 images = it.images,
                                 thoughts = it.thoughts,
                                 tokenCount = it.tokenCount,
                                 status = it.status,
-                                participant = it.participant, 
+                                participant = it.participant,
                                 timestamp = it.timestamp,
                                 thoughtTimeMs = it.thoughtTimeMs,
                                 modelName = it.modelName,
                                 segments = it.toolCallJson?.let { json ->
                                     try { Json.decodeFromString<List<MessageSegment>>(json) } catch (_: Exception) { null }
                                 },
-                                toolCall = null
+                                toolCall = it.toolCallJson?.let { json ->
+                                    try {
+                                        val segs = Json.decodeFromString<List<MessageSegment>>(json)
+                                        segs.lastOrNull { s -> s.type == "tool" }?.let { s ->
+                                            ToolCallData(s.toolName ?: "", s.toolArgs ?: "{}", s.toolResult ?: "")
+                                        }
+                                    } catch (_: Exception) { null }
+                                }
                             )
+                        }
+                        // Backfill toolCall for old result_ messages persisted without toolCallJson.
+                        // They inherit the parent tool_ message's ToolCallData so the provider can
+                        // format them as proper "tool" role messages with matching tool_call_id.
+                        _allMessages.value = mapped.map { msg ->
+                            if (msg.id.startsWith("result_") && msg.toolCall == null) {
+                                val parentTool = mapped.find { it.id == msg.parentId }
+                                if (parentTool != null && parentTool.toolCall != null) {
+                                    msg.copy(toolCall = parentTool.toolCall)
+                                } else msg
+                            } else msg
                         }
                     }
                 } else {
@@ -728,12 +741,13 @@ class ChatViewModel(
         )),
         ToolDefinition(function = ToolFunction(
             name = "read_memory_file",
-            description = "Read the content of a file from the memory database.",
+            description = "Read the content of one or more files from the memory database.",
             parameters = ToolParameters(
                 properties = mapOf(
-                    "name" to ToolProperty("string", "The file name to read.")
+                    "name" to ToolProperty("string", "The file name to read."),
+                    "names" to ToolProperty("array", "Multiple file names to read in one call.", items = ToolProperty("string", "A file name."))
                 ),
-                required = listOf("name")
+                required = emptyList()
             )
         )),
         ToolDefinition(function = ToolFunction(
@@ -749,13 +763,14 @@ class ChatViewModel(
         )),
         ToolDefinition(function = ToolFunction(
             name = "edit_memory_file",
-            description = "Overwrite an existing file in the memory database.",
+            description = "Edit or rename a file in the memory database. At least one of 'content' or 'new_name' must be provided.",
             parameters = ToolParameters(
                 properties = mapOf(
-                    "name" to ToolProperty("string", "The file name to edit."),
-                    "content" to ToolProperty("string", "The new markdown content.")
+                    "name" to ToolProperty("string", "The current file name to edit."),
+                    "content" to ToolProperty("string", "The new markdown content. Omit to keep existing content."),
+                    "new_name" to ToolProperty("string", "New file name to rename to. Omit to keep existing name.")
                 ),
-                required = listOf("name", "content")
+                required = listOf("name")
             )
         )),
         ToolDefinition(function = ToolFunction(
@@ -792,9 +807,27 @@ class ChatViewModel(
                     if (files.isEmpty()) "No memory files found."
                     else "Memory files:\n${files.joinToString("\n") { "- $it" }}"
                 }
-                "read_memory_file" -> memoryManager.readFile(arg("name"))
+                "read_memory_file" -> {
+                    val singleName = arg("name")
+                    val namesArray = args["names"] as? kotlinx.serialization.json.JsonArray
+                    if (namesArray != null && namesArray.isNotEmpty()) {
+                        val names = namesArray.map { (it as? kotlinx.serialization.json.JsonPrimitive)?.content ?: "" }.filter { it.isNotEmpty() }
+                        names.joinToString("\n\n") { name ->
+                            "--- $name ---\n${memoryManager.readFile(name)}"
+                        }
+                    } else if (singleName.isNotEmpty()) {
+                        memoryManager.readFile(singleName)
+                    } else {
+                        "Error: No file name provided. Use 'name' for a single file or 'names' for multiple files."
+                    }
+                }
                 "create_memory_file" -> memoryManager.createFile(arg("name"), arg("content"))
-                "edit_memory_file" -> memoryManager.editFile(arg("name"), arg("content"))
+                "edit_memory_file" -> {
+                    val editContent = arg("content").ifBlank { null }
+                    val newName = arg("new_name").ifBlank { null }
+                    if (editContent == null && newName == null) "Error: At least 'content' or 'new_name' must be provided."
+                    else memoryManager.editFile(arg("name"), editContent, newName)
+                }
                 "delete_memory_file" -> memoryManager.deleteFile(arg("name"))
                 "update_active_memory" -> {
                     val mode = arg("mode").ifBlank { "replace" }
@@ -819,8 +852,9 @@ class ChatViewModel(
         val myGenerationId = ++generationId
         val modelIdWithPrefix = currentActiveModel.value
         val providerName = getProviderForModel(modelIdWithPrefix)
+        val provider = getProviderInstance(providerName)
         val modelId = modelIdWithPrefix.substringAfter(":")
-        
+
         val activeKeyId = activeApiKeyIds.value[providerName]
         val activeKey = apiKeys.value.find { it.id == activeKeyId }?.key ?: ""
         _isLoading.value = true
@@ -854,7 +888,7 @@ class ChatViewModel(
             }
             val currentPath = pathEntities.map {
                 val segs = it.toolCallJson?.let { json -> try { Json.decodeFromString<List<MessageSegment>>(json) } catch (_: Exception) { null } }
-                val toolCall = segs?.find { s -> s.type == "tool" }?.let { s ->
+                val toolCall = segs?.lastOrNull { s -> s.type == "tool" }?.let { s ->
                     ToolCallData(s.toolName ?: "", s.toolArgs ?: "{}", s.toolResult ?: "")
                 }
                 ChatMessage(id = it.id, parentId = it.parentId, text = it.text, images = it.images, thoughts = it.thoughts, thoughtTitle = it.thoughtTitle, tokenCount = it.tokenCount, status = it.status, participant = it.participant, timestamp = it.timestamp, thoughtTimeMs = it.thoughtTimeMs, segments = segs, toolCall = toolCall)
@@ -904,7 +938,7 @@ class ChatViewModel(
 
             var toolCallData: ToolCallData? = null
 
-            getActiveProvider().generateResponse(currentPath, config).collect { event ->
+            provider.generateResponse(currentPath, config).collect { event ->
                         when (event) {
                             is StreamEvent.TextChunk -> {
                                 if (currentStatus == MessageStatus.THINKING) {
@@ -1021,12 +1055,14 @@ class ChatViewModel(
                     id = resultMsgId, conversationId = currentId, parentId = toolMsgId,
                     text = tcData.result, thoughts = null, status = MessageStatus.SUCCESS,
                     participant = Participant.USER, timestamp = System.currentTimeMillis(),
-                    toolCallJson = null
+                    toolCallJson = Json.encodeToString(listOf(
+                        MessageSegment(type = "tool", toolName = tcData.toolName, toolArgs = tcData.arguments, toolResult = tcData.result)
+                    ))
                 ))
 
                 toolCallData = null
 
-                getActiveProvider().generateResponse(toolPath, config).collect { event ->
+                provider.generateResponse(toolPath, config).collect { event ->
                             when (event) {
                                 is StreamEvent.TextChunk -> {
                                     if (currentStatus == MessageStatus.THINKING) {
