@@ -161,7 +161,13 @@ class OpenRouterProvider : LlmProvider {
             } else {
                 val errorRaw = connection.errorStream?.bufferedReader()?.readText() ?: "Unknown error (Code: $responseCode)"
                 Log.e("AgoraAPI", "[OpenRouter] ERR $responseCode: $errorRaw")
-                emit(StreamEvent.Error("Error $responseCode: $errorRaw"))
+                val errorMessage = try {
+                    val errorJson = json.decodeFromString<OpenAiErrorResponse>(errorRaw)
+                    "Error ${errorJson.error.code ?: responseCode} (${errorJson.error.type ?: "UNKNOWN"}): ${errorJson.error.message}"
+                } catch (_: Exception) {
+                    "Error $responseCode: $errorRaw"
+                }
+                emit(StreamEvent.Error(errorMessage))
             }
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e

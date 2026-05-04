@@ -8,6 +8,8 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 import com.newoether.agora.model.MessageStatus
 import com.newoether.agora.model.Participant
 import kotlinx.coroutines.flow.Flow
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 
 class MessageConverters {
     @TypeConverter
@@ -22,13 +24,18 @@ class MessageConverters {
     
     @TypeConverter
     fun fromStringList(value: List<String>?): String {
-        return value?.joinToString(separator = "|||") ?: ""
+        return if (value != null) Json.encodeToString(value) else ""
     }
 
     @TypeConverter
     fun toStringList(value: String?): List<String> {
         if (value.isNullOrEmpty()) return emptyList()
-        return value.split("|||")
+        return try {
+            Json.decodeFromString<List<String>>(value)
+        } catch (_: Exception) {
+            // Backward compatibility: old format used "|||" delimiter
+            value.split("|||")
+        }
     }
 }
 

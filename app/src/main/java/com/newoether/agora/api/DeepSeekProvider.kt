@@ -188,10 +188,22 @@ class DeepSeekProvider : LlmProvider {
             } else {
                 val errorRaw = connection.errorStream?.bufferedReader()?.readText() ?: "Unknown error"
                 Log.e("AgoraAPI", "[DeepSeek] ERR $responseCode: $errorRaw")
-                emit(StreamEvent.Error("Error $responseCode: $errorRaw"))
+                val errorMessage = try {
+                    val errorJson = json.decodeFromString<OpenAiErrorResponse>(errorRaw)
+                    "Error ${errorJson.error.code ?: responseCode} (${errorJson.error.type ?: "UNKNOWN"}): ${errorJson.error.message}"
+                } catch (_: Exception) {
+                    "Error $responseCode: $errorRaw"
+                }
+                emit(StreamEvent.Error(errorMessage))
             }
         } catch (e: CancellationException) {
             throw e
+        } catch (e: java.net.SocketTimeoutException) {
+            emit(StreamEvent.Error("Request timed out. The server took too long to respond."))
+        } catch (e: java.net.ConnectException) {
+            emit(StreamEvent.Error("Connection refused. Please check your internet connection or if the service is available."))
+        } catch (e: java.net.UnknownHostException) {
+            emit(StreamEvent.Error("Network error: Unable to reach the server. Please check your internet connection."))
         } catch (e: Exception) {
             if (currentCoroutineContext().isActive) {
                 emit(StreamEvent.Error("Error: ${e.localizedMessage}"))
