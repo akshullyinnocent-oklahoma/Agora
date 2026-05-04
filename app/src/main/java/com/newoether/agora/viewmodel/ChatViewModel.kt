@@ -47,7 +47,15 @@ class ChatViewModel(
 
     private val generationScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var generationJob: Job? = null
-    private var generationId = 0
+
+    private val generationManager by lazy {
+        GenerationManager(
+            app = application,
+            chatDao = chatDao,
+            memoryManager = memoryManager,
+            providers = providers
+        )
+    }
 
     override fun onCleared() {
         super.onCleared()
@@ -618,7 +626,32 @@ class ChatViewModel(
                     modelName = currentActiveModel.value
                 ))
             }
-            generateResponse(currentId, userMessage.text, modelMessageId, startTime, isRegenerate = true, replaceMessageId = messageId)
+            val effectiveSystemPrompt = buildEffectiveSystemPrompt(currentId)
+            val config = GenerationConfig(
+                providerName = providerName,
+                modelId = modelId.substringAfter(":"),
+                apiKey = activeKey,
+                effectiveSystemPrompt = effectiveSystemPrompt,
+                maxContextWindow = maxContextWindow.value,
+                codeExecutionEnabled = codeExecutionEnabled.value,
+                googleSearchEnabled = googleSearchEnabled.value,
+                thinkingEnabled = thinkingEnabled.value,
+                baseUrl = providerBaseUrls.value[providerName]
+            )
+
+            generationManager.generate(
+                conversationId = currentId,
+                modelMessageId = modelMessageId,
+                startTime = startTime,
+                isRegenerate = true,
+                replaceMessageId = messageId,
+                modelName = currentActiveModel.value,
+                config = config,
+                generationJob = generationJob,
+                onStreamUpdate = { _streamingMessage.value = it },
+                onLoadingChange = { _isLoading.value = it },
+                onGeneratingIdChange = { _generatingInConversationId.value = it }
+            )
         }
     }
 
@@ -670,7 +703,32 @@ class ChatViewModel(
                 text = "", thoughts = null, status = MessageStatus.SENDING, participant = Participant.MODEL, timestamp = startTime,
                 modelName = currentActiveModel.value
             ))
-            generateResponse(currentId, newText, modelMessageId, startTime)
+            val effectiveSystemPrompt = buildEffectiveSystemPrompt(currentId)
+            val config = GenerationConfig(
+                providerName = providerName,
+                modelId = modelId.substringAfter(":"),
+                apiKey = activeKey,
+                effectiveSystemPrompt = effectiveSystemPrompt,
+                maxContextWindow = maxContextWindow.value,
+                codeExecutionEnabled = codeExecutionEnabled.value,
+                googleSearchEnabled = googleSearchEnabled.value,
+                thinkingEnabled = thinkingEnabled.value,
+                baseUrl = providerBaseUrls.value[providerName]
+            )
+
+            generationManager.generate(
+                conversationId = currentId,
+                modelMessageId = modelMessageId,
+                startTime = startTime,
+                isRegenerate = false,
+                replaceMessageId = null,
+                modelName = currentActiveModel.value,
+                config = config,
+                generationJob = generationJob,
+                onStreamUpdate = { _streamingMessage.value = it },
+                onLoadingChange = { _isLoading.value = it },
+                onGeneratingIdChange = { _generatingInConversationId.value = it }
+            )
         }
     }
 
@@ -709,15 +767,32 @@ class ChatViewModel(
         }
     }
 
-            fun sendMessage(text: String, images: List<String> = emptyList()) {
-                val modelId = currentActiveModel.value
-                val providerName = getProviderForModel(modelId)
-                val activeKeyId = activeApiKeyIds.value[providerName]
-                val activeKey = apiKeys.value.find { it.id == activeKeyId }?.key ?: ""
-                    stopGeneration()
-    
+    private suspend fun buildEffectiveSystemPrompt(currentId: String): String? {
+        val conversation = chatDao.getConversation(currentId)
+        val targetPromptId = conversation?.systemPromptId ?: activeSystemPromptId.value
+        val activePrompt = systemPrompts.value.find { it.id == targetPromptId }?.content
+        val activeMemory = memoryManager.getActiveMemory()
+        return buildString {
+            if (activeMemory.isNotBlank()) {
+                append("[Active Memory]\n")
+                append(activeMemory)
+                append("\n\n")
+            }
+            if (!activePrompt.isNullOrBlank()) {
+                append(activePrompt)
+            }
+        }.ifBlank { null }
+    }
+
+    fun sendMessage(text: String, images: List<String> = emptyList()) {
+        val modelId = currentActiveModel.value
+        val providerName = getProviderForModel(modelId)
+        val activeKeyId = activeApiKeyIds.value[providerName]
+        val activeKey = apiKeys.value.find { it.id == activeKeyId }?.key ?: ""
+        stopGeneration()
+
         generationJob = generationScope.launch {
-            val processedImages = if (images.isNotEmpty()) processImages(images) else emptyList()
+            val processedImages = if (images.isNotEmpty()) generationManager.processImages(images) else emptyList()
             var currentId = _currentConversationId.value
             val wasNewChat = _isNewChatMode.value
             if (wasNewChat) {
@@ -749,8 +824,34 @@ class ChatViewModel(
                 modelName = currentActiveModel.value
             ))
             triggerScrollToMessage(userMessageId)
-            generateResponse(currentId, text, modelMessageId, startTime)
-            // Auto-generate title after first successful response
+
+            val effectiveSystemPrompt = buildEffectiveSystemPrompt(currentId)
+            val config = GenerationConfig(
+                providerName = providerName,
+                modelId = modelId.substringAfter(":"),
+                apiKey = activeKey,
+                effectiveSystemPrompt = effectiveSystemPrompt,
+                maxContextWindow = maxContextWindow.value,
+                codeExecutionEnabled = codeExecutionEnabled.value,
+                googleSearchEnabled = googleSearchEnabled.value,
+                thinkingEnabled = thinkingEnabled.value,
+                baseUrl = providerBaseUrls.value[providerName]
+            )
+
+            generationManager.generate(
+                conversationId = currentId,
+                modelMessageId = modelMessageId,
+                startTime = startTime,
+                isRegenerate = false,
+                replaceMessageId = null,
+                modelName = currentActiveModel.value,
+                config = config,
+                generationJob = generationJob,
+                onStreamUpdate = { _streamingMessage.value = it },
+                onLoadingChange = { _isLoading.value = it },
+                onGeneratingIdChange = { _generatingInConversationId.value = it }
+            )
+
             val lastMsg = _allMessages.value.find { it.id == modelMessageId }
             if (wasNewChat && titleGenerationEnabled.value && generationJob?.isActive == true && lastMsg?.status != MessageStatus.ERROR) {
                 generateTitle(currentId)
@@ -873,410 +974,6 @@ class ChatViewModel(
             result.add(MessageSegment(type = "thought", content = buf.toString(), signature = signature))
         }
         return result.ifEmpty { null }
-    }
-
-    private suspend fun generateResponse(currentId: String, text: String, modelMessageId: String, startTime: Long, isRegenerate: Boolean = false, replaceMessageId: String? = null) {
-        generationId++
-        val myGenerationId = generationId
-        val modelIdWithPrefix = currentActiveModel.value
-        val providerName = getProviderForModel(modelIdWithPrefix)
-        val provider = getProviderInstance(providerName)
-        val modelId = modelIdWithPrefix.substringAfter(":")
-
-        val activeKeyId = activeApiKeyIds.value[providerName]
-        val activeKey = apiKeys.value.find { it.id == activeKeyId }?.key ?: ""
-        _isLoading.value = true
-        _generatingInConversationId.value = currentId
-        if (_streamingMessage.value?.id != modelMessageId) {
-            _streamingMessage.value = null
-        }
-        val app = getApplication<Application>()
-        withContext(Dispatchers.Main) { AgoraForegroundService.start(app) }
-        var totalText = ""
-        var totalThoughts = ""
-        var totalThoughtTitle: String? = null
-        var totalTokenCount = 0
-        var totalThoughtTimeMs: Long? = null
-        var currentStatus = MessageStatus.SENDING
-        val segments = mutableListOf<MessageSegment>()
-        var currentThoughtBuf = StringBuilder()
-        var currentThoughtSignature: String? = null
-        val placeholder = chatDao.getMessagesForConversation(currentId).first().find { it.id == modelMessageId }
-        val parentId = placeholder?.parentId
-        var toolPath = emptyList<ChatMessage>()
-
-        try {
-            val dbMessages = chatDao.getMessagesForConversation(currentId).first()
-            val pathEntities = mutableListOf<MessageEntity>()
-            var currId: String? = parentId
-            while (currId != null) {
-                val msg = dbMessages.find { it.id == currId } ?: break
-                pathEntities.add(0, msg)
-                currId = msg.parentId
-            }
-            val currentPath = pathEntities.map {
-                val segs = it.toolCallJson?.let { json -> try { Json.decodeFromString<List<MessageSegment>>(json) } catch (_: Exception) { null } }
-                val toolCall = segs?.lastOrNull { s -> s.type == "tool" }?.let { s ->
-                    ToolCallData(s.toolName ?: "", s.toolArgs ?: "{}", s.toolResult ?: "")
-                }
-                ChatMessage(id = it.id, parentId = it.parentId, text = it.text, images = it.images, thoughts = it.thoughts, thoughtTitle = it.thoughtTitle, tokenCount = it.tokenCount, status = it.status, participant = it.participant, timestamp = it.timestamp, thoughtTimeMs = it.thoughtTimeMs, segments = segs, toolCall = toolCall)
-            }.filter { it.participant != Participant.ERROR }
-                .let { path ->
-                    if (isRegenerate) {
-                        // Exclude old model response and all synthetic tool/result messages
-                        path.filterNot { it.id.startsWith(Constants.TOOL_MSG_PREFIX) || it.id.startsWith(Constants.RESULT_MSG_PREFIX) }
-                            .let { filtered ->
-                                if (replaceMessageId != null) {
-                                    val oldIdx = filtered.indexOfFirst { it.id == replaceMessageId }
-                                    if (oldIdx >= 0) filtered.take(oldIdx) else filtered
-                                } else filtered
-                            }
-                    } else path
-                }
-            
-            val conversation = chatDao.getConversation(currentId)
-            val targetPromptId = conversation?.systemPromptId ?: activeSystemPromptId.value
-            val activePrompt = systemPrompts.value.find { it.id == targetPromptId }?.content
-            
-            // Merge active memory into system prompt
-            val activeMemory = memoryManager.getActiveMemory()
-            val effectiveSystemPrompt = buildString {
-                if (activeMemory.isNotBlank()) {
-                    append("[Active Memory]\n")
-                    append(activeMemory)
-                    append("\n\n")
-                }
-                if (!activePrompt.isNullOrBlank()) {
-                    append(activePrompt)
-                }
-            }.ifBlank { null }
-
-            val memoryTools = buildMemoryTools()
-            val config = ProviderConfig(
-                apiKey = activeKey,
-                modelId = modelId,
-                systemPrompt = effectiveSystemPrompt,
-                maxContextWindow = maxContextWindow.value,
-                codeExecutionEnabled = codeExecutionEnabled.value,
-                googleSearchEnabled = googleSearchEnabled.value,
-                thinkingEnabled = thinkingEnabled.value,
-                baseUrl = providerBaseUrls.value[providerName],
-                tools = memoryTools
-            )
-
-            var toolCallData: ToolCallData? = null
-            var toolCallDataList: List<ToolCallData> = emptyList()
-            val roundToolSegments = mutableListOf<MessageSegment>()
-
-            provider.generateResponse(currentPath, config).collect { event ->
-                        when (event) {
-                            is StreamEvent.TextChunk -> {
-                                if (currentStatus == MessageStatus.THINKING) {
-                                    totalThoughtTimeMs = System.currentTimeMillis() - startTime
-                                    if (currentThoughtBuf.isNotEmpty()) {
-                                        segments.add(MessageSegment(type = "thought", content = currentThoughtBuf.toString(), signature = currentThoughtSignature))
-                                        currentThoughtBuf = StringBuilder()
-                                        currentThoughtSignature = null
-                                    }
-                                    totalText += event.text.trimStart()
-                                } else {
-                                    totalText += event.text
-                                }
-                                currentStatus = MessageStatus.SENDING
-                            }
-                            is StreamEvent.ThoughtChunk -> {
-                                if (totalText.isEmpty()) {
-                                    currentStatus = MessageStatus.THINKING
-                                    if (totalThoughtTimeMs == null) totalThoughtTimeMs = System.currentTimeMillis() - startTime
-                                    if (totalThoughts.isEmpty()) totalThoughts = "Thinking..."
-                                }
-                                if (event.thought.isNotEmpty()) {
-                                    currentThoughtBuf.append(event.thought)
-                                    if (totalThoughts == "Thinking...") totalThoughts = event.thought
-                                    else totalThoughts += event.thought
-                                }
-                                if (event.title != null) totalThoughtTitle = event.title
-                                if (event.signature != null) currentThoughtSignature = event.signature
-                            }
-                            is StreamEvent.UsageUpdate -> {
-                                if (event.tokenCount > 0) totalTokenCount = event.tokenCount
-                                if (totalText.isEmpty() && event.thoughtsTokenCount > 0) {
-                                    currentStatus = MessageStatus.THINKING
-                                    if (totalThoughtTimeMs == null) totalThoughtTimeMs = System.currentTimeMillis() - startTime
-                                    if (totalThoughts.isEmpty()) totalThoughts = "Thinking..."
-                                }
-                            }
-                            is StreamEvent.Error -> {
-                                if (toolCallData == null && toolCallDataList.isEmpty()) {
-                                    totalText = event.message
-                                    currentStatus = MessageStatus.ERROR
-                                }
-                            }
-                            is StreamEvent.ToolCallRequest -> {
-                                if (currentThoughtBuf.isNotEmpty()) {
-                                    segments.add(MessageSegment(type = "thought", content = currentThoughtBuf.toString(), signature = currentThoughtSignature))
-                                    currentThoughtBuf = StringBuilder()
-                                    currentThoughtSignature = null
-                                }
-                                val result = executeTool(event.name, event.arguments)
-                                val tcd = ToolCallData(event.name, event.arguments, result)
-                                if (toolCallData == null) toolCallData = tcd
-                                toolCallDataList = toolCallDataList + tcd
-                                val ts = MessageSegment(type = "tool", toolName = event.name, toolArgs = event.arguments, toolResult = result, signature = event.signature)
-                                segments.add(ts)
-                                roundToolSegments.add(ts)
-                                currentStatus = MessageStatus.SENDING
-                            }
-                            is StreamEvent.ToolCallsRequest -> {
-                                if (currentThoughtBuf.isNotEmpty()) {
-                                    segments.add(MessageSegment(type = "thought", content = currentThoughtBuf.toString(), signature = currentThoughtSignature))
-                                    currentThoughtBuf = StringBuilder()
-                                    currentThoughtSignature = null
-                                }
-                                val tcds = event.calls.map { call ->
-                                    val result = executeTool(call.name, call.arguments)
-                                    val ts = MessageSegment(type = "tool", toolName = call.name, toolArgs = call.arguments, toolResult = result, signature = call.signature)
-                                    segments.add(ts)
-                                    roundToolSegments.add(ts)
-                                    ToolCallData(call.name, call.arguments, result)
-                                }
-                                toolCallData = tcds.firstOrNull()
-                                toolCallDataList = tcds
-                                currentStatus = MessageStatus.SENDING
-                            }
-                        }
-
-                        _streamingMessage.value = ChatMessage(
-                            id = modelMessageId,
-                            parentId = parentId,
-                            text = totalText,
-                            thoughts = totalThoughts.ifBlank { null },
-                            thoughtTitle = totalThoughtTitle,
-                            tokenCount = totalTokenCount,
-                            status = currentStatus,
-                            participant = Participant.MODEL,
-                            timestamp = startTime,
-                            thoughtTimeMs = totalThoughtTimeMs,
-                            modelName = currentActiveModel.value,
-                            toolCall = toolCallData,
-                            segments = if (segments.isNotEmpty()) buildLiveSegments(segments, currentThoughtBuf, currentThoughtSignature) else null
-                        )
-            }
-
-            // Multi-tool loop: keep calling tools until the model responds with text
-            var toolRound = 0
-            val maxToolRounds = 5
-            toolPath = currentPath
-            // For regenerate, chain new tool messages from the original model's parent
-            // so model_new stays a sibling of model_original
-            val chainRootId = if (isRegenerate) parentId else null
-
-            while (toolCallDataList.isNotEmpty() && currentStatus != MessageStatus.ERROR && currentCoroutineContext().isActive && toolRound < maxToolRounds) {
-                toolRound++
-                val roundToolList = roundToolSegments.toList()
-                roundToolSegments.clear()
-                val thoughtSegs = segments.filter { it.type == "thought" }
-                val txedSegments = if (thoughtSegs.isNotEmpty()) thoughtSegs + roundToolList else roundToolList
-                val prevLastId = if (toolRound == 1 && chainRootId != null) chainRootId else toolPath.lastOrNull()?.id
-                val toolMsgId = "${Constants.TOOL_MSG_PREFIX}${UUID.randomUUID()}"
-                val toolMsgSegs = txedSegments.ifEmpty { null }
-                val tcds = toolCallDataList
-                val allSegmentsJson = Json.encodeToString(toolMsgSegs ?: tcds.map { tc ->
-                    MessageSegment(type = "tool", toolName = tc.toolName, toolArgs = tc.arguments, toolResult = tc.result)
-                })
-                val resultMsgs = tcds.map { tcData ->
-                    val rid = "${Constants.RESULT_MSG_PREFIX}${UUID.randomUUID()}"
-                    rid to ChatMessage(
-                        id = rid, parentId = toolMsgId,
-                        text = tcData.result,
-                        participant = Participant.USER, status = MessageStatus.SUCCESS,
-                        toolCall = tcData
-                    )
-                }
-                toolPath = toolPath.toMutableList().apply {
-                    add(ChatMessage(
-                        id = toolMsgId, parentId = prevLastId,
-                        text = "", participant = Participant.MODEL,
-                        status = MessageStatus.SUCCESS, toolCall = tcds.first(),
-                        segments = toolMsgSegs
-                    ))
-                    for ((_, msg) in resultMsgs) add(msg)
-                }
-                // Persist tool call messages to DB so history survives reload
-                chatDao.upsertMessage(MessageEntity(
-                    id = toolMsgId, conversationId = currentId, parentId = prevLastId,
-                    text = "", thoughts = null, status = MessageStatus.SUCCESS,
-                    participant = Participant.MODEL, timestamp = System.currentTimeMillis(),
-                    toolCallJson = allSegmentsJson
-                ))
-                for ((rid, msg) in resultMsgs) {
-                    chatDao.upsertMessage(MessageEntity(
-                        id = rid, conversationId = currentId, parentId = toolMsgId,
-                        text = msg.text, thoughts = null, status = MessageStatus.SUCCESS,
-                        participant = Participant.USER, timestamp = System.currentTimeMillis(),
-                        toolCallJson = Json.encodeToString(listOf(
-                            MessageSegment(type = "tool", toolName = msg.toolCall!!.toolName, toolArgs = msg.toolCall!!.arguments, toolResult = msg.toolCall!!.result)
-                        ))
-                    ))
-                }
-
-                toolCallData = null
-                toolCallDataList = emptyList()
-
-                provider.generateResponse(toolPath, config).collect { event ->
-                            when (event) {
-                                is StreamEvent.TextChunk -> {
-                                    if (currentStatus == MessageStatus.THINKING) {
-                                        totalThoughtTimeMs = System.currentTimeMillis() - startTime
-                                        if (currentThoughtBuf.isNotEmpty()) {
-                                            segments.add(MessageSegment(type = "thought", content = currentThoughtBuf.toString(), signature = currentThoughtSignature))
-                                            currentThoughtBuf = StringBuilder()
-                                            currentThoughtSignature = null
-                                        }
-                                        totalText += event.text.trimStart()
-                                    } else {
-                                        totalText += event.text
-                                    }
-                                    currentStatus = MessageStatus.SENDING
-                                }
-                                is StreamEvent.ThoughtChunk -> {
-                                    if (totalText.isEmpty()) {
-                                        currentStatus = MessageStatus.THINKING
-                                        if (totalThoughtTimeMs == null) totalThoughtTimeMs = System.currentTimeMillis() - startTime
-                                        if (totalThoughts.isEmpty()) totalThoughts = "Thinking..."
-                                    }
-                                    if (event.thought.isNotEmpty()) {
-                                        currentThoughtBuf.append(event.thought)
-                                        if (totalThoughts == "Thinking...") totalThoughts = event.thought
-                                        else totalThoughts += event.thought
-                                    }
-                                    if (event.title != null) totalThoughtTitle = event.title
-                                    if (event.signature != null) currentThoughtSignature = event.signature
-                                }
-                                is StreamEvent.UsageUpdate -> {
-                                    if (event.tokenCount > 0) totalTokenCount = event.tokenCount
-                                }
-                                is StreamEvent.Error -> {
-                                    if (toolCallData == null && toolCallDataList.isEmpty()) {
-                                        totalText = event.message
-                                        currentStatus = MessageStatus.ERROR
-                                    }
-                                }
-                                is StreamEvent.ToolCallRequest -> {
-                                    if (currentThoughtBuf.isNotEmpty()) {
-                                        segments.add(MessageSegment(type = "thought", content = currentThoughtBuf.toString(), signature = currentThoughtSignature))
-                                        currentThoughtBuf = StringBuilder()
-                                        currentThoughtSignature = null
-                                    }
-                                    val result = executeTool(event.name, event.arguments)
-                                    val tcd = ToolCallData(event.name, event.arguments, result)
-                                    if (toolCallData == null) toolCallData = tcd
-                                    toolCallDataList = toolCallDataList + tcd
-                                    val ts = MessageSegment(type = "tool", toolName = event.name, toolArgs = event.arguments, toolResult = result)
-                                    segments.add(ts)
-                                    roundToolSegments.add(ts)
-                                    currentStatus = MessageStatus.SENDING
-                                }
-                                is StreamEvent.ToolCallsRequest -> {
-                                    if (currentThoughtBuf.isNotEmpty()) {
-                                        segments.add(MessageSegment(type = "thought", content = currentThoughtBuf.toString(), signature = currentThoughtSignature))
-                                        currentThoughtBuf = StringBuilder()
-                                        currentThoughtSignature = null
-                                    }
-                                    val tcds = event.calls.map { call ->
-                                        val result = executeTool(call.name, call.arguments)
-                                        val ts = MessageSegment(type = "tool", toolName = call.name, toolArgs = call.arguments, toolResult = result, signature = call.signature)
-                                        segments.add(ts)
-                                        roundToolSegments.add(ts)
-                                        ToolCallData(call.name, call.arguments, result)
-                                    }
-                                    toolCallData = tcds.firstOrNull()
-                                    toolCallDataList = tcds
-                                    currentStatus = MessageStatus.SENDING
-                                }
-                            }
-
-                            _streamingMessage.value = ChatMessage(
-                                id = modelMessageId,
-                                parentId = parentId,
-                                text = totalText,
-                                thoughts = totalThoughts.ifBlank { null },
-                                thoughtTitle = totalThoughtTitle,
-                                tokenCount = totalTokenCount,
-                                status = currentStatus,
-                                participant = Participant.MODEL,
-                                timestamp = startTime,
-                                thoughtTimeMs = totalThoughtTimeMs,
-                                modelName = currentActiveModel.value,
-                                toolCall = toolCallData,
-                                segments = if (segments.isNotEmpty()) buildLiveSegments(segments, currentThoughtBuf, currentThoughtSignature) else null
-                            )
-                }
-            }
-
-            if (!currentCoroutineContext().isActive) {
-                currentStatus = MessageStatus.STOPPED
-            }
-
-            // Persist synthetic tool messages from toolPath to DB (batch, not during streaming)
-            // Skip for regenerate — the model response must stay a sibling of the original
-            if (!isRegenerate && generationId == myGenerationId) for (msg in toolPath) {
-                if (msg.id.startsWith(Constants.TOOL_MSG_PREFIX) || msg.id.startsWith(Constants.RESULT_MSG_PREFIX)) {
-                    val exists = chatDao.getMessagesForConversation(currentId).first().any { it.id == msg.id }
-                    if (!exists) {
-                        chatDao.upsertMessage(MessageEntity(
-                            id = msg.id, conversationId = currentId, parentId = msg.parentId,
-                            text = msg.text, thoughts = null, status = msg.status,
-                            participant = msg.participant, timestamp = System.currentTimeMillis(),
-                            toolCallJson = msg.segments?.let { Json.encodeToString(it) }
-                                ?: msg.toolCall?.let { Json.encodeToString(listOf(
-                                    MessageSegment(type = "tool", toolName = it.toolName, toolArgs = it.arguments, toolResult = it.result)
-                                )) }
-                        ))
-                    }
-                }
-            }
-
-            if (currentStatus != MessageStatus.ERROR) {
-                currentStatus = if (totalText.isNotEmpty() || totalThoughts.isNotEmpty()) MessageStatus.SUCCESS else MessageStatus.ERROR
-            }
-        } catch (e: CancellationException) {
-            currentStatus = MessageStatus.STOPPED
-            throw e
-        } catch (e: Exception) {
-            val isCancelled = generationJob?.isCancelled == true
-            currentStatus = if (isCancelled) MessageStatus.STOPPED else MessageStatus.ERROR
-            if (!isCancelled) {
-                totalText = "Error: ${e.localizedMessage ?: "An unexpected error occurred."}"
-            }
-        } finally {
-            withContext(NonCancellable) {
-                try {
-                    if (generationId == myGenerationId) {
-                        val conversationExists = chatDao.getConversation(currentId) != null
-                        if (conversationExists) {
-                            val finalStreamingMsg = _streamingMessage.value
-                            val finalSegments = finalStreamingMsg?.segments ?: segments.toList().ifEmpty { null }
-                            val segmentsJson = finalSegments?.let { Json.encodeToString(it) }
-                            val effectiveParentId = if (isRegenerate) parentId else (toolPath.lastOrNull()?.id ?: parentId)
-                            if (finalStreamingMsg != null) {
-                                chatDao.upsertMessage(MessageEntity(id = finalStreamingMsg.id, conversationId = currentId, parentId = effectiveParentId, text = finalStreamingMsg.text, thoughts = finalStreamingMsg.thoughts, thoughtTitle = finalStreamingMsg.thoughtTitle, tokenCount = finalStreamingMsg.tokenCount, status = currentStatus, participant = finalStreamingMsg.participant, timestamp = finalStreamingMsg.timestamp, thoughtTimeMs = finalStreamingMsg.thoughtTimeMs, modelName = finalStreamingMsg.modelName, toolCallJson = segmentsJson))
-                            } else {
-                                chatDao.upsertMessage(MessageEntity(id = modelMessageId, conversationId = currentId, parentId = effectiveParentId, text = totalText, thoughts = totalThoughts.ifBlank { null }, thoughtTitle = totalThoughtTitle, tokenCount = totalTokenCount, status = currentStatus, participant = Participant.MODEL, timestamp = startTime, thoughtTimeMs = totalThoughtTimeMs, modelName = currentActiveModel.value, toolCallJson = segmentsJson))
-                            }
-                        }
-                    }
-                } catch (e: Exception) {
-                    Log.e("AgoraVM", "Failed to persist message to DB", e)
-                }
-                if (generationId == myGenerationId) {
-                    _isLoading.value = false
-                    _streamingMessage.value = null
-                    _generatingInConversationId.value = null
-                }
-                AgoraForegroundService.stop(getApplication())
-            }
-        }
     }
 
     fun fetchAvailableModels() {
