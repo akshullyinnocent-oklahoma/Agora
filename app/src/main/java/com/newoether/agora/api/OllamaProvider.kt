@@ -309,6 +309,7 @@ class OllamaProvider : LlmProvider {
             connection.connectTimeout = 15000
             connection.readTimeout = 15000
             val responseText = connection.inputStream.bufferedReader().use { it.readText() }
+            connection.disconnect()
             val json = Json { ignoreUnknownKeys = true }
             json.decodeFromString<OllamaTagsResponse>(responseText).models.map { it.name }
         } catch (e: Exception) {

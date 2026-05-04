@@ -459,6 +459,7 @@ class GeminiProvider : LlmProvider {
             connection.readTimeout = 15000
             connection.requestMethod = "GET"
             val responseText = connection.inputStream.bufferedReader().use { it.readText() }
+            connection.disconnect()
             val json = Json { ignoreUnknownKeys = true }
             json.decodeFromString<ModelListResponse>(responseText).models
                 .filter { it.supportedGenerationMethods.contains("generateContent") }

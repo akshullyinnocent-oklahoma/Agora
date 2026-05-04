@@ -391,6 +391,7 @@ class AnthropicProvider : LlmProvider {
             connection.setRequestProperty("x-api-key", apiKey)
             connection.setRequestProperty("anthropic-version", "2023-06-01")
             val responseText = connection.inputStream.bufferedReader().use { it.readText() }
+            connection.disconnect()
             json.decodeFromString<AnthropicModelsResponse>(responseText).data.map { it.id }
         } catch (e: Exception) {
             Log.e("AgoraAPI", "Failed to fetch Anthropic models", e)

@@ -188,6 +188,7 @@ class OpenRouterProvider : LlmProvider {
             connection.readTimeout = 15000
             connection.setRequestProperty("Authorization", "Bearer $apiKey")
             val responseText = connection.inputStream.bufferedReader().use { it.readText() }
+            connection.disconnect()
             json.decodeFromString<OpenAiModelListResponse>(responseText).data.map { it.id }.sorted()
         } catch (e: Exception) { emptyList() }
     }

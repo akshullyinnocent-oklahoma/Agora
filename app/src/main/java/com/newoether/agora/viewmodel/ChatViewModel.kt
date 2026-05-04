@@ -297,6 +297,12 @@ class ChatViewModel(
                 } else {
                     _allMessages.value = emptyList()
                     _selectedChildren.value = emptyMap()
+                    messageHeights.clear()
+                }
+                // Prune stale height entries for messages no longer in the conversation
+                if (_allMessages.value.isNotEmpty()) {
+                    val currentIds = _allMessages.value.map { it.id }.toSet()
+                    messageHeights.keys.retainAll { it in currentIds }
                 }
             }
         }
