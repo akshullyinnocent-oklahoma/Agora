@@ -46,6 +46,8 @@ import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.Terminal
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Videocam
+import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.CompositionLocalProvider
@@ -138,6 +140,11 @@ fun ChatBottomBar(
     ) { uris ->
         selectedImageUris = selectedImageUris + uris.map { it.toString() }
     }
+    val fileLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.GetMultipleContents()
+    ) { uris ->
+        selectedImageUris = selectedImageUris + uris.map { it.toString() }
+    }
 
     Column(modifier = modifier.fillMaxWidth().then(if (isExpanded) Modifier.fillMaxHeight().statusBarsPadding() else Modifier).padding(8.dp)) {
         if (isExpanded) {
@@ -194,13 +201,81 @@ fun ChatBottomBar(
 
         Row(modifier = Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f), RoundedCornerShape(100)).padding(horizontal = 8.dp, vertical = 2.dp)) {
-                IconButton(
-                    onClick = { 
-                        launcher.launch(androidx.activity.result.PickVisualMediaRequest(androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia.ImageOnly))
-                    }, 
-                    modifier = Modifier.size(32.dp)
-                ) { 
-                    Icon(Icons.Default.Add, "Add Image", modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant) 
+                var showAddMenu by remember { mutableStateOf(false) }
+                var lastAddDismissTime by remember { mutableLongStateOf(0L) }
+                ExposedDropdownMenuBox(
+                    expanded = showAddMenu,
+                    onExpandedChange = { }
+                ) {
+                    IconButton(
+                        onClick = {
+                            val now = System.currentTimeMillis()
+                            if (showAddMenu) {
+                                showAddMenu = false
+                            } else if (now - lastAddDismissTime > 200) {
+                                showAddMenu = true
+                            }
+                        },
+                        modifier = Modifier.size(32.dp).menuAnchor()
+                    ) {
+                        Icon(Icons.Default.Add, "Add Attachment", modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+
+                    ExposedDropdownMenu(
+                        expanded = showAddMenu,
+                        onDismissRequest = {
+                            if (showAddMenu) {
+                                showAddMenu = false
+                                lastAddDismissTime = System.currentTimeMillis()
+                            }
+                        },
+                        matchTextFieldWidth = false,
+                        focusable = false,
+                        shape = RoundedCornerShape(16.dp)
+                    ) {
+                        DropdownMenuItem(
+                            text = {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Default.AddPhotoAlternate, null, modifier = Modifier.size(18.dp))
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Text("Photos")
+                                }
+                            },
+                            onClick = {
+                                showAddMenu = false
+                                lastAddDismissTime = 0L
+                                launcher.launch(androidx.activity.result.PickVisualMediaRequest(androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia.ImageOnly))
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Default.Videocam, null, modifier = Modifier.size(18.dp))
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Text("Videos")
+                                }
+                            },
+                            onClick = {
+                                showAddMenu = false
+                                lastAddDismissTime = 0L
+                                launcher.launch(androidx.activity.result.PickVisualMediaRequest(androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia.VideoOnly))
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Default.AttachFile, null, modifier = Modifier.size(18.dp))
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Text("Files")
+                                }
+                            },
+                            onClick = {
+                                showAddMenu = false
+                                lastAddDismissTime = 0L
+                                fileLauncher.launch("*/*")
+                            }
+                        )
+                    }
                 }
                 var activeMenu by remember { mutableStateOf<String?>(null) }
                 var lastModelDismissTime by remember { mutableLongStateOf(0L) }
