@@ -289,13 +289,15 @@ class GenerationManager(
 
             if (resultsArray.isEmpty()) return "No search results found."
 
-            return resultsArray.take(10).mapIndexed { i, element ->
+            val total = resultsArray.size
+            val body = resultsArray.take(10).mapIndexed { i, element ->
                 val obj = element.jsonObject
                 val title = (obj["title"] as? JsonPrimitive)?.content ?: "Untitled"
                 val url = (obj["url"] as? JsonPrimitive)?.content ?: ""
                 val desc = (obj["description"] as? JsonPrimitive)?.content ?: ""
                 "${i + 1}. $title\n   $url\n   $desc"
             }.joinToString("\n\n")
+            return "Found $total results.\n\n$body"
         } catch (e: Exception) {
             return "Failed to parse search results: ${e.message}"
         }
