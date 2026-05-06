@@ -95,6 +95,8 @@ dependencies {
     implementation(libs.compose.markdown)
     implementation(libs.coil.compose)
     implementation(libs.jlatexmath.android)
+    implementation(libs.media3.exoplayer)
+    implementation(libs.media3.ui)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)

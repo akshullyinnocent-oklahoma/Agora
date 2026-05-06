@@ -213,70 +213,10 @@ fun MainNavigation(viewModel: ChatViewModel) {
                 val isVideo = mimeType?.startsWith("video/") == true
 
                 if (isVideo) {
-                    var videoFrame by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
-                    LaunchedEffect(url) {
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                            try {
-                                videoFrame = withContext(Dispatchers.IO) {
-                                    context.contentResolver.loadThumbnail(
-                                        android.net.Uri.parse(url), android.util.Size(1024, 1024), null
-                                    )
-                                }
-                            } catch (_: Exception) {}
-                        }
-                    }
-
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(Color.Black.copy(alpha = 0.9f))
-                            .clickable(
-                                indication = null,
-                                interactionSource = remember { MutableInteractionSource() }
-                            ) { fullScreenImageUrl = null },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        if (videoFrame != null) {
-                            Image(
-                                bitmap = videoFrame!!.asImageBitmap(),
-                                contentDescription = "Video preview",
-                                modifier = Modifier.fillMaxSize().padding(48.dp),
-                                contentScale = ContentScale.Fit
-                            )
-                        }
-                        IconButton(
-                            onClick = {
-                                try {
-                                    val intent = android.content.Intent(android.content.Intent.ACTION_VIEW).apply {
-                                        setDataAndType(android.net.Uri.parse(url), mimeType)
-                                        addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                    }
-                                    context.startActivity(intent)
-                                } catch (_: Exception) {}
-                            },
-                            modifier = Modifier
-                                .size(64.dp)
-                                .background(Color.White.copy(alpha = 0.9f), CircleShape)
-                        ) {
-                            Icon(
-                                Icons.Default.PlayArrow,
-                                contentDescription = "Play",
-                                tint = Color.Black,
-                                modifier = Modifier.size(36.dp)
-                            )
-                        }
-
-                        IconButton(
-                            onClick = { fullScreenImageUrl = null },
-                            modifier = Modifier
-                                .align(Alignment.TopEnd)
-                                .statusBarsPadding()
-                                .padding(16.dp)
-                                .background(Color.Black.copy(alpha = 0.3f), CircleShape)
-                        ) {
-                            Icon(Icons.Default.Close, contentDescription = "Close", tint = Color.White)
-                        }
-                    }
+                    com.newoether.agora.ui.chat.VideoPlayer(
+                        uri = url,
+                        onClose = { fullScreenImageUrl = null }
+                    )
                 } else {
                 val scope = rememberCoroutineScope()
                 val density = LocalDensity.current
