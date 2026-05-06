@@ -659,6 +659,7 @@ class ChatViewModel(
             )
 
             generationManager.accessSavedMemories = accessSavedMemories.value
+            generationManager.accessPastConversations = accessPastConversations.value
             generationManager.webSearchEnabled = webSearchEnabled.value
             generationManager.webSearchApiKey = webSearchApiKey.value
             generationManager.webSearchProvider = webSearchProvider.value
@@ -742,6 +743,7 @@ class ChatViewModel(
             )
 
             generationManager.accessSavedMemories = accessSavedMemories.value
+            generationManager.accessPastConversations = accessPastConversations.value
             generationManager.webSearchEnabled = webSearchEnabled.value
             generationManager.webSearchApiKey = webSearchApiKey.value
             generationManager.webSearchProvider = webSearchProvider.value
@@ -856,6 +858,7 @@ class ChatViewModel(
             )
 
             generationManager.accessSavedMemories = accessSavedMemories.value
+            generationManager.accessPastConversations = accessPastConversations.value
             generationManager.webSearchEnabled = webSearchEnabled.value
             generationManager.webSearchApiKey = webSearchApiKey.value
             generationManager.webSearchProvider = webSearchProvider.value

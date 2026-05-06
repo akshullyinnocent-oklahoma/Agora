@@ -55,6 +55,7 @@ class GenerationManager(
 ) {
     private var generationId = 0
     var accessSavedMemories: Boolean = true
+    var accessPastConversations: Boolean = true
     var webSearchEnabled: Boolean = false
     var webSearchApiKey: String = ""
     var webSearchProvider: String = "brave"
@@ -197,6 +198,53 @@ class GenerationManager(
         )
     }
 
+    fun buildRagTool(): List<ToolDefinition> {
+        if (!accessPastConversations) return emptyList()
+        return listOf(
+            ToolDefinition(function = ToolFunction(
+                name = "search_conversations",
+                description = "Search past conversations for relevant information. Use this to recall facts, decisions, or context from previous discussions.",
+                parameters = ToolParameters(
+                    properties = mapOf(
+                        "query" to ToolProperty("string", "The search query to find relevant past conversations."),
+                        "limit" to ToolProperty("integer", "Maximum number of results (1-20, default 10).")
+                    ),
+                    required = listOf("query")
+                )
+            ))
+        )
+    }
+
+    private suspend fun executeSearchConversations(arguments: String): String {
+        val argsStr = arguments.ifBlank { "{}" }
+        val args = Json.decodeFromString<Map<String, kotlinx.serialization.json.JsonElement>>(argsStr)
+        val query = (args["query"] as? kotlinx.serialization.json.JsonPrimitive)?.content ?: return "Error: No search query provided."
+        val limit = ((args["limit"] as? kotlinx.serialization.json.JsonPrimitive)?.content?.toIntOrNull() ?: 10).coerceIn(1, 20)
+
+        return try {
+            val results = chatDao.searchMessages(query, limit)
+            if (results.isEmpty()) "No past conversations found matching '$query'."
+
+            val grouped = results.groupBy { it.conversationId }
+            val titles = mutableMapOf<String, String>()
+            for (convId in grouped.keys.take(5)) {
+                titles[convId] = chatDao.getConversation(convId)?.title ?: "Untitled"
+            }
+
+            grouped.entries.take(5).joinToString("\n\n") { (convId, messages) ->
+                val title = titles[convId] ?: "Untitled"
+                val previews = messages.take(3).joinToString("\n") { msg ->
+                    val role = if (msg.participant == Participant.USER) "User" else "Model"
+                    val preview = msg.text.lines().first().take(200)
+                    "$role: $preview"
+                }
+                "## $title\n$previews"
+            }
+        } catch (e: Exception) {
+            "Search error: ${e.message}"
+        }
+    }
+
     private fun executeWebSearch(arguments: String): String {
         val argsStr = arguments.ifBlank { "{}" }
         val args = Json.decodeFromString<Map<String, kotlinx.serialization.json.JsonElement>>(argsStr)
@@ -271,7 +319,7 @@ class GenerationManager(
         }
     }
 
-    private fun executeTool(name: String, arguments: String): String {
+    private suspend fun executeTool(name: String, arguments: String): String {
         return try {
             val argsStr = arguments.ifBlank { "{}" }
             val args = Json.decodeFromString<Map<String, kotlinx.serialization.json.JsonElement>>(argsStr)
@@ -309,6 +357,7 @@ class GenerationManager(
                     memoryManager.updateActiveMemory(arg("content"), mode)
                 }
                 "web_search" -> executeWebSearch(arguments)
+                "search_conversations" -> executeSearchConversations(arguments)
                 else -> "Unknown tool: $name"
             }
         } catch (e: Exception) {
@@ -390,7 +439,8 @@ class GenerationManager(
 
             val memoryTools = buildMemoryTools()
             val webSearchTool = buildWebSearchTool()
-            val allTools = memoryTools + webSearchTool
+            val ragTool = buildRagTool()
+            val allTools = memoryTools + webSearchTool + ragTool
             val providerConfig = ProviderConfig(
                 apiKey = config.apiKey,
                 modelId = config.modelId,

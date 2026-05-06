@@ -97,6 +97,12 @@ interface ChatDao {
 
     @Query("DELETE FROM conversations WHERE id = :conversationId")
     suspend fun deleteConversation(conversationId: String)
+
+    @Query("SELECT * FROM messages WHERE text LIKE '%' || :query || '%' AND participant IN ('USER', 'MODEL') ORDER BY timestamp DESC LIMIT :limit")
+    suspend fun searchMessages(query: String, limit: Int = 10): List<MessageEntity>
+
+    @Query("SELECT * FROM messages WHERE conversationId = :conversationId ORDER BY timestamp DESC LIMIT 1")
+    suspend fun getLastMessageForConversation(conversationId: String): MessageEntity?
 }
 
 @Database(
