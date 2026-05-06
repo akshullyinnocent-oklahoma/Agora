@@ -55,10 +55,12 @@ fun SettingsWebSearchPage(viewModel: ChatViewModel, onBack: () -> Unit) {
             )
         }
     ) { padding ->
+        val fm = androidx.compose.ui.platform.LocalFocusManager.current
         Column(
             modifier = Modifier
                 .padding(padding)
                 .verticalScroll(rememberScrollState())
+                .clickable(indication = null, interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }) { fm.clearFocus() }
                 .padding(horizontal = 16.dp, vertical = 16.dp)
         ) {
             SettingsGroup(title = "WEB SEARCH") {

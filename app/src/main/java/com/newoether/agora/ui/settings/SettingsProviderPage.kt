@@ -67,10 +67,12 @@ fun SettingsProviderPage(viewModel: ChatViewModel, onBack: () -> Unit) {
             )
         }
     ) { padding ->
+        val fm = LocalFocusManager.current
         Column(
             modifier = Modifier
                 .padding(padding)
                 .verticalScroll(rememberScrollState())
+                .clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) { fm.clearFocus() }
                 .padding(horizontal = 16.dp, vertical = 16.dp)
         ) {
             SettingsGroup(title = "PROVIDER") {
