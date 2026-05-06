@@ -198,14 +198,8 @@ private fun toolResultSummary(toolName: String, toolArgs: String, result: String
         "delete_memory_file" -> if (fileName != null) "Removed $fileName" else "Removed a memory"
         "list_memory_files" -> "Looked through saved memories"
         "update_active_memory" -> "Updated active memory"
-        "web_search" -> {
-            val matchLabel = Regex("Found (\\d+) matche?s").find(result)
-            if (matchLabel != null) matchLabel.value else "Web search done"
-        }
-        "search_conversations" -> {
-            val matchLabel = Regex("Found (\\d+) matche?s").find(result)
-            if (matchLabel != null) matchLabel.value else "Conversation search done"
-        }
+        "web_search" -> result.lines().first().take(100).ifBlank { "Web search done" }
+        "search_conversations" -> result.lines().first().take(100).ifBlank { "Conversation search done" }
         else -> "Done"
     }
 }
