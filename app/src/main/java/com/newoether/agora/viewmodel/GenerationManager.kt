@@ -268,13 +268,13 @@ class GenerationManager(
 
             val body = com.newoether.agora.api.HttpClient.fetchModels(url, requestHeaders)
                 ?: return "Search failed: no response"
-            formatSearchResults(body)
+            formatSearchResults(body, query)
         } catch (e: Exception) {
             "Search error: ${e.message}"
         }
     }
 
-    private fun formatSearchResults(jsonStr: String): String {
+    private fun formatSearchResults(jsonStr: String, query: String = ""): String {
         try {
             val json: Map<String, kotlinx.serialization.json.JsonElement> = Json.decodeFromString(jsonStr)
             val resultsArray = when {
@@ -297,7 +297,8 @@ class GenerationManager(
                 val desc = (obj["description"] as? JsonPrimitive)?.content ?: ""
                 "${i + 1}. $title\n   $url\n   $desc"
             }.joinToString("\n\n")
-            return "Found $total results.\n\n$body"
+            val prefix = if (query.isNotBlank()) "Found $total results for '$query'." else "Found $total results."
+            return "$prefix\n\n$body"
         } catch (e: Exception) {
             return "Failed to parse search results: ${e.message}"
         }
