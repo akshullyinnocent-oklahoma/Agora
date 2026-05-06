@@ -223,7 +223,8 @@ class GenerationManager(
 
         return try {
             val results = chatDao.searchMessages(query, limit)
-            if (results.isEmpty()) "No past conversations found matching '$query'."
+            val totalMatches = results.size
+            if (totalMatches == 0) return "Found 0 matches for '$query'."
 
             val grouped = results.groupBy { it.conversationId }
             val titles = mutableMapOf<String, String>()
@@ -231,7 +232,7 @@ class GenerationManager(
                 titles[convId] = chatDao.getConversation(convId)?.title ?: "Untitled"
             }
 
-            grouped.entries.take(5).joinToString("\n\n") { (convId, messages) ->
+            val body = grouped.entries.take(5).joinToString("\n\n") { (convId, messages) ->
                 val title = titles[convId] ?: "Untitled"
                 val previews = messages.take(3).joinToString("\n") { msg ->
                     val role = if (msg.participant == Participant.USER) "User" else "Model"
@@ -240,6 +241,7 @@ class GenerationManager(
                 }
                 "## $title\n$previews"
             }
+            "Found $totalMatches matches for '$query'.\n\n$body"
         } catch (e: Exception) {
             "Search error: ${e.message}"
         }
