@@ -1,6 +1,8 @@
 package com.newoether.agora.ui.chat
 
 import android.net.Uri
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -15,11 +17,13 @@ import androidx.compose.material3.IconButton
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.common.MediaItem
 import androidx.media3.exoplayer.ExoPlayer
+import kotlinx.coroutines.delay
 
 @Composable
 fun VideoPlayer(
@@ -28,6 +32,12 @@ fun VideoPlayer(
     modifier: Modifier = Modifier
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
+    var contentReady by remember { mutableStateOf(false) }
+    val alpha by animateFloatAsState(
+        targetValue = if (contentReady) 1f else 0f,
+        animationSpec = tween(400)
+    )
+
     val player = remember {
         ExoPlayer.Builder(context).build().apply {
             setMediaItem(MediaItem.fromUri(Uri.parse(uri)))
@@ -42,19 +52,29 @@ fun VideoPlayer(
         }
     }
 
+    LaunchedEffect(Unit) {
+        delay(150)
+        contentReady = true
+    }
+
     Box(modifier = modifier.fillMaxSize().background(Color.Black)) {
-        AndroidView(
-            factory = { ctx ->
-                androidx.media3.ui.PlayerView(ctx).apply {
-                    this.player = player
-                    useController = true
-                }
-            },
+        Box(
             modifier = Modifier
                 .fillMaxSize()
                 .statusBarsPadding()
                 .navigationBarsPadding()
-        )
+                .alpha(alpha)
+        ) {
+            AndroidView(
+                factory = { ctx ->
+                    androidx.media3.ui.PlayerView(ctx).apply {
+                        this.player = player
+                        useController = true
+                    }
+                },
+                modifier = Modifier.fillMaxSize()
+            )
+        }
 
         IconButton(
             onClick = onClose,
