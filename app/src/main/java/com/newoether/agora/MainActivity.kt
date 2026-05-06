@@ -787,7 +787,7 @@ fun ChatApp(
                         .fillMaxHeight()
                         .padding(horizontal = 16.dp, vertical = 20.dp)
                 ) {
-                    Text("Conversations", style = MaterialTheme.typography.titleLarge)
+                    Text("Conversations", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                     Spacer(modifier = Modifier.height(16.dp))
                     
                     Button(
