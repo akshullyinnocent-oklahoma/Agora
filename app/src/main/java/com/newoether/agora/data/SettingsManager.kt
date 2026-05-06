@@ -54,6 +54,8 @@ class SettingsManager(private val context: Context) {
         val PROVIDER_BASE_URLS = stringPreferencesKey("provider_base_urls")
         val TITLE_GENERATION_ENABLED = booleanPreferencesKey("title_generation_enabled")
         val TITLE_GENERATION_MODEL = stringPreferencesKey("title_generation_model")
+        val ACCESS_PAST_CONVERSATIONS = booleanPreferencesKey("access_past_conversations")
+        val ACCESS_SAVED_MEMORIES = booleanPreferencesKey("access_saved_memories")
     }
 
     val selectedModel: Flow<String> = context.dataStore.data.map { it[SELECTED_MODEL] ?: "gemini-1.5-flash" }
@@ -100,6 +102,9 @@ class SettingsManager(private val context: Context) {
 
     val titleGenerationEnabled: Flow<Boolean> = context.dataStore.data.map { it[TITLE_GENERATION_ENABLED] ?: true }
     val titleGenerationModel: Flow<String?> = context.dataStore.data.map { it[TITLE_GENERATION_MODEL] }
+
+    val accessPastConversations: Flow<Boolean> = context.dataStore.data.map { it[ACCESS_PAST_CONVERSATIONS] ?: true }
+    val accessSavedMemories: Flow<Boolean> = context.dataStore.data.map { it[ACCESS_SAVED_MEMORIES] ?: true }
 
     suspend fun saveProviderBaseUrl(provider: String, url: String) {
         context.dataStore.edit { prefs ->
@@ -176,6 +181,14 @@ class SettingsManager(private val context: Context) {
 
     suspend fun saveTitleGenerationEnabled(enabled: Boolean) {
         context.dataStore.edit { it[TITLE_GENERATION_ENABLED] = enabled }
+    }
+
+    suspend fun saveAccessPastConversations(enabled: Boolean) {
+        context.dataStore.edit { it[ACCESS_PAST_CONVERSATIONS] = enabled }
+    }
+
+    suspend fun saveAccessSavedMemories(enabled: Boolean) {
+        context.dataStore.edit { it[ACCESS_SAVED_MEMORIES] = enabled }
     }
 
     suspend fun saveTitleGenerationModel(model: String?) {

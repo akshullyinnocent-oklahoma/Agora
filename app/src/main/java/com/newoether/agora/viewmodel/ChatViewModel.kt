@@ -133,7 +133,9 @@ class ChatViewModel(
         val providerBaseUrls = settingsManager.providerBaseUrls.stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
     val titleGenerationEnabled = settingsManager.titleGenerationEnabled.stateIn(viewModelScope, SharingStarted.Eagerly, true)
     val titleGenerationModel = settingsManager.titleGenerationModel.stateIn(viewModelScope, SharingStarted.Eagerly, null)
-    
+    val accessPastConversations = settingsManager.accessPastConversations.stateIn(viewModelScope, SharingStarted.Eagerly, true)
+    val accessSavedMemories = settingsManager.accessSavedMemories.stateIn(viewModelScope, SharingStarted.Eagerly, true)
+
         val conversations: StateFlow<List<ChatConversation>> = chatDao.getAllConversations()
             .map { entities ->
                 entities.map { ChatConversation(id = it.id, title = it.title, systemPromptId = it.systemPromptId, modelId = it.modelId) }
@@ -414,6 +416,8 @@ class ChatViewModel(
     fun setProviderBaseUrl(provider: String, url: String) { viewModelScope.launch { settingsManager.saveProviderBaseUrl(provider, url) } }
     fun setTitleGenerationEnabled(enabled: Boolean) { viewModelScope.launch { settingsManager.saveTitleGenerationEnabled(enabled) } }
     fun setTitleGenerationModel(model: String?) { viewModelScope.launch { settingsManager.saveTitleGenerationModel(model) } }
+    fun setAccessPastConversations(enabled: Boolean) { viewModelScope.launch { settingsManager.saveAccessPastConversations(enabled) } }
+    fun setAccessSavedMemories(enabled: Boolean) { viewModelScope.launch { settingsManager.saveAccessSavedMemories(enabled) } }
 
     fun createNewChat() {
         switchingJob?.cancel()
@@ -646,6 +650,7 @@ class ChatViewModel(
                 baseUrl = providerBaseUrls.value[providerName]
             )
 
+            generationManager.accessSavedMemories = accessSavedMemories.value
             generationManager.generate(
                 conversationId = currentId,
                 modelMessageId = modelMessageId,
@@ -724,6 +729,7 @@ class ChatViewModel(
                 baseUrl = providerBaseUrls.value[providerName]
             )
 
+            generationManager.accessSavedMemories = accessSavedMemories.value
             generationManager.generate(
                 conversationId = currentId,
                 modelMessageId = modelMessageId,
@@ -812,6 +818,7 @@ class ChatViewModel(
                 baseUrl = providerBaseUrls.value[providerName]
             )
 
+            generationManager.accessSavedMemories = accessSavedMemories.value
             generationManager.generate(
                 conversationId = currentId,
                 modelMessageId = modelMessageId,

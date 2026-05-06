@@ -50,6 +50,7 @@ class GenerationManager(
     private val providers: Map<String, LlmProvider>
 ) {
     private var generationId = 0
+    var accessSavedMemories: Boolean = true
 
     private fun getProviderInstance(name: String): LlmProvider =
         providers[name] ?: providers.values.first()
@@ -86,7 +87,9 @@ class GenerationManager(
         }
     }
 
-    fun buildMemoryTools(): List<ToolDefinition> = listOf(
+    fun buildMemoryTools(): List<ToolDefinition> {
+        if (!accessSavedMemories) return emptyList()
+        return listOf(
         ToolDefinition(function = ToolFunction(
             name = "list_memory_files",
             description = "List all files in the memory database.",
@@ -146,6 +149,7 @@ class GenerationManager(
             )
         ))
     )
+    }
 
     private fun executeTool(name: String, arguments: String): String {
         return try {

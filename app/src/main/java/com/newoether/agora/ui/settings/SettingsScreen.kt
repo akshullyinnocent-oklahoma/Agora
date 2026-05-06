@@ -89,6 +89,8 @@ fun SettingsScreen(viewModel: ChatViewModel, onBack: () -> Unit) {
     val availableModels by viewModel.availableModels.collectAsState()
     val enabledModels by viewModel.enabledModels.collectAsState()
     val modelAliases by viewModel.modelAliases.collectAsState()
+    val accessPastConversations by viewModel.accessPastConversations.collectAsState()
+    val accessSavedMemories by viewModel.accessSavedMemories.collectAsState()
     val selectedModel by viewModel.selectedModel.collectAsState()
     val maxContextWindow by viewModel.maxContextWindow.collectAsState()
     val visualizeContextRollout by viewModel.visualizeContextRollout.collectAsState()
@@ -619,6 +621,31 @@ fun SettingsScreen(viewModel: ChatViewModel, onBack: () -> Unit) {
                         .clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) { fm.clearFocus() }
                         .padding(horizontal = 16.dp, vertical = 16.dp)
                 ) {
+                    // Access Controls
+                    SettingsGroup(title = "ACCESS") {
+                        ListItem(
+                            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                            headlineContent = { Text("Access saved memories") },
+                            supportingContent = { Text("Allow the model to read, create, and edit memory files") },
+                            leadingContent = { Icon(Icons.Default.Memory, null, tint = MaterialTheme.colorScheme.primary) },
+                            trailingContent = {
+                                Switch(checked = accessSavedMemories, onCheckedChange = { viewModel.setAccessSavedMemories(it) })
+                            },
+                            modifier = Modifier.clickable { viewModel.setAccessSavedMemories(!accessSavedMemories) }
+                        )
+                        HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                        ListItem(
+                            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                            headlineContent = { Text("Access past conversations") },
+                            supportingContent = { Text("Allow the model to search conversation history (RAG)") },
+                            leadingContent = { Icon(Icons.Default.Chat, null, tint = MaterialTheme.colorScheme.primary) },
+                            trailingContent = {
+                                Switch(checked = accessPastConversations, onCheckedChange = { viewModel.setAccessPastConversations(it) })
+                            },
+                            modifier = Modifier.clickable { viewModel.setAccessPastConversations(!accessPastConversations) }
+                        )
+                    }
+
                     // Active Memory
                     SettingsGroup(title = "ACTIVE MEMORY") {
                         ListItem(
