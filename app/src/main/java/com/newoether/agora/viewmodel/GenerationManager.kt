@@ -280,6 +280,8 @@ class GenerationManager(
             var toolCallDataList: List<ToolCallData> = emptyList()
             val roundToolSegments = mutableListOf<MessageSegment>()
 
+            var lastEmitMs = 0L
+
             provider.generateResponse(currentPath, providerConfig).collect { event ->
                 when (event) {
                     is StreamEvent.TextChunk -> {
@@ -358,22 +360,43 @@ class GenerationManager(
                     }
                 }
 
-                onStreamUpdate(ChatMessage(
-                    id = modelMessageId,
-                    parentId = parentId,
-                    text = totalText,
-                    thoughts = totalThoughts.ifBlank { null },
-                    thoughtTitle = totalThoughtTitle,
-                    tokenCount = totalTokenCount,
-                    status = currentStatus,
-                    participant = Participant.MODEL,
-                    timestamp = startTime,
-                    thoughtTimeMs = totalThoughtTimeMs,
-                    modelName = modelName,
-                    toolCall = toolCallData,
-                    segments = if (segments.isNotEmpty()) buildLiveSegments(segments, currentThoughtBuf, currentThoughtSignature) else null
-                ))
+                val now = System.currentTimeMillis()
+                val isSignificant = event is StreamEvent.Error || event is StreamEvent.ToolCallRequest || event is StreamEvent.ToolCallsRequest
+                if (now - lastEmitMs >= 500 || isSignificant) {
+                    onStreamUpdate(ChatMessage(
+                        id = modelMessageId,
+                        parentId = parentId,
+                        text = totalText,
+                        thoughts = totalThoughts.ifBlank { null },
+                        thoughtTitle = totalThoughtTitle,
+                        tokenCount = totalTokenCount,
+                        status = currentStatus,
+                        participant = Participant.MODEL,
+                        timestamp = startTime,
+                        thoughtTimeMs = totalThoughtTimeMs,
+                        modelName = modelName,
+                        toolCall = toolCallData,
+                        segments = if (segments.isNotEmpty()) buildLiveSegments(segments, currentThoughtBuf, currentThoughtSignature) else null
+                    ))
+                    lastEmitMs = now
+                }
             }
+            // Always emit final state after collection completes
+            onStreamUpdate(ChatMessage(
+                id = modelMessageId,
+                parentId = parentId,
+                text = totalText,
+                thoughts = totalThoughts.ifBlank { null },
+                thoughtTitle = totalThoughtTitle,
+                tokenCount = totalTokenCount,
+                status = currentStatus,
+                participant = Participant.MODEL,
+                timestamp = startTime,
+                thoughtTimeMs = totalThoughtTimeMs,
+                modelName = modelName,
+                toolCall = toolCallData,
+                segments = if (segments.isNotEmpty()) buildLiveSegments(segments, currentThoughtBuf, currentThoughtSignature) else null
+            ))
 
             // Multi-tool loop
             var toolRound = 0
@@ -431,6 +454,8 @@ class GenerationManager(
 
                 toolCallData = null
                 toolCallDataList = emptyList()
+
+                lastEmitMs = 0L
 
                 provider.generateResponse(toolPath, providerConfig).collect { event ->
                     when (event) {
@@ -505,22 +530,43 @@ class GenerationManager(
                         }
                     }
 
-                    onStreamUpdate(ChatMessage(
-                        id = modelMessageId,
-                        parentId = parentId,
-                        text = totalText,
-                        thoughts = totalThoughts.ifBlank { null },
-                        thoughtTitle = totalThoughtTitle,
-                        tokenCount = totalTokenCount,
-                        status = currentStatus,
-                        participant = Participant.MODEL,
-                        timestamp = startTime,
-                        thoughtTimeMs = totalThoughtTimeMs,
-                        modelName = modelName,
-                        toolCall = toolCallData,
-                        segments = if (segments.isNotEmpty()) buildLiveSegments(segments, currentThoughtBuf, currentThoughtSignature) else null
-                    ))
+                    val now = System.currentTimeMillis()
+                    val isSignificant = event is StreamEvent.Error || event is StreamEvent.ToolCallRequest || event is StreamEvent.ToolCallsRequest
+                    if (now - lastEmitMs >= 500 || isSignificant) {
+                        onStreamUpdate(ChatMessage(
+                            id = modelMessageId,
+                            parentId = parentId,
+                            text = totalText,
+                            thoughts = totalThoughts.ifBlank { null },
+                            thoughtTitle = totalThoughtTitle,
+                            tokenCount = totalTokenCount,
+                            status = currentStatus,
+                            participant = Participant.MODEL,
+                            timestamp = startTime,
+                            thoughtTimeMs = totalThoughtTimeMs,
+                            modelName = modelName,
+                            toolCall = toolCallData,
+                            segments = if (segments.isNotEmpty()) buildLiveSegments(segments, currentThoughtBuf, currentThoughtSignature) else null
+                        ))
+                        lastEmitMs = now
+                    }
                 }
+                // Always emit final state after tool round completes
+                onStreamUpdate(ChatMessage(
+                    id = modelMessageId,
+                    parentId = parentId,
+                    text = totalText,
+                    thoughts = totalThoughts.ifBlank { null },
+                    thoughtTitle = totalThoughtTitle,
+                    tokenCount = totalTokenCount,
+                    status = currentStatus,
+                    participant = Participant.MODEL,
+                    timestamp = startTime,
+                    thoughtTimeMs = totalThoughtTimeMs,
+                    modelName = modelName,
+                    toolCall = toolCallData,
+                    segments = if (segments.isNotEmpty()) buildLiveSegments(segments, currentThoughtBuf, currentThoughtSignature) else null
+                ))
             }
 
             if (!currentCoroutineContext().isActive) {

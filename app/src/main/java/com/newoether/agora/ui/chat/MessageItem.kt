@@ -66,6 +66,7 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.layout.onSizeChanged
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonObject
@@ -397,7 +398,7 @@ fun MessageItem(
                     modifier = Modifier
                         .widthIn(max = 300.dp)
                         .then(contextAlpha)
-                        .then(if (shouldAnimate) Modifier.animateContentSize(animationSpec = tween(150)) else Modifier)
+                        .then(if (shouldAnimate) Modifier.animateContentSize(animationSpec = tween(500)) else Modifier)
                 ) {
                     if (isEditing) {
                         val editState = rememberTextFieldState(message.text)
@@ -535,11 +536,21 @@ fun MessageItem(
                     var debouncedText by remember(message.status) { mutableStateOf(message.text) }
                     if (isStreaming) {
                         var lastUpdateMs by remember { mutableLongStateOf(0L) }
+                        var flushJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
                         LaunchedEffect(message.text) {
                             val now = System.currentTimeMillis()
-                            if (now - lastUpdateMs >= 50) {
+                            val elapsed = now - lastUpdateMs
+                            if (elapsed >= 500) {
+                                flushJob?.cancel()
                                 debouncedText = message.text
                                 lastUpdateMs = now
+                            } else {
+                                flushJob?.cancel()
+                                flushJob = launch {
+                                    kotlinx.coroutines.delay(500 - elapsed)
+                                    debouncedText = message.text
+                                    lastUpdateMs = System.currentTimeMillis()
+                                }
                             }
                         }
                     } else {
@@ -570,7 +581,7 @@ fun MessageItem(
                             var isMergedExpanded by remember { mutableStateOf(false) }
                             val mergedBottomPadding by animateDpAsState(
                                 targetValue = if (isMergedExpanded) 12.dp else 4.dp,
-                                animationSpec = tween(400), label = "mergedPad"
+                                animationSpec = tween(500), label = "mergedPad"
                             )
                             Column(
                                 modifier = Modifier
@@ -603,8 +614,8 @@ fun MessageItem(
                                 }
                                 AnimatedVisibility(
                                     visible = isMergedExpanded,
-                                    enter = fadeIn(tween(400)) + expandVertically(tween(400)),
-                                    exit = fadeOut(tween(400)) + shrinkVertically(tween(400))
+                                    enter = fadeIn(tween(500)) + expandVertically(tween(500)),
+                                    exit = fadeOut(tween(500)) + shrinkVertically(tween(500))
                                 ) {
                                     Column {
                                         Spacer(modifier = Modifier.height(12.dp))
@@ -653,12 +664,25 @@ fun MessageItem(
                         if (message.segments == null && !message.thoughts.isNullOrBlank()) {
                             val isThinking = message.status == MessageStatus.THINKING
                             
-                            // Throttle updates for thoughts to match main output behavior
                             var debouncedThoughts by remember { mutableStateOf(message.thoughts!!) }
                             if (isStreaming) {
+                                var lastThoughtUpdateMs by remember { mutableLongStateOf(0L) }
+                                var flushThoughtJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
                                 LaunchedEffect(message.thoughts) {
-                                    kotlinx.coroutines.delay(100)
-                                    debouncedThoughts = message.thoughts!!
+                                    val now = System.currentTimeMillis()
+                                    val elapsed = now - lastThoughtUpdateMs
+                                    if (elapsed >= 500) {
+                                        flushThoughtJob?.cancel()
+                                        debouncedThoughts = message.thoughts!!
+                                        lastThoughtUpdateMs = now
+                                    } else {
+                                        flushThoughtJob?.cancel()
+                                        flushThoughtJob = launch {
+                                            kotlinx.coroutines.delay(500 - elapsed)
+                                            debouncedThoughts = message.thoughts!!
+                                            lastThoughtUpdateMs = System.currentTimeMillis()
+                                        }
+                                    }
                                 }
                             } else {
                                 debouncedThoughts = message.thoughts!!
@@ -666,7 +690,7 @@ fun MessageItem(
 
                             val bottomPadding by animateDpAsState(
                                 targetValue = if (isThoughtExpanded) 12.dp else 4.dp,
-                                animationSpec = tween(400),
+                                animationSpec = tween(500),
                                 label = "thoughtPadding"
                             )
                             Column(
@@ -727,8 +751,8 @@ fun MessageItem(
                                 }
                                 androidx.compose.animation.AnimatedVisibility(
                                     visible = isThoughtExpanded,
-                                    enter = androidx.compose.animation.fadeIn(animationSpec = tween(400)) + androidx.compose.animation.expandVertically(animationSpec = tween(400)),
-                                    exit = androidx.compose.animation.fadeOut(animationSpec = tween(400)) + androidx.compose.animation.shrinkVertically(animationSpec = tween(400))
+                                    enter = androidx.compose.animation.fadeIn(animationSpec = tween(500)) + androidx.compose.animation.expandVertically(animationSpec = tween(500)),
+                                    exit = androidx.compose.animation.fadeOut(animationSpec = tween(500)) + androidx.compose.animation.shrinkVertically(animationSpec = tween(500))
                                 ) {
                                     Column {
                                         Spacer(modifier = Modifier.height(20.dp))
@@ -754,7 +778,7 @@ fun MessageItem(
                             var isToolExpanded by remember { mutableStateOf(false) }
                             val toolBottomPadding by animateDpAsState(
                                 targetValue = if (isToolExpanded) 12.dp else 4.dp,
-                                animationSpec = tween(400),
+                                animationSpec = tween(500),
                                 label = "toolPadding"
                             )
                             Column(
@@ -793,8 +817,8 @@ fun MessageItem(
                                 }
                                 androidx.compose.animation.AnimatedVisibility(
                                     visible = isToolExpanded,
-                                    enter = androidx.compose.animation.fadeIn(animationSpec = tween(400)) + androidx.compose.animation.expandVertically(animationSpec = tween(400)),
-                                    exit = androidx.compose.animation.fadeOut(animationSpec = tween(400)) + androidx.compose.animation.shrinkVertically(animationSpec = tween(400))
+                                    enter = androidx.compose.animation.fadeIn(animationSpec = tween(500)) + androidx.compose.animation.expandVertically(animationSpec = tween(500)),
+                                    exit = androidx.compose.animation.fadeOut(animationSpec = tween(500)) + androidx.compose.animation.shrinkVertically(animationSpec = tween(500))
                                 ) {
                                     Column {
                                         Spacer(modifier = Modifier.height(20.dp))
@@ -834,7 +858,7 @@ fun MessageItem(
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .then(if (shouldAnimate) Modifier.animateContentSize(animationSpec = tween(150)) else Modifier)
+                                .then(if (shouldAnimate) Modifier.animateContentSize(animationSpec = tween(500)) else Modifier)
                                 .bringIntoViewResponder(noOpResponder)
                         ) {
                             if (isError) {
