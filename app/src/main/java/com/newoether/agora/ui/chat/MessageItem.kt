@@ -772,6 +772,11 @@ fun MessageItem(
                                 ) {
                                     Column {
                                         Spacer(modifier = Modifier.height(20.dp))
+                                        Text(
+                                            "Thinking", style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                                            fontWeight = FontWeight.SemiBold
+                                        )
                                         SelectionContainer {
                                             Markdown(
                                                 content = debouncedThoughts.escapeThinkTags(),
