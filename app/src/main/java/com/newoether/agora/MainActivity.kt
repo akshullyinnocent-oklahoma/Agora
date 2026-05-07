@@ -887,7 +887,7 @@ fun ChatApp(
                                     shape = CircleShape
                                 ) {
                                     Text(
-                                        text = conversation.title.ifBlank { stringResource(R.string.new_chat) },
+                                        text = conversation.title,
                                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
                                         maxLines = 1,
                                         style = MaterialTheme.typography.bodyLarge,

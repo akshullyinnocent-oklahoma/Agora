@@ -524,7 +524,7 @@ class ChatViewModel(
                 baseUrl = providerBaseUrls.value[providerName]
             )
 
-            var title = ""
+            var title = appContext.getString(R.string.new_chat)
             try {
                 provider.generateResponse(titlePrompt, config).collect { event ->
                     if (event is StreamEvent.TextChunk) title += event.text
@@ -842,14 +842,14 @@ class ChatViewModel(
             val wasNewChat = _isNewChatMode.value
             if (wasNewChat) {
                 val newId = UUID.randomUUID().toString()
-                chatDao.upsertConversation(ChatEntity(id = newId, title = "", modelId = currentActiveModel.value, systemPromptId = _pendingSystemPromptId.value))
+                chatDao.upsertConversation(ChatEntity(id = newId, title = appContext.getString(R.string.new_chat), modelId = currentActiveModel.value, systemPromptId = _pendingSystemPromptId.value))
                 _currentConversationId.value = newId
                 _isNewChatMode.value = false
                 currentId = newId
             }
             if (currentId == null) {
                 val newId = UUID.randomUUID().toString()
-                chatDao.upsertConversation(ChatEntity(id = newId, title = "", modelId = currentActiveModel.value, systemPromptId = _pendingSystemPromptId.value))
+                chatDao.upsertConversation(ChatEntity(id = newId, title = appContext.getString(R.string.new_chat), modelId = currentActiveModel.value, systemPromptId = _pendingSystemPromptId.value))
                 _currentConversationId.value = newId
                 _isNewChatMode.value = false
                 currentId = newId
