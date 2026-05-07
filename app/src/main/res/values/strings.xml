@@ -227,6 +227,11 @@
     <string name="memory_access_title">ACCESS</string>
 
     <!-- Errors -->
+    <string name="search_found_matches">Found %1$d matches for \'%2$s\'.</string>
+    <string name="search_found_results">Found %1$d results for \'%2$s\'.</string>
+    <string name="search_found_results_no_query">Found %1$d results.</string>
+    <string name="search_no_matches">Found 0 matches for \'%1$s\'.</string>
+
     <string name="unexpected_error">An unexpected error occurred.</string>
     <string name="unknown">Unknown</string>
 

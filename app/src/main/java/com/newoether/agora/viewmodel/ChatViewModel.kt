@@ -56,7 +56,8 @@ class ChatViewModel(
             app = application,
             chatDao = chatDao,
             memoryManager = memoryManager,
-            providers = providers
+            providers = providers,
+            context = appContext
         )
     }
 

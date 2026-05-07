@@ -51,7 +51,8 @@ class GenerationManager(
     private val app: Application,
     private val chatDao: ChatDao,
     private val memoryManager: MemoryManager,
-    private val providers: Map<String, LlmProvider>
+    private val providers: Map<String, LlmProvider>,
+    private val context: android.content.Context
 ) {
     private var generationId = 0
     var accessSavedMemories: Boolean = true
@@ -224,7 +225,7 @@ class GenerationManager(
         return try {
             val results = chatDao.searchMessages(query, limit)
             val totalMatches = results.size
-            if (totalMatches == 0) return "Found 0 matches for '$query'."
+            if (totalMatches == 0) return context.getString(com.newoether.agora.R.string.search_no_matches, query)
 
             val grouped = results.groupBy { it.conversationId }
             val titles = mutableMapOf<String, String>()
@@ -241,7 +242,7 @@ class GenerationManager(
                 }
                 "## $title\n$previews"
             }
-            "Found $totalMatches matches for '$query'.\n\n$body"
+            context.getString(com.newoether.agora.R.string.search_found_matches, totalMatches, query) + "\n\n$body"
         } catch (e: Exception) {
             "Search error: ${e.message}"
         }
@@ -297,7 +298,7 @@ class GenerationManager(
                 val desc = (obj["description"] as? JsonPrimitive)?.content ?: ""
                 "${i + 1}. $title\n   $url\n   $desc"
             }.joinToString("\n\n")
-            val prefix = if (query.isNotBlank()) "Found $total results for '$query'." else "Found $total results."
+            val prefix = if (query.isNotBlank()) context.getString(com.newoether.agora.R.string.search_found_results, total, query) else context.getString(com.newoether.agora.R.string.search_found_results_no_query, total)
             return "$prefix\n\n$body"
         } catch (e: Exception) {
             return "Failed to parse search results: ${e.message}"
