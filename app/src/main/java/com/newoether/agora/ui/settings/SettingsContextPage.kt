@@ -80,7 +80,7 @@ fun SettingsContextPage(viewModel: ChatViewModel, onBack: () -> Unit) {
                                 value = maxContextWindow.toFloat(),
                                 onValueChange = { viewModel.setMaxContextWindow(it.toInt()) },
                                 valueRange = 5f..100f,
-                                steps = 19,
+                                steps = 94,
                                 modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
                             )
                             Spacer(modifier = Modifier.height(12.dp))
