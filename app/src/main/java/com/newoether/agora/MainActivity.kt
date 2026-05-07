@@ -56,7 +56,10 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
@@ -794,15 +797,16 @@ fun ChatApp(
     }
 
     BackHandler(enabled = drawerState.currentValue != DrawerValue.Closed || drawerState.targetValue != DrawerValue.Closed) {
+        focusManager.clearFocus()
         scope.launch { drawerState.close() }
     }
 
-    // Collapse expanded text panel and clear focus when drawer opens
+    // Collapse expanded text panel and clear focus on drawer state change
     LaunchedEffect(drawerState.currentValue) {
         if (drawerState.currentValue != DrawerValue.Closed) {
             isExpanded = false
-            focusManager.clearFocus()
         }
+        focusManager.clearFocus()
     }
 
     ModalNavigationDrawer(
@@ -825,90 +829,154 @@ fun ChatApp(
                     modifier = Modifier
                         .fillMaxHeight()
                         .padding(horizontal = 16.dp, vertical = 20.dp)
+                        .clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) { focusManager.clearFocus() }
                 ) {
                     Text(stringResource(R.string.conversations), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                    Spacer(modifier = Modifier.height(16.dp))
-                    
-                    Button(
-                        onClick = { 
-                            viewModel.createNewChat()
-                            scope.launch { drawerState.close() }
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                        enabled = !isSwitching,
-                        shape = CircleShape
-                    ) {
-                        Icon(Icons.Default.Add, contentDescription = null)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(stringResource(R.string.new_chat))
-                    }
-                    
-                    Spacer(modifier = Modifier.height(16.dp))
-                    
-                    LazyColumn(modifier = Modifier.weight(1f)) {
-                        items(conversations) { conversation ->
-                            val isSelected = conversation.id == currentConversationId
-                            var showMenu by remember { mutableStateOf(false) }
-                            var pressOffset by remember { mutableStateOf(DpOffset.Zero) }
-                            var lastPosition by remember { mutableStateOf(Offset.Zero) }
-                            val density = LocalDensity.current
+                    Spacer(modifier = Modifier.height(12.dp))
 
-                            Box {
-                                Surface(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(vertical = 2.dp)
-                                        .clip(CircleShape)
-                                        .pointerInput(showMenu) {
-                                            if (!showMenu) {
-                                                awaitPointerEventScope {
-                                                    while (true) {
-                                                        val event = awaitPointerEvent(PointerEventPass.Initial)
-                                                        lastPosition = event.changes.first().position
+                    // Search bar
+                    var searchQuery by remember { mutableStateOf("") }
+                    var searchResults by remember { mutableStateOf<List<com.newoether.agora.data.local.MessageEntity>>(emptyList()) }
+                    var isSearchActive by remember { mutableStateOf(false) }
+
+                    LaunchedEffect(searchQuery) {
+                        if (searchQuery.isBlank()) {
+                            searchResults = emptyList()
+                            isSearchActive = false
+                        } else {
+                            delay(200) // debounce
+                            if (searchQuery.isNotBlank()) {
+                                searchResults = viewModel.searchMessages(searchQuery)
+                                isSearchActive = true
+                            }
+                        }
+                    }
+
+                    OutlinedTextField(
+                        value = searchQuery,
+                        onValueChange = { searchQuery = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        placeholder = { Text(stringResource(R.string.search_hint)) },
+                        leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant) },
+                        trailingIcon = {
+                            if (searchQuery.isNotEmpty()) {
+                                IconButton(onClick = { searchQuery = "" }) {
+                                    Icon(Icons.Default.Close, contentDescription = stringResource(R.string.clear_search))
+                                }
+                            }
+                        },
+                        shape = CircleShape,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f),
+                            unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
+                        )
+                    )
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    if (!isSearchActive) {
+                        Button(
+                            onClick = {
+                                viewModel.createNewChat()
+                                scope.launch { drawerState.close() }
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            enabled = !isSwitching,
+                            shape = CircleShape
+                        ) {
+                            Icon(Icons.Default.Add, contentDescription = null)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(stringResource(R.string.new_chat))
+                        }
+
+                        Spacer(modifier = Modifier.height(16.dp))
+                    }
+
+                    if (isSearchActive && searchResults.isEmpty()) {
+                        Box(modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp), contentAlignment = Alignment.Center) {
+                            Text(stringResource(R.string.search_no_results), color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyMedium)
+                        }
+                    }
+
+                    LazyColumn(modifier = Modifier.weight(1f)) {
+                        if (isSearchActive) {
+                            val grouped = searchResults.groupBy { it.conversationId }
+                            val titleMap = conversations.associate { it.id to it.title }
+                            items(grouped.entries.toList()) { (convId, messages) ->
+                                SearchResultItem(
+                                    title = titleMap[convId] ?: stringResource(R.string.unknown),
+                                    messages = messages,
+                                    query = searchQuery,
+                                    onClick = {
+                                        viewModel.selectConversation(convId)
+                                        scope.launch { drawerState.close() }
+                                    }
+                                )
+                            }
+                        } else {
+                            items(conversations) { conversation ->
+                                val isSelected = conversation.id == currentConversationId
+                                var showMenu by remember { mutableStateOf(false) }
+                                var pressOffset by remember { mutableStateOf(DpOffset.Zero) }
+                                var lastPosition by remember { mutableStateOf(Offset.Zero) }
+                                val density = LocalDensity.current
+
+                                Box {
+                                    Surface(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(vertical = 2.dp)
+                                            .clip(CircleShape)
+                                            .pointerInput(showMenu) {
+                                                if (!showMenu) {
+                                                    awaitPointerEventScope {
+                                                        while (true) {
+                                                            val event = awaitPointerEvent(PointerEventPass.Initial)
+                                                            lastPosition = event.changes.first().position
+                                                        }
                                                     }
                                                 }
                                             }
-                                        }
-                                        .combinedClickable(
-                                            enabled = !isSwitching,
-                                            onClick = {
-                                                viewModel.selectConversation(conversation.id)
-                                                scope.launch { drawerState.close() }
-                                            },
-                                            onLongClick = {
-                                                pressOffset = with(density) {
-                                                    // Clamp horizontal offset to prevent menu overflow
-                                                    val x = lastPosition.x.toDp().coerceIn(16.dp, 200.dp)
-                                                    DpOffset(x, lastPosition.y.toDp() - 28.dp)
+                                            .combinedClickable(
+                                                enabled = !isSwitching,
+                                                onClick = {
+                                                    viewModel.selectConversation(conversation.id)
+                                                    scope.launch { drawerState.close() }
+                                                },
+                                                onLongClick = {
+                                                    pressOffset = with(density) {
+                                                        val x = lastPosition.x.toDp().coerceIn(16.dp, 200.dp)
+                                                        DpOffset(x, lastPosition.y.toDp() - 28.dp)
+                                                    }
+                                                    showMenu = true
                                                 }
-                                                showMenu = true
-                                            }
-                                        ),
-                                    color = if (isSelected) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent,
-                                    shape = CircleShape
-                                ) {
-                                    Text(
-                                        text = conversation.title,
-                                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-                                        maxLines = 1,
-                                        style = MaterialTheme.typography.bodyLarge,
-                                        color = if (isSelected) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSurface
-                                    )
-                                }
+                                            ),
+                                        color = if (isSelected) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent,
+                                        shape = CircleShape
+                                    ) {
+                                        Text(
+                                            text = conversation.title,
+                                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                                            maxLines = 1,
+                                            style = MaterialTheme.typography.bodyLarge,
+                                            color = if (isSelected) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSurface
+                                        )
+                                    }
 
-                                DropdownMenu(
-                                    expanded = showMenu,
-                                    onDismissRequest = { showMenu = false },
-                                    offset = pressOffset,
-                                    shape = RoundedCornerShape(12.dp)
-                                ) {
-                                    DropdownMenuItem(
-                                        text = { Text(stringResource(R.string.generate_title)) },
-                                        leadingIcon = { Icon(Icons.Default.Refresh, contentDescription = null) },
-                                        enabled = !isSwitching && !isLoading,
-                                        onClick = {
-                                            showMenu = false
-                                            viewModel.generateTitle(conversation.id)
+                                    DropdownMenu(
+                                        expanded = showMenu,
+                                        onDismissRequest = { showMenu = false },
+                                        offset = pressOffset,
+                                        shape = RoundedCornerShape(12.dp)
+                                    ) {
+                                        DropdownMenuItem(
+                                            text = { Text(stringResource(R.string.generate_title)) },
+                                            leadingIcon = { Icon(Icons.Default.Refresh, contentDescription = null) },
+                                            enabled = !isSwitching && !isLoading,
+                                            onClick = {
+                                                showMenu = false
+                                                viewModel.generateTitle(conversation.id)
                                         }
                                     )
                                     DropdownMenuItem(
@@ -934,7 +1002,8 @@ fun ChatApp(
                             }
                         }
                     }
-                    
+                    }
+
                     HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
                     
                     FilledTonalButton(
@@ -1320,5 +1389,78 @@ fun ChatApp(
                 }
             }
         )
+    }
+}
+
+@Composable
+private fun SearchResultItem(
+    title: String,
+    messages: List<com.newoether.agora.data.local.MessageEntity>,
+    query: String,
+    onClick: () -> Unit
+) {
+    val highlightColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
+    val textColor = MaterialTheme.colorScheme.onSurfaceVariant
+
+    fun snippetAroundMatch(text: String, q: String, radius: Int = 20): String {
+        val idx = text.lowercase().indexOf(q.lowercase())
+        if (idx < 0 || text.length <= radius * 2 + q.length) return text
+        val start = (idx - radius).coerceAtLeast(0)
+        val end = (idx + q.length + radius).coerceAtMost(text.length)
+        val prefix = if (start > 0) "…" else ""
+        val suffix = if (end < text.length) "…" else ""
+        return prefix + text.substring(start, end) + suffix
+    }
+
+    fun highlight(text: String): androidx.compose.ui.text.AnnotatedString {
+        if (query.isBlank()) return androidx.compose.ui.text.AnnotatedString(text)
+        return buildAnnotatedString {
+            var last = 0
+            val lowerText = text.lowercase()
+            val lowerQuery = query.lowercase()
+            var idx = lowerText.indexOf(lowerQuery, last)
+            while (idx >= 0) {
+                append(text.substring(last, idx))
+                withStyle(SpanStyle(background = highlightColor, fontWeight = FontWeight.Bold)) {
+                    append(text.substring(idx, idx + query.length))
+                }
+                last = idx + query.length
+                idx = lowerText.indexOf(lowerQuery, last)
+            }
+            append(text.substring(last))
+        }
+    }
+
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 2.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .clickable(onClick = onClick),
+        color = Color.Transparent,
+        shape = RoundedCornerShape(12.dp)
+    ) {
+        Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
+            Text(
+                text = highlight(title),
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.Medium,
+                maxLines = 1
+            )
+            messages.take(2).forEach { msg ->
+                val role = if (msg.participant == com.newoether.agora.model.Participant.USER)
+                    stringResource(com.newoether.agora.R.string.search_role_user)
+                else
+                    stringResource(com.newoether.agora.R.string.search_role_model)
+                Text(
+                    text = buildAnnotatedString {
+                        withStyle(SpanStyle(color = textColor)) { append("$role: ") }
+                        withStyle(SpanStyle(color = textColor)) { append(highlight(snippetAroundMatch(msg.text, query))) }
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    maxLines = 2
+                )
+            }
+        }
     }
 }

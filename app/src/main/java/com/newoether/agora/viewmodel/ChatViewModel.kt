@@ -140,6 +140,8 @@ class ChatViewModel(
     val titleGenerationModel = settingsManager.titleGenerationModel.stateIn(viewModelScope, SharingStarted.Eagerly, null)
     val accessPastConversations = settingsManager.accessPastConversations.stateIn(viewModelScope, SharingStarted.Eagerly, true)
     val accessSavedMemories = settingsManager.accessSavedMemories.stateIn(viewModelScope, SharingStarted.Eagerly, true)
+    val accessActiveMemory = settingsManager.accessActiveMemory.stateIn(viewModelScope, SharingStarted.Eagerly, true)
+    val ragSearchEnabled = settingsManager.ragSearchEnabled.stateIn(viewModelScope, SharingStarted.Eagerly, false)
     val appLanguage = settingsManager.appLanguage.stateIn(viewModelScope, SharingStarted.Eagerly, "system")
     val webSearchEnabled = settingsManager.webSearchEnabled.stateIn(viewModelScope, SharingStarted.Eagerly, false)
     val webSearchProvider = settingsManager.webSearchProvider.stateIn(viewModelScope, SharingStarted.Eagerly, "brave")
@@ -429,6 +431,9 @@ class ChatViewModel(
     fun setTitleGenerationModel(model: String?) { viewModelScope.launch { settingsManager.saveTitleGenerationModel(model) } }
     fun setAccessPastConversations(enabled: Boolean) { viewModelScope.launch { settingsManager.saveAccessPastConversations(enabled) } }
     fun setAccessSavedMemories(enabled: Boolean) { viewModelScope.launch { settingsManager.saveAccessSavedMemories(enabled) } }
+    fun setAccessActiveMemory(enabled: Boolean) { viewModelScope.launch { settingsManager.saveAccessActiveMemory(enabled) } }
+    fun setRagSearchEnabled(enabled: Boolean) { viewModelScope.launch { settingsManager.saveRagSearchEnabled(enabled) } }
+    suspend fun searchMessages(query: String, limit: Int = 20) = chatDao.searchMessages(query, limit)
     fun setAppLanguage(language: String) { viewModelScope.launch { settingsManager.saveAppLanguage(language) } }
     fun setWebSearchEnabled(enabled: Boolean) { viewModelScope.launch { settingsManager.saveWebSearchEnabled(enabled) } }
     fun setWebSearchProvider(provider: String) { viewModelScope.launch { settingsManager.saveWebSearchProvider(provider) } }
@@ -667,6 +672,7 @@ class ChatViewModel(
             )
 
             generationManager.accessSavedMemories = accessSavedMemories.value
+            generationManager.accessActiveMemory = accessActiveMemory.value
             generationManager.accessPastConversations = accessPastConversations.value
             generationManager.webSearchEnabled = webSearchEnabled.value
             generationManager.webSearchApiKey = webSearchApiKey.value
@@ -751,6 +757,7 @@ class ChatViewModel(
             )
 
             generationManager.accessSavedMemories = accessSavedMemories.value
+            generationManager.accessActiveMemory = accessActiveMemory.value
             generationManager.accessPastConversations = accessPastConversations.value
             generationManager.webSearchEnabled = webSearchEnabled.value
             generationManager.webSearchApiKey = webSearchApiKey.value
@@ -778,8 +785,9 @@ class ChatViewModel(
         val targetPromptId = conversation?.systemPromptId ?: activeSystemPromptId.value
         val activePrompt = systemPrompts.value.find { it.id == targetPromptId }?.content
         val activeMemory = memoryManager.getActiveMemory()
+        val includeActiveMemory = accessActiveMemory.value
         return buildString {
-            if (activeMemory.isNotBlank()) {
+            if (includeActiveMemory && activeMemory.isNotBlank()) {
                 append("[Active Memory]\n")
                 append(activeMemory)
                 append("\n\n")
@@ -886,6 +894,7 @@ class ChatViewModel(
             )
 
             generationManager.accessSavedMemories = accessSavedMemories.value
+            generationManager.accessActiveMemory = accessActiveMemory.value
             generationManager.accessPastConversations = accessPastConversations.value
             generationManager.webSearchEnabled = webSearchEnabled.value
             generationManager.webSearchApiKey = webSearchApiKey.value

@@ -56,6 +56,8 @@ class SettingsManager(private val context: Context) {
         val TITLE_GENERATION_MODEL = stringPreferencesKey("title_generation_model")
         val ACCESS_PAST_CONVERSATIONS = booleanPreferencesKey("access_past_conversations")
         val ACCESS_SAVED_MEMORIES = booleanPreferencesKey("access_saved_memories")
+        val ACCESS_ACTIVE_MEMORY = booleanPreferencesKey("access_active_memory")
+        val RAG_SEARCH_ENABLED = booleanPreferencesKey("rag_search_enabled")
         val APP_LANGUAGE = stringPreferencesKey("app_language")
         val WEB_SEARCH_ENABLED = booleanPreferencesKey("web_search_enabled")
         val WEB_SEARCH_PROVIDER = stringPreferencesKey("web_search_provider")
@@ -110,6 +112,8 @@ class SettingsManager(private val context: Context) {
 
     val accessPastConversations: Flow<Boolean> = context.dataStore.data.map { it[ACCESS_PAST_CONVERSATIONS] ?: true }
     val accessSavedMemories: Flow<Boolean> = context.dataStore.data.map { it[ACCESS_SAVED_MEMORIES] ?: true }
+    val accessActiveMemory: Flow<Boolean> = context.dataStore.data.map { it[ACCESS_ACTIVE_MEMORY] ?: true }
+    val ragSearchEnabled: Flow<Boolean> = context.dataStore.data.map { it[RAG_SEARCH_ENABLED] ?: false }
 
     val appLanguage: Flow<String> = context.dataStore.data.map { it[APP_LANGUAGE] ?: "system" }
     val webSearchEnabled: Flow<Boolean> = context.dataStore.data.map { it[WEB_SEARCH_ENABLED] ?: false }
@@ -200,6 +204,12 @@ class SettingsManager(private val context: Context) {
 
     suspend fun saveAccessSavedMemories(enabled: Boolean) {
         context.dataStore.edit { it[ACCESS_SAVED_MEMORIES] = enabled }
+    }
+    suspend fun saveAccessActiveMemory(enabled: Boolean) {
+        context.dataStore.edit { it[ACCESS_ACTIVE_MEMORY] = enabled }
+    }
+    suspend fun saveRagSearchEnabled(enabled: Boolean) {
+        context.dataStore.edit { it[RAG_SEARCH_ENABLED] = enabled }
     }
 
     suspend fun saveAppLanguage(language: String) {

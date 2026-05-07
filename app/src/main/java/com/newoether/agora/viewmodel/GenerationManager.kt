@@ -62,6 +62,7 @@ class GenerationManager(
 ) {
     private var generationId = 0
     var accessSavedMemories: Boolean = true
+    var accessActiveMemory: Boolean = true
     var accessPastConversations: Boolean = true
     var webSearchEnabled: Boolean = false
     var webSearchApiKey: String = ""
@@ -125,67 +126,73 @@ class GenerationManager(
     }
 
     fun buildMemoryTools(): List<ToolDefinition> {
-        if (!accessSavedMemories) return emptyList()
-        return listOf(
-        ToolDefinition(function = ToolFunction(
-            name = "list_memory_files",
-            description = "List all files in the memory database.",
-            parameters = ToolParameters(properties = emptyMap())
-        )),
-        ToolDefinition(function = ToolFunction(
-            name = "read_memory_file",
-            description = "Read the content of one or more files from the memory database.",
-            parameters = ToolParameters(
-                properties = mapOf(
-                    "name" to ToolProperty("string", "The file name to read."),
-                    "names" to ToolProperty("array", "Multiple file names to read in one call.", items = ToolProperty("string", "A file name."))
-                ),
-                required = emptyList()
-            )
-        )),
-        ToolDefinition(function = ToolFunction(
-            name = "create_memory_file",
-            description = "Create a new file in the memory database with the given content.",
-            parameters = ToolParameters(
-                properties = mapOf(
-                    "name" to ToolProperty("string", "The file name to create (e.g., 'notes.md')."),
-                    "content" to ToolProperty("string", "The markdown content for the file.")
-                ),
-                required = listOf("name", "content")
-            )
-        )),
-        ToolDefinition(function = ToolFunction(
-            name = "edit_memory_file",
-            description = "Edit or rename a file in the memory database. At least one of 'content' or 'new_name' must be provided.",
-            parameters = ToolParameters(
-                properties = mapOf(
-                    "name" to ToolProperty("string", "The current file name to edit."),
-                    "content" to ToolProperty("string", "The new markdown content. Omit to keep existing content."),
-                    "new_name" to ToolProperty("string", "New file name to rename to. Omit to keep existing name.")
-                ),
-                required = listOf("name")
-            )
-        )),
-        ToolDefinition(function = ToolFunction(
-            name = "delete_memory_file",
-            description = "Delete a file from the memory database.",
-            parameters = ToolParameters(
-                properties = mapOf("name" to ToolProperty("string", "The file name to delete.")),
-                required = listOf("name")
-            )
-        )),
-        ToolDefinition(function = ToolFunction(
-            name = "update_active_memory",
-            description = "Update the active memory context. Use 'replace' to overwrite, 'append' to add to the end, or 'prepend' to add to the beginning.",
-            parameters = ToolParameters(
-                properties = mapOf(
-                    "content" to ToolProperty("string", "The content to write."),
-                    "mode" to ToolProperty("string", "One of: replace, append, prepend. Default is replace.")
-                ),
-                required = listOf("content")
-            )
-        ))
-    )
+        if (!accessSavedMemories && !accessActiveMemory) return emptyList()
+        val tools = mutableListOf<ToolDefinition>()
+        if (accessSavedMemories) {
+            tools.addAll(listOf(
+                ToolDefinition(function = ToolFunction(
+                    name = "list_memory_files",
+                    description = "List all files in the memory database.",
+                    parameters = ToolParameters(properties = emptyMap())
+                )),
+                ToolDefinition(function = ToolFunction(
+                    name = "read_memory_file",
+                    description = "Read the content of one or more files from the memory database.",
+                    parameters = ToolParameters(
+                        properties = mapOf(
+                            "name" to ToolProperty("string", "The file name to read."),
+                            "names" to ToolProperty("array", "Multiple file names to read in one call.", items = ToolProperty("string", "A file name."))
+                        ),
+                        required = emptyList()
+                    )
+                )),
+                ToolDefinition(function = ToolFunction(
+                    name = "create_memory_file",
+                    description = "Create a new file in the memory database with the given content.",
+                    parameters = ToolParameters(
+                        properties = mapOf(
+                            "name" to ToolProperty("string", "The file name to create (e.g., 'notes.md')."),
+                            "content" to ToolProperty("string", "The markdown content for the file.")
+                        ),
+                        required = listOf("name", "content")
+                    )
+                )),
+                ToolDefinition(function = ToolFunction(
+                    name = "edit_memory_file",
+                    description = "Edit or rename a file in the memory database. At least one of 'content' or 'new_name' must be provided.",
+                    parameters = ToolParameters(
+                        properties = mapOf(
+                            "name" to ToolProperty("string", "The current file name to edit."),
+                            "content" to ToolProperty("string", "The new markdown content. Omit to keep existing content."),
+                            "new_name" to ToolProperty("string", "New file name to rename to. Omit to keep existing name.")
+                        ),
+                        required = listOf("name")
+                    )
+                )),
+                ToolDefinition(function = ToolFunction(
+                    name = "delete_memory_file",
+                    description = "Delete a file from the memory database.",
+                    parameters = ToolParameters(
+                        properties = mapOf("name" to ToolProperty("string", "The file name to delete.")),
+                        required = listOf("name")
+                    )
+                ))
+            ))
+        }
+        if (accessActiveMemory) {
+            tools.add(ToolDefinition(function = ToolFunction(
+                name = "update_active_memory",
+                description = "Update the active memory context. Use 'replace' to overwrite, 'append' to add to the end, or 'prepend' to add to the beginning.",
+                parameters = ToolParameters(
+                    properties = mapOf(
+                        "content" to ToolProperty("string", "The content to write."),
+                        "mode" to ToolProperty("string", "One of: replace, append, prepend. Default is replace.")
+                    ),
+                    required = listOf("content")
+                )
+            )))
+        }
+        return tools
     }
 
     fun buildWebSearchTool(): List<ToolDefinition> {

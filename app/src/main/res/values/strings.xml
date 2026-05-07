@@ -102,7 +102,9 @@
     <string name="settings_title_gen">Title Generation</string>
     <string name="settings_title_gen_desc">Auto-generate conversation titles</string>
     <string name="settings_memory">Memory</string>
-    <string name="settings_memory_desc">Access controls, active memory, and saved files</string>
+    <string name="settings_memory_desc">Active memory and saved files</string>
+    <string name="search_title">Conversation Search</string>
+    <string name="search_desc">Access to conversation history and search method</string>
 
     <!-- Settings - Provider Page -->
     <string name="provider_api_provider">API Provider</string>
@@ -181,9 +183,11 @@
 
     <!-- Settings - Memory Page -->
     <string name="memory_title">Memory</string>
-    <string name="memory_access_saved">Access saved memories</string>
+    <string name="memory_access_saved">Access Saved Memories</string>
     <string name="memory_access_saved_desc">Allow the model to read, create, and edit memory files</string>
-    <string name="memory_access_past">Access past conversations</string>
+    <string name="memory_access_active">Access Active Memory</string>
+    <string name="memory_access_active_desc">Include active memory content in every API call</string>
+    <string name="memory_access_past">Access Past Conversations</string>
     <string name="memory_access_past_desc">Allow the model to search conversation history (RAG)</string>
     <string name="memory_active_title">ACTIVE MEMORY</string>
     <string name="memory_active_context">Active Memory Context</string>
@@ -225,6 +229,8 @@
 
     <!-- Memory Access -->
     <string name="memory_access_title">ACCESS</string>
+    <string name="rag_search">Semantic Search (RAG)</string>
+    <string name="rag_search_desc">Use embeddings for semantic search instead of keyword matching</string>
 
     <!-- Errors -->
     <string name="search_found_matches">Found %1$d matches for \'%2$s\'.</string>
@@ -234,6 +240,8 @@
 
     <string name="unexpected_error">An unexpected error occurred.</string>
     <string name="unknown">Unknown</string>
+    <string name="search_hint">Search conversations...</string>
+    <string name="clear_search">Clear search</string>
     <string name="search_untitled">Untitled</string>
     <string name="search_role_user">User</string>
     <string name="search_role_model">Model</string>

@@ -15,6 +15,8 @@ import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Memory
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -31,8 +33,8 @@ import com.newoether.agora.viewmodel.ChatViewModel
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsMemoryPage(viewModel: ChatViewModel, onBack: () -> Unit) {
-    val accessPastConversations by viewModel.accessPastConversations.collectAsState()
     val accessSavedMemories by viewModel.accessSavedMemories.collectAsState()
+    val accessActiveMemory by viewModel.accessActiveMemory.collectAsState()
     var activeMemoryContent by remember { mutableStateOf("") }
     var memoryFiles by remember { mutableStateOf<List<String>>(emptyList()) }
     var showFileEditor by remember { mutableStateOf<String?>(null) }
@@ -77,7 +79,7 @@ fun SettingsMemoryPage(viewModel: ChatViewModel, onBack: () -> Unit) {
                     colors = ListItemDefaults.colors(containerColor = Color.Transparent),
                     headlineContent = { Text(stringResource(R.string.memory_access_saved)) },
                     supportingContent = { Text(stringResource(R.string.memory_access_saved_desc)) },
-                    leadingContent = { Icon(Icons.Default.Memory, null, tint = MaterialTheme.colorScheme.primary) },
+                    leadingContent = { Icon(Icons.Default.Description, null, tint = MaterialTheme.colorScheme.primary) },
                     trailingContent = {
                         Switch(checked = accessSavedMemories, onCheckedChange = { viewModel.setAccessSavedMemories(it) })
                     },
@@ -86,13 +88,13 @@ fun SettingsMemoryPage(viewModel: ChatViewModel, onBack: () -> Unit) {
                 HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
                 ListItem(
                     colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                    headlineContent = { Text(stringResource(R.string.memory_access_past)) },
-                    supportingContent = { Text(stringResource(R.string.memory_access_past_desc)) },
-                    leadingContent = { Icon(Icons.Default.Chat, null, tint = MaterialTheme.colorScheme.primary) },
+                    headlineContent = { Text(stringResource(R.string.memory_access_active)) },
+                    supportingContent = { Text(stringResource(R.string.memory_access_active_desc)) },
+                    leadingContent = { Icon(Icons.Default.Memory, null, tint = MaterialTheme.colorScheme.primary) },
                     trailingContent = {
-                        Switch(checked = accessPastConversations, onCheckedChange = { viewModel.setAccessPastConversations(it) })
+                        Switch(checked = accessActiveMemory, onCheckedChange = { viewModel.setAccessActiveMemory(it) })
                     },
-                    modifier = Modifier.clickable { viewModel.setAccessPastConversations(!accessPastConversations) }
+                    modifier = Modifier.clickable { viewModel.setAccessActiveMemory(!accessActiveMemory) }
                 )
             }
 

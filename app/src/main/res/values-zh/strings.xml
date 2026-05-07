@@ -69,7 +69,9 @@
     <string name="settings_title_gen">标题生成</string>
     <string name="settings_title_gen_desc">自动生成对话标题</string>
     <string name="settings_memory">记忆</string>
-    <string name="settings_memory_desc">访问控制、活跃记忆和已保存文件</string>
+    <string name="settings_memory_desc">活跃记忆和已保存文件</string>
+    <string name="search_title">对话搜索</string>
+    <string name="search_desc">对话历史的访问控制和搜索方式</string>
 
     <!-- Settings - Provider Page -->
     <string name="provider_api_provider">API 提供商</string>
@@ -150,6 +152,8 @@
     <string name="memory_title">记忆</string>
     <string name="memory_access_saved">访问已保存的记忆</string>
     <string name="memory_access_saved_desc">允许模型读取、创建和编辑记忆文件</string>
+    <string name="memory_access_active">访问活跃记忆</string>
+    <string name="memory_access_active_desc">每次 API 调用时包含活跃记忆内容</string>
     <string name="memory_access_past">访问过去的对话</string>
     <string name="memory_access_past_desc">允许模型搜索对话历史（RAG）</string>
     <string name="memory_active_title">活跃记忆</string>
@@ -192,6 +196,8 @@
 
     <!-- Memory Access -->
     <string name="memory_access_title">访问权限</string>
+    <string name="rag_search">语义搜索 (RAG)</string>
+    <string name="rag_search_desc">使用嵌入向量进行语义搜索，替代关键词匹配</string>
 
     <!-- Errors -->
     <string name="search_found_matches">找到 %1$d 条与 \'%2$s\' 相关的对话。</string>
@@ -201,6 +207,8 @@
 
     <string name="unexpected_error">发生了意外错误。</string>
     <string name="unknown">未知</string>
+    <string name="search_hint">搜索对话...</string>
+    <string name="clear_search">清除搜索</string>
     <string name="search_untitled">未命名</string>
     <string name="search_role_user">用户</string>
     <string name="search_role_model">模型</string>
