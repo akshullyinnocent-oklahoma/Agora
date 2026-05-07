@@ -524,7 +524,7 @@ class ChatViewModel(
                 baseUrl = providerBaseUrls.value[providerName]
             )
 
-            var title = appContext.getString(R.string.new_chat)
+            var title = ""
             try {
                 provider.generateResponse(titlePrompt, config).collect { event ->
                     if (event is StreamEvent.TextChunk) title += event.text
