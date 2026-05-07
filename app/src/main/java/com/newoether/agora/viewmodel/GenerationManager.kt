@@ -19,6 +19,7 @@ import com.newoether.agora.model.Participant
 import com.newoether.agora.model.ToolCallData
 import com.newoether.agora.service.AgoraForegroundService
 import com.newoether.agora.util.Constants
+import com.newoether.agora.util.SearchResultFormatter
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
@@ -30,8 +31,13 @@ import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonArray
+import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.put
+import kotlinx.serialization.json.putJsonArray
+import kotlinx.serialization.json.putJsonObject
 import java.io.File
 import java.util.UUID
 
@@ -219,39 +225,49 @@ class GenerationManager(
     private suspend fun executeSearchConversations(arguments: String): String {
         val argsStr = arguments.ifBlank { "{}" }
         val args = Json.decodeFromString<Map<String, kotlinx.serialization.json.JsonElement>>(argsStr)
-        val query = (args["query"] as? kotlinx.serialization.json.JsonPrimitive)?.content ?: return "Error: No search query provided."
+        val query = (args["query"] as? kotlinx.serialization.json.JsonPrimitive)?.content ?: return context.getString(com.newoether.agora.R.string.search_no_query)
         val limit = ((args["limit"] as? kotlinx.serialization.json.JsonPrimitive)?.content?.toIntOrNull() ?: 10).coerceIn(1, 20)
 
         return try {
             val results = chatDao.searchMessages(query, limit)
-            val totalMatches = results.size
-            if (totalMatches == 0) return context.getString(com.newoether.agora.R.string.search_no_matches, query)
+            if (results.isEmpty()) return context.getString(com.newoether.agora.R.string.search_no_matches, query)
 
             val grouped = results.groupBy { it.conversationId }
             val titles = mutableMapOf<String, String>()
             for (convId in grouped.keys.take(5)) {
-                titles[convId] = chatDao.getConversation(convId)?.title ?: "Untitled"
+                titles[convId] = chatDao.getConversation(convId)?.title ?: ""
             }
 
-            val body = grouped.entries.take(5).joinToString("\n\n") { (convId, messages) ->
-                val title = titles[convId] ?: "Untitled"
-                val previews = messages.take(3).joinToString("\n") { msg ->
-                    val role = if (msg.participant == Participant.USER) "User" else "Model"
-                    val preview = msg.text.lines().first().take(200)
-                    "$role: $preview"
+            val resultArray = buildJsonArray {
+                for ((convId, messages) in grouped.entries.take(5)) {
+                    val title = titles[convId] ?: ""
+                    add(buildJsonObject {
+                        put("title", title)
+                        putJsonArray("messages") {
+                            for (msg in messages.take(3)) {
+                                add(buildJsonObject {
+                                    put("participant", msg.participant.name)
+                                    put("text", msg.text)
+                                })
+                            }
+                        }
+                    })
                 }
-                "## $title\n$previews"
             }
-            context.getString(com.newoether.agora.R.string.search_found_matches, totalMatches, query) + "\n\n$body"
+            buildJsonObject {
+                put("type", "search_conversations")
+                put("query", query)
+                put("results", resultArray)
+            }.toString()
         } catch (e: Exception) {
-            "Search error: ${e.message}"
+            context.getString(com.newoether.agora.R.string.search_error_format, e.message ?: context.getString(com.newoether.agora.R.string.unknown))
         }
     }
 
     private fun executeWebSearch(arguments: String): String {
         val argsStr = arguments.ifBlank { "{}" }
         val args = Json.decodeFromString<Map<String, kotlinx.serialization.json.JsonElement>>(argsStr)
-        val query = (args["query"] as? kotlinx.serialization.json.JsonPrimitive)?.content ?: return "Error: No search query provided."
+        val query = (args["query"] as? kotlinx.serialization.json.JsonPrimitive)?.content ?: return context.getString(com.newoether.agora.R.string.search_no_query)
         val numResults = ((args["num_results"] as? kotlinx.serialization.json.JsonPrimitive)?.content?.toIntOrNull() ?: 5).coerceIn(1, 10)
 
         return try {
@@ -261,47 +277,43 @@ class GenerationManager(
                     ("$baseUrl/search?q=${java.net.URLEncoder.encode(query, "UTF-8")}&format=json&engines=google,brave") to emptyMap<String, String>()
                 }
                 else -> {
-                    val apiKey = webSearchApiKey.ifBlank { return "Error: No Brave Search API key configured." }
+                    val apiKey = webSearchApiKey.ifBlank { return context.getString(com.newoether.agora.R.string.provider_no_keys, "Brave Search") }
                     ("https://api.search.brave.com/res/v1/web/search?q=${java.net.URLEncoder.encode(query, "UTF-8")}&count=$numResults") to
                         mapOf("Accept" to "application/json", "X-Subscription-Token" to apiKey)
                 }
             }
 
             val body = com.newoether.agora.api.HttpClient.fetchModels(url, requestHeaders)
-                ?: return "Search failed: no response"
-            formatSearchResults(body, query)
-        } catch (e: Exception) {
-            "Search error: ${e.message}"
-        }
-    }
-
-    private fun formatSearchResults(jsonStr: String, query: String = ""): String {
-        try {
-            val json: Map<String, kotlinx.serialization.json.JsonElement> = Json.decodeFromString(jsonStr)
+                ?: return context.getString(com.newoether.agora.R.string.search_no_response)
+            val json: Map<String, kotlinx.serialization.json.JsonElement> = Json.decodeFromString(body)
             val resultsArray = when {
                 json.containsKey("web") -> {
                     val web = json["web"]?.jsonObject
-                    val results = web?.get("results")
-                    results?.jsonArray
+                    web?.get("results")?.jsonArray
                 }
                 json.containsKey("results") -> json["results"]?.jsonArray
                 else -> null
-            } ?: return "No search results found."
+            } ?: return context.getString(com.newoether.agora.R.string.search_no_results)
 
-            if (resultsArray.isEmpty()) return "No search results found."
+            if (resultsArray.isEmpty()) return context.getString(com.newoether.agora.R.string.search_no_results)
 
-            val total = resultsArray.size
-            val body = resultsArray.take(10).mapIndexed { i, element ->
-                val obj = element.jsonObject
-                val title = (obj["title"] as? JsonPrimitive)?.content ?: "Untitled"
-                val url = (obj["url"] as? JsonPrimitive)?.content ?: ""
-                val desc = (obj["description"] as? JsonPrimitive)?.content ?: ""
-                "${i + 1}. $title\n   $url\n   $desc"
-            }.joinToString("\n\n")
-            val prefix = if (query.isNotBlank()) context.getString(com.newoether.agora.R.string.search_found_results, total, query) else context.getString(com.newoether.agora.R.string.search_found_results_no_query, total)
-            return "$prefix\n\n$body"
+            val rawResults = buildJsonArray {
+                for (element in resultsArray) {
+                    val obj = element.jsonObject
+                    add(buildJsonObject {
+                        put("title", (obj["title"] as? JsonPrimitive)?.content ?: "")
+                        put("url", (obj["url"] as? JsonPrimitive)?.content ?: "")
+                        put("description", (obj["description"] as? JsonPrimitive)?.content ?: "")
+                    })
+                }
+            }
+            buildJsonObject {
+                put("type", "web_search")
+                put("query", query)
+                put("results", rawResults)
+            }.toString()
         } catch (e: Exception) {
-            return "Failed to parse search results: ${e.message}"
+            context.getString(com.newoether.agora.R.string.search_error_format, e.message ?: context.getString(com.newoether.agora.R.string.unknown))
         }
     }
 
@@ -563,11 +575,10 @@ class GenerationManager(
 
             // Multi-tool loop
             var toolRound = 0
-            val maxToolRounds = 5
             toolPath = currentPath
             val chainRootId = if (isRegenerate) parentId else null
 
-            while (toolCallDataList.isNotEmpty() && currentStatus != MessageStatus.ERROR && currentCoroutineContext().isActive && toolRound < maxToolRounds) {
+            while (toolCallDataList.isNotEmpty() && currentStatus != MessageStatus.ERROR && currentCoroutineContext().isActive) {
                 toolRound++
                 val roundToolList = roundToolSegments.toList()
                 roundToolSegments.clear()
@@ -582,9 +593,10 @@ class GenerationManager(
                 })
                 val resultMsgs = tcds.map { tcData ->
                     val rid = "${Constants.RESULT_MSG_PREFIX}${UUID.randomUUID()}"
+                    val displayText = SearchResultFormatter.format(tcData.result, context)
                     rid to ChatMessage(
                         id = rid, parentId = toolMsgId,
-                        text = tcData.result,
+                        text = displayText,
                         participant = Participant.USER, status = MessageStatus.SUCCESS,
                         toolCall = tcData
                     )
@@ -604,13 +616,14 @@ class GenerationManager(
                     participant = Participant.MODEL, timestamp = System.currentTimeMillis(),
                     toolCallJson = allSegmentsJson
                 ))
-                for ((rid, msg) in resultMsgs) {
+                for ((index, entry) in resultMsgs.withIndex()) {
+                    val (rid, _) = entry
                     chatDao.upsertMessage(MessageEntity(
                         id = rid, conversationId = conversationId, parentId = toolMsgId,
-                        text = msg.text, thoughts = null, status = MessageStatus.SUCCESS,
+                        text = tcds[index].result, thoughts = null, status = MessageStatus.SUCCESS,
                         participant = Participant.USER, timestamp = System.currentTimeMillis(),
                         toolCallJson = Json.encodeToString(listOf(
-                            MessageSegment(type = "tool", toolName = msg.toolCall!!.toolName, toolArgs = msg.toolCall!!.arguments, toolResult = msg.toolCall!!.result, signature = msg.toolCall!!.signature)
+                            MessageSegment(type = "tool", toolName = tcds[index].toolName, toolArgs = tcds[index].arguments, toolResult = tcds[index].result, signature = tcds[index].signature)
                         ))
                     ))
                 }

@@ -234,6 +234,14 @@
 
     <string name="unexpected_error">An unexpected error occurred.</string>
     <string name="unknown">Unknown</string>
+    <string name="search_untitled">Untitled</string>
+    <string name="search_role_user">User</string>
+    <string name="search_role_model">Model</string>
+    <string name="search_no_query">No search query provided.</string>
+    <string name="search_no_response">Search failed: no response</string>
+    <string name="search_no_results">No search results found.</string>
+    <string name="search_error_format">Search error: %1$s</string>
+    <string name="search_parse_error">Failed to parse search results: %1$s</string>
 
     <!-- General -->
     <string name="back">Back</string>

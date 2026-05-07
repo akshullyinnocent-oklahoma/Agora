@@ -16,6 +16,7 @@ import com.newoether.agora.data.local.ChatEntity
 import com.newoether.agora.data.local.MessageEntity
 import com.newoether.agora.model.ChatConversation
 import com.newoether.agora.util.Constants
+import com.newoether.agora.util.SearchResultFormatter
 import com.newoether.agora.R
 import com.newoether.agora.model.ChatMessage
 import com.newoether.agora.model.MessageSegment
@@ -279,7 +280,7 @@ class ChatViewModel(
                             ChatMessage(
                                 id = it.id,
                                 parentId = it.parentId,
-                                text = it.text,
+                                text = SearchResultFormatter.format(it.text, appContext),
                                 images = it.images,
                                 thoughts = it.thoughts,
                                 tokenCount = it.tokenCount,
@@ -295,7 +296,8 @@ class ChatViewModel(
                                     try {
                                         val segs = Json.decodeFromString<List<MessageSegment>>(json)
                                         segs.lastOrNull { s -> s.type == "tool" }?.let { s ->
-                                            ToolCallData(s.toolName ?: "", s.toolArgs ?: "{}", s.toolResult ?: "")
+                                            val rawResult = s.toolResult ?: ""
+                                            ToolCallData(s.toolName ?: "", s.toolArgs ?: "{}", SearchResultFormatter.format(rawResult, appContext))
                                         }
                                     } catch (_: Exception) { null }
                                 }

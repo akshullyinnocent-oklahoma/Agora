@@ -88,6 +88,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.res.stringResource
 import com.newoether.agora.R
+import com.newoether.agora.util.SearchResultFormatter
 import com.newoether.agora.model.ChatMessage
 import com.newoether.agora.model.MessageSegment
 import com.newoether.agora.model.MessageStatus
@@ -170,13 +171,13 @@ private fun toolSummary(seg: MessageSegment): String {
         "web_search" -> {
             val query = argsJson?.get("query")?.let { (it as? JsonPrimitive)?.content }
             if (isError) stringResource(R.string.tool_search_failed)
-            else if (content.isNotEmpty()) content.lines().first().take(100)
+            else if (content.isNotEmpty()) SearchResultFormatter.getFirstLine(content, LocalContext.current)
             else if (query != null) stringResource(R.string.tool_searching_web, query) else stringResource(R.string.tool_searching_web_default)
         }
         "search_conversations" -> {
             val query = argsJson?.get("query")?.let { (it as? JsonPrimitive)?.content }
             if (isError) stringResource(R.string.tool_search_failed)
-            else if (content.isNotEmpty()) content.lines().first().take(100)
+            else if (content.isNotEmpty()) SearchResultFormatter.getFirstLine(content, LocalContext.current)
             else if (query != null) stringResource(R.string.tool_searching_conversations, query) else stringResource(R.string.tool_searching_conversations_default)
         }
         else -> content.lines().firstOrNull()?.take(100) ?: stringResource(R.string.tool_done)
@@ -205,8 +206,8 @@ private fun toolResultSummary(toolName: String, toolArgs: String, result: String
         "delete_memory_file" -> if (fileName != null) stringResource(R.string.tool_delete_memory_name, fileName) else stringResource(R.string.tool_delete_memory_default)
         "list_memory_files" -> stringResource(R.string.tool_lookup_default)
         "update_active_memory" -> stringResource(R.string.tool_update_active_default)
-        "web_search" -> result.lines().first().take(100).ifBlank { stringResource(R.string.tool_web_search_done) }
-        "search_conversations" -> result.lines().first().take(100).ifBlank { stringResource(R.string.tool_conversation_search_done) }
+        "web_search" -> SearchResultFormatter.getFirstLine(result, LocalContext.current).ifBlank { stringResource(R.string.tool_web_search_done) }
+        "search_conversations" -> SearchResultFormatter.getFirstLine(result, LocalContext.current).ifBlank { stringResource(R.string.tool_conversation_search_done) }
         else -> stringResource(R.string.tool_done)
     }
 }

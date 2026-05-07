@@ -11,7 +11,9 @@ object HttpClient {
     private val JSON = "application/json; charset=utf-8".toMediaType()
 
     val client: OkHttpClient = OkHttpClient.Builder()
-        .connectTimeout(15, TimeUnit.SECONDS)
+        .connectTimeout(30, TimeUnit.SECONDS)
+        .readTimeout(30, TimeUnit.SECONDS)
+        .writeTimeout(30, TimeUnit.SECONDS)
         .build()
 
     class StreamHandle(private val response: okhttp3.Response) {

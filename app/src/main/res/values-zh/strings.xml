@@ -201,6 +201,14 @@
 
     <string name="unexpected_error">发生了意外错误。</string>
     <string name="unknown">未知</string>
+    <string name="search_untitled">未命名</string>
+    <string name="search_role_user">用户</string>
+    <string name="search_role_model">模型</string>
+    <string name="search_no_query">未提供搜索查询。</string>
+    <string name="search_no_response">搜索失败：无响应</string>
+    <string name="search_no_results">未找到搜索结果。</string>
+    <string name="search_error_format">搜索错误：%1$s</string>
+    <string name="search_parse_error">解析搜索结果失败：%1$s</string>
     <string name="tool_call_failed">工具调用失败</string>
     <string name="database_incompatible">数据库不兼容</string>
     <string name="database_incompatible_desc">数据库版本较新，无法降级。请卸载并重新安装应用。</string>
@@ -229,7 +237,7 @@
     <string name="tool_context">工具</string>
 
     <!-- Message Info -->
-    <string name="message_info">消息信息</string>
+    <string name="message_info">详细信息</string>
     <string name="time_with_label">时间：%1$s</string>
     <string name="model_with_label">模型：%1$s</string>
     <string name="arguments_label">参数：</string>
