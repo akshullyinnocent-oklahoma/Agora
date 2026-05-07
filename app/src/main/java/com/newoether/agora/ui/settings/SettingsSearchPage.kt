@@ -1,5 +1,7 @@
 package com.newoether.agora.ui.settings
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
@@ -50,9 +52,7 @@ fun SettingsSearchPage(viewModel: ChatViewModel, onBack: () -> Unit) {
     var showEmbeddingDialog by remember { mutableStateOf(false) }
     var editEmbeddingModel by remember { mutableStateOf("") }
     var editEmbeddingUrl by remember { mutableStateOf("") }
-    var editLocalModelUrl by remember { mutableStateOf("") }
-    var isDownloading by remember { mutableStateOf(false) }
-    var downloadProgress by remember { mutableStateOf(0f) }
+    var isImporting by remember { mutableStateOf(false) }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -158,125 +158,93 @@ fun SettingsSearchPage(viewModel: ChatViewModel, onBack: () -> Unit) {
                         modifier = Modifier.clickable {
                             editEmbeddingModel = embeddingModel
                             editEmbeddingUrl = embeddingBaseUrl
-                            editLocalModelUrl = localEmbeddingModelUrl
                             showEmbeddingDialog = true
                         }
                     )
                 } else {
+                    val scope = rememberCoroutineScope()
+                    val context = LocalContext.current
+                    val filePickerLauncher = rememberLauncherForActivityResult(
+                        contract = androidx.activity.result.contract.ActivityResultContracts.OpenDocument()
+                    ) { uri ->
+                        if (uri != null) {
+                            isImporting = true
+                            scope.launch {
+                                try {
+                                    val destFile = File(context.filesDir, "embedding_model.tflite")
+                                    context.contentResolver.openInputStream(uri)?.use { input ->
+                                        destFile.outputStream().use { output ->
+                                            input.copyTo(output)
+                                        }
+                                    }
+                                    viewModel.setLocalEmbeddingModelPath(destFile.absolutePath)
+                                } catch (_: Exception) { }
+                                isImporting = false
+                            }
+                        }
+                    }
+                    val modelReady = localEmbeddingModelPath.isNotBlank() && remember(localEmbeddingModelPath) {
+                        com.newoether.agora.api.LocalEmbeddingEngine.isModelReady(localEmbeddingModelPath)
+                    }
                     ListItem(
                         colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                        headlineContent = { Text(stringResource(R.string.local_model_url_label)) },
-                        supportingContent = { Text(localEmbeddingModelUrl.ifBlank { stringResource(R.string.local_model_url_hint) }) },
-                        leadingContent = { Icon(Icons.Default.Download, null, tint = MaterialTheme.colorScheme.primary) },
-                        modifier = Modifier.clickable {
-                            editEmbeddingModel = embeddingModel
-                            editEmbeddingUrl = embeddingBaseUrl
-                            editLocalModelUrl = localEmbeddingModelUrl
-                            showEmbeddingDialog = true
-                        }
-                    )
-                    if (localEmbeddingModelPath.isNotBlank()) {
-                        val modelReady = remember(localEmbeddingModelPath) {
-                            com.newoether.agora.api.LocalEmbeddingEngine.isModelReady(localEmbeddingModelPath)
-                        }
-                        ListItem(
-                            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                            headlineContent = { Text(stringResource(R.string.local_model_status)) },
-                            supportingContent = {
-                                Text(
-                                    if (modelReady) stringResource(R.string.local_model_ready) else stringResource(R.string.local_model_not_ready),
-                                    color = if (modelReady) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
-                                )
-                            },
-                            leadingContent = {
+                        headlineContent = { Text(stringResource(R.string.local_model_status)) },
+                        supportingContent = {
+                            Text(
+                                if (isImporting) stringResource(R.string.importing_model)
+                                else if (modelReady) stringResource(R.string.local_model_ready)
+                                else stringResource(R.string.local_model_not_ready),
+                                color = if (modelReady) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        },
+                        leadingContent = {
+                            if (isImporting)
+                                CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+                            else
                                 Icon(
                                     if (modelReady) Icons.Default.CheckCircle else Icons.Default.Warning,
                                     null,
                                     tint = if (modelReady) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
                                 )
+                        },
+                        trailingContent = {
+                            TextButton(onClick = { filePickerLauncher.launch(arrayOf("*/*")) }) {
+                                Text(stringResource(R.string.import_model))
                             }
-                        )
-                    }
+                        }
+                    )
                 }
             }
         }
 
         if (showEmbeddingDialog) {
-            val scope = rememberCoroutineScope()
-            val context = LocalContext.current
             AlertDialog(
                 onDismissRequest = { showEmbeddingDialog = false },
                 title = { Text(stringResource(R.string.embedding_title)) },
                 text = {
                     Column {
-                        if (embeddingSource == "remote") {
-                            OutlinedTextField(
-                                value = editEmbeddingModel,
-                                onValueChange = { editEmbeddingModel = it },
-                                label = { Text(stringResource(R.string.embedding_model_label)) },
-                                singleLine = true,
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                            Spacer(modifier = Modifier.height(12.dp))
-                            OutlinedTextField(
-                                value = editEmbeddingUrl,
-                                onValueChange = { editEmbeddingUrl = it },
-                                label = { Text(stringResource(R.string.embedding_base_url_label)) },
-                                placeholder = { Text("https://api.openai.com/v1") },
-                                singleLine = true,
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                        } else {
-                            OutlinedTextField(
-                                value = editLocalModelUrl,
-                                onValueChange = { editLocalModelUrl = it },
-                                label = { Text(stringResource(R.string.local_model_url_label)) },
-                                placeholder = { Text(stringResource(R.string.local_model_url_hint)) },
-                                singleLine = true,
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                            Spacer(modifier = Modifier.height(12.dp))
-                            if (isDownloading) {
-                                LinearProgressIndicator(
-                                    progress = { downloadProgress },
-                                    modifier = Modifier.fillMaxWidth()
-                                )
-                            } else {
-                                Button(
-                                    onClick = {
-                                        val url = editLocalModelUrl
-                                        if (url.isNotBlank()) {
-                                            val destPath = java.io.File(context.filesDir, "embedding_model.tflite").absolutePath
-                                            isDownloading = true
-                                            downloadProgress = 0f
-                                            scope.launch {
-                                                val success = com.newoether.agora.api.LocalEmbeddingEngine.downloadModel(
-                                                    modelUrl = url,
-                                                    destPath = destPath
-                                                ) { downloadProgress = it }
-                                                if (success) {
-                                                    viewModel.setLocalEmbeddingModelPath(destPath)
-                                                    viewModel.setLocalEmbeddingModelUrl(url)
-                                                }
-                                                isDownloading = false
-                                                downloadProgress = 0f
-                                            }
-                                        }
-                                    },
-                                    modifier = Modifier.fillMaxWidth()
-                                ) { Text(stringResource(R.string.download_model)) }
-                            }
-                        }
+                        OutlinedTextField(
+                            value = editEmbeddingModel,
+                            onValueChange = { editEmbeddingModel = it },
+                            label = { Text(stringResource(R.string.embedding_model_label)) },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        OutlinedTextField(
+                            value = editEmbeddingUrl,
+                            onValueChange = { editEmbeddingUrl = it },
+                            label = { Text(stringResource(R.string.embedding_base_url_label)) },
+                            placeholder = { Text("https://api.openai.com/v1") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
                     }
                 },
                 confirmButton = {
                     TextButton(onClick = {
-                        if (embeddingSource == "remote") {
-                            viewModel.setEmbeddingModel(editEmbeddingModel)
-                            viewModel.setEmbeddingBaseUrl(editEmbeddingUrl)
-                        } else {
-                            viewModel.setLocalEmbeddingModelUrl(editLocalModelUrl)
-                        }
+                        viewModel.setEmbeddingModel(editEmbeddingModel)
+                        viewModel.setEmbeddingBaseUrl(editEmbeddingUrl)
                         showEmbeddingDialog = false
                     }) { Text(stringResource(R.string.save)) }
                 },

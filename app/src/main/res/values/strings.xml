@@ -246,8 +246,9 @@
     <string name="local_model_url_hint">https://example.com/model.tflite</string>
     <string name="local_model_status">Status</string>
     <string name="local_model_ready">Model downloaded and ready</string>
-    <string name="local_model_not_ready">Model not downloaded</string>
-    <string name="download_model">Download Model</string>
+    <string name="local_model_not_ready">No model specified</string>
+    <string name="import_model">Import Model</string>
+    <string name="importing_model">Importing...</string>
 
     <!-- Errors -->
     <string name="search_found_matches">Found %1$d matches for \'%2$s\'.</string>

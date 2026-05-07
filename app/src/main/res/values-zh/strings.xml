@@ -213,8 +213,9 @@
     <string name="local_model_url_hint">https://example.com/model.tflite</string>
     <string name="local_model_status">状态</string>
     <string name="local_model_ready">模型已下载就绪</string>
-    <string name="local_model_not_ready">尚未下载模型</string>
-    <string name="download_model">下载模型</string>
+    <string name="local_model_not_ready">未指定模型</string>
+    <string name="import_model">导入模型</string>
+    <string name="importing_model">导入中...</string>
 
     <!-- Errors -->
     <string name="search_found_matches">找到 %1$d 条与 \'%2$s\' 相关的对话。</string>
