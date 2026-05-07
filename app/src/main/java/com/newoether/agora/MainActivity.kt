@@ -70,6 +70,7 @@ import com.newoether.agora.service.AgoraForegroundService
 import com.newoether.agora.data.local.ChatDatabase
 import com.newoether.agora.model.Participant
 import com.newoether.agora.ui.chat.ChatBottomBar
+import com.newoether.agora.ui.components.TypewriterText
 import com.newoether.agora.ui.chat.MessageList
 import com.newoether.agora.ui.settings.SettingsScreen
 import com.newoether.agora.ui.theme.AgoraTheme
@@ -1110,9 +1111,9 @@ fun ChatApp(
                                         .verticalScroll(rememberScrollState()),
                                     contentAlignment = Alignment.TopCenter
                                 ) {
-                                    // Welcome - positioned from top
-                                    Text(
-                                        stringResource(R.string.welcome_to_agora),
+                                    // Welcome - positioned from top with typewriter loop
+                                    TypewriterText(
+                                        text = stringResource(R.string.welcome_to_agora),
                                         style = MaterialTheme.typography.headlineMedium,
                                         fontWeight = FontWeight.Bold,
                                         color = MaterialTheme.colorScheme.onBackground,
