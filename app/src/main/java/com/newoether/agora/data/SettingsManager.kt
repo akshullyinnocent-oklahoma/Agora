@@ -60,6 +60,11 @@ class SettingsManager(private val context: Context) {
         val RAG_SEARCH_ENABLED = booleanPreferencesKey("rag_search_enabled")
         val MODEL_SEARCH_METHOD = stringPreferencesKey("model_search_method")
         val MANUAL_SEARCH_METHOD = stringPreferencesKey("manual_search_method")
+        val EMBEDDING_SOURCE = stringPreferencesKey("embedding_source")
+        val EMBEDDING_MODEL = stringPreferencesKey("embedding_model")
+        val EMBEDDING_BASE_URL = stringPreferencesKey("embedding_base_url")
+        val LOCAL_EMBEDDING_MODEL_URL = stringPreferencesKey("local_embedding_model_url")
+        val LOCAL_EMBEDDING_MODEL_PATH = stringPreferencesKey("local_embedding_model_path")
         val APP_LANGUAGE = stringPreferencesKey("app_language")
         val WEB_SEARCH_ENABLED = booleanPreferencesKey("web_search_enabled")
         val WEB_SEARCH_PROVIDER = stringPreferencesKey("web_search_provider")
@@ -118,6 +123,11 @@ class SettingsManager(private val context: Context) {
     val ragSearchEnabled: Flow<Boolean> = context.dataStore.data.map { it[RAG_SEARCH_ENABLED] ?: false }
     val modelSearchMethod: Flow<String> = context.dataStore.data.map { it[MODEL_SEARCH_METHOD] ?: "keyword" }
     val manualSearchMethod: Flow<String> = context.dataStore.data.map { it[MANUAL_SEARCH_METHOD] ?: "keyword" }
+    val embeddingSource: Flow<String> = context.dataStore.data.map { it[EMBEDDING_SOURCE] ?: "remote" }
+    val embeddingModel: Flow<String> = context.dataStore.data.map { it[EMBEDDING_MODEL] ?: "text-embedding-3-small" }
+    val embeddingBaseUrl: Flow<String> = context.dataStore.data.map { it[EMBEDDING_BASE_URL] ?: "" }
+    val localEmbeddingModelUrl: Flow<String> = context.dataStore.data.map { it[LOCAL_EMBEDDING_MODEL_URL] ?: "" }
+    val localEmbeddingModelPath: Flow<String> = context.dataStore.data.map { it[LOCAL_EMBEDDING_MODEL_PATH] ?: "" }
 
     val appLanguage: Flow<String> = context.dataStore.data.map { it[APP_LANGUAGE] ?: "system" }
     val webSearchEnabled: Flow<Boolean> = context.dataStore.data.map { it[WEB_SEARCH_ENABLED] ?: false }
@@ -220,6 +230,21 @@ class SettingsManager(private val context: Context) {
     }
     suspend fun saveManualSearchMethod(method: String) {
         context.dataStore.edit { it[MANUAL_SEARCH_METHOD] = method }
+    }
+    suspend fun saveEmbeddingModel(model: String) {
+        context.dataStore.edit { it[EMBEDDING_MODEL] = model }
+    }
+    suspend fun saveEmbeddingBaseUrl(url: String) {
+        context.dataStore.edit { it[EMBEDDING_BASE_URL] = url }
+    }
+    suspend fun saveEmbeddingSource(source: String) {
+        context.dataStore.edit { it[EMBEDDING_SOURCE] = source }
+    }
+    suspend fun saveLocalEmbeddingModelUrl(url: String) {
+        context.dataStore.edit { it[LOCAL_EMBEDDING_MODEL_URL] = url }
+    }
+    suspend fun saveLocalEmbeddingModelPath(path: String) {
+        context.dataStore.edit { it[LOCAL_EMBEDDING_MODEL_PATH] = path }
     }
 
     suspend fun saveAppLanguage(language: String) {

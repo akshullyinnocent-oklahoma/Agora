@@ -846,6 +846,8 @@ fun ChatApp(
                     var searchResults by remember { mutableStateOf<List<com.newoether.agora.data.local.MessageEntity>>(emptyList()) }
                     var isSearchActive by remember { mutableStateOf(false) }
 
+                    val manualSearchMethod by viewModel.manualSearchMethod.collectAsState()
+
                     LaunchedEffect(searchQuery) {
                         if (searchQuery.isBlank()) {
                             searchResults = emptyList()
@@ -853,7 +855,10 @@ fun ChatApp(
                         } else {
                             delay(200) // debounce
                             if (searchQuery.isNotBlank()) {
-                                searchResults = viewModel.searchMessages(searchQuery)
+                                searchResults = if (manualSearchMethod == "rag")
+                                    viewModel.semanticSearch(searchQuery)
+                                else
+                                    viewModel.searchMessages(searchQuery)
                                 isSearchActive = true
                             }
                         }

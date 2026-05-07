@@ -37,7 +37,7 @@ fun SettingsGroup(
 ) {
     Column(modifier = modifier.fillMaxWidth().padding(bottom = 24.dp)) {
         Text(
-            text = title,
+            text = title.uppercase(),
             style = MaterialTheme.typography.labelLarge,
             color = MaterialTheme.colorScheme.primary,
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)

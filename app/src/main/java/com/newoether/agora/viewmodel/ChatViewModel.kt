@@ -8,11 +8,14 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.newoether.agora.api.*
 import com.newoether.agora.data.ApiKeyEntry
+import com.newoether.agora.data.EmbeddingIndexer
 import com.newoether.agora.data.MemoryManager
 import com.newoether.agora.data.SettingsManager
 import com.newoether.agora.data.SystemPromptEntry
+import com.newoether.agora.api.LocalEmbeddingEngine
 import com.newoether.agora.data.local.ChatDao
 import com.newoether.agora.data.local.ChatEntity
+import com.newoether.agora.data.local.EmbeddingEntity
 import com.newoether.agora.data.local.MessageEntity
 import com.newoether.agora.model.ChatConversation
 import com.newoether.agora.util.Constants
@@ -60,7 +63,13 @@ class ChatViewModel(
             memoryManager = memoryManager,
             providers = providers,
             context = appContext
-        )
+        ).also { gm ->
+            gm.onMessagePersisted = { messageId, text ->
+                if (modelSearchMethod.value == "rag" || manualSearchMethod.value == "rag") {
+                    indexMessageForRag(messageId, text)
+                }
+            }
+        }
     }
 
     override fun onCleared() {
@@ -145,6 +154,11 @@ class ChatViewModel(
     val ragSearchEnabled = settingsManager.ragSearchEnabled.stateIn(viewModelScope, SharingStarted.Eagerly, false)
     val modelSearchMethod = settingsManager.modelSearchMethod.stateIn(viewModelScope, SharingStarted.Eagerly, "keyword")
     val manualSearchMethod = settingsManager.manualSearchMethod.stateIn(viewModelScope, SharingStarted.Eagerly, "keyword")
+    val embeddingSource = settingsManager.embeddingSource.stateIn(viewModelScope, SharingStarted.Eagerly, "remote")
+    val embeddingModel = settingsManager.embeddingModel.stateIn(viewModelScope, SharingStarted.Eagerly, "text-embedding-3-small")
+    val embeddingBaseUrl = settingsManager.embeddingBaseUrl.stateIn(viewModelScope, SharingStarted.Eagerly, "")
+    val localEmbeddingModelUrl = settingsManager.localEmbeddingModelUrl.stateIn(viewModelScope, SharingStarted.Eagerly, "")
+    val localEmbeddingModelPath = settingsManager.localEmbeddingModelPath.stateIn(viewModelScope, SharingStarted.Eagerly, "")
     val appLanguage = settingsManager.appLanguage.stateIn(viewModelScope, SharingStarted.Eagerly, "system")
     val webSearchEnabled = settingsManager.webSearchEnabled.stateIn(viewModelScope, SharingStarted.Eagerly, false)
     val webSearchProvider = settingsManager.webSearchProvider.stateIn(viewModelScope, SharingStarted.Eagerly, "brave")
@@ -441,6 +455,76 @@ class ChatViewModel(
     fun setRagSearchEnabled(enabled: Boolean) { viewModelScope.launch { settingsManager.saveRagSearchEnabled(enabled) } }
     fun setModelSearchMethod(method: String) { viewModelScope.launch { settingsManager.saveModelSearchMethod(method) } }
     fun setManualSearchMethod(method: String) { viewModelScope.launch { settingsManager.saveManualSearchMethod(method) } }
+    fun setEmbeddingModel(model: String) { viewModelScope.launch { settingsManager.saveEmbeddingModel(model) } }
+    fun setEmbeddingBaseUrl(url: String) { viewModelScope.launch { settingsManager.saveEmbeddingBaseUrl(url) } }
+    fun setEmbeddingSource(source: String) { viewModelScope.launch { settingsManager.saveEmbeddingSource(source) } }
+    fun setLocalEmbeddingModelUrl(url: String) { viewModelScope.launch { settingsManager.saveLocalEmbeddingModelUrl(url) } }
+    fun setLocalEmbeddingModelPath(path: String) { viewModelScope.launch { settingsManager.saveLocalEmbeddingModelPath(path) } }
+
+    suspend fun semanticSearch(query: String, limit: Int = 20): List<MessageEntity> {
+        val queryEmbedding = resolveEmbedding(query) ?: return emptyList()
+
+        val all = chatDao.getAllEmbeddings()
+        if (all.isEmpty()) return emptyList()
+
+        val scored = all.map {
+            val stored = EmbeddingIndexer.bytesToFloats(it.embedding)
+            it to EmbeddingIndexer.cosineSimilarity(queryEmbedding, stored)
+        }.filter { it.second > 0.3f }
+         .sortedByDescending { it.second }
+         .take(limit)
+
+        if (scored.isEmpty()) return emptyList()
+        return chatDao.getMessagesByIds(scored.map { it.first.messageId })
+    }
+
+    private suspend fun resolveEmbedding(text: String): FloatArray? {
+        return if (embeddingSource.value == "local") {
+            val path = localEmbeddingModelPath.value
+            if (!LocalEmbeddingEngine.isModelReady(path)) return null
+            LocalEmbeddingEngine.computeEmbedding(text, path)
+        } else {
+            val apiKey = resolveEmbeddingApiKey() ?: return null
+            val baseUrl = embeddingBaseUrl.value.ifBlank { resolveEmbeddingBaseUrl() }
+            EmbeddingClient.computeEmbedding(text, apiKey, embeddingModel.value, baseUrl)
+        }
+    }
+
+    private fun resolveEmbeddingApiKey(): String? {
+        val keys = apiKeys.value
+        for (entry in keys) {
+            if (entry.provider == "OpenAI" || entry.provider == "DeepSeek" || entry.provider == "Qwen" || entry.provider == "Open Router") {
+                return entry.key
+            }
+        }
+        return keys.firstOrNull()?.key
+    }
+
+    private fun resolveEmbeddingBaseUrl(): String {
+        return providerBaseUrls.value["OpenAI"] ?: "https://api.openai.com/v1"
+    }
+
+    fun indexMessageForRag(messageId: String, text: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val embedding: FloatArray? = if (embeddingSource.value == "local") {
+                val path = localEmbeddingModelPath.value
+                if (!LocalEmbeddingEngine.isModelReady(path)) return@launch
+                LocalEmbeddingEngine.computeEmbedding(text, path)
+            } else {
+                val apiKey = resolveEmbeddingApiKey() ?: return@launch
+                val baseUrl = embeddingBaseUrl.value.ifBlank { resolveEmbeddingBaseUrl() }
+                EmbeddingClient.computeEmbedding(text, apiKey, embeddingModel.value, baseUrl)
+            }
+            if (embedding != null) {
+                chatDao.upsertEmbedding(EmbeddingEntity(
+                    messageId = messageId,
+                    embedding = EmbeddingIndexer.floatsToBytes(embedding),
+                    chunkText = text.take(500),
+                    dimension = embedding.size
+                ))
+            }
+        }
+    }
     suspend fun searchMessages(query: String, limit: Int = 20) = chatDao.searchMessages(query, limit)
     fun setAppLanguage(language: String) { viewModelScope.launch { settingsManager.saveAppLanguage(language) } }
     fun setWebSearchEnabled(enabled: Boolean) { viewModelScope.launch { settingsManager.saveWebSearchEnabled(enabled) } }
@@ -681,6 +765,12 @@ class ChatViewModel(
 
             generationManager.accessSavedMemories = accessSavedMemories.value
             generationManager.accessActiveMemory = accessActiveMemory.value
+            generationManager.modelSearchMethod = modelSearchMethod.value
+            generationManager.embeddingModel = embeddingModel.value
+            generationManager.embeddingBaseUrl = embeddingBaseUrl.value.ifBlank { resolveEmbeddingBaseUrl() }
+            generationManager.embeddingApiKey = resolveEmbeddingApiKey() ?: ""
+            generationManager.embeddingSource = embeddingSource.value
+            generationManager.localEmbeddingModelPath = localEmbeddingModelPath.value
             generationManager.accessPastConversations = accessPastConversations.value
             generationManager.webSearchEnabled = webSearchEnabled.value
             generationManager.webSearchApiKey = webSearchApiKey.value
@@ -766,6 +856,12 @@ class ChatViewModel(
 
             generationManager.accessSavedMemories = accessSavedMemories.value
             generationManager.accessActiveMemory = accessActiveMemory.value
+            generationManager.modelSearchMethod = modelSearchMethod.value
+            generationManager.embeddingModel = embeddingModel.value
+            generationManager.embeddingBaseUrl = embeddingBaseUrl.value.ifBlank { resolveEmbeddingBaseUrl() }
+            generationManager.embeddingApiKey = resolveEmbeddingApiKey() ?: ""
+            generationManager.embeddingSource = embeddingSource.value
+            generationManager.localEmbeddingModelPath = localEmbeddingModelPath.value
             generationManager.accessPastConversations = accessPastConversations.value
             generationManager.webSearchEnabled = webSearchEnabled.value
             generationManager.webSearchApiKey = webSearchApiKey.value
@@ -903,6 +999,12 @@ class ChatViewModel(
 
             generationManager.accessSavedMemories = accessSavedMemories.value
             generationManager.accessActiveMemory = accessActiveMemory.value
+            generationManager.modelSearchMethod = modelSearchMethod.value
+            generationManager.embeddingModel = embeddingModel.value
+            generationManager.embeddingBaseUrl = embeddingBaseUrl.value.ifBlank { resolveEmbeddingBaseUrl() }
+            generationManager.embeddingApiKey = resolveEmbeddingApiKey() ?: ""
+            generationManager.embeddingSource = embeddingSource.value
+            generationManager.localEmbeddingModelPath = localEmbeddingModelPath.value
             generationManager.accessPastConversations = accessPastConversations.value
             generationManager.webSearchEnabled = webSearchEnabled.value
             generationManager.webSearchApiKey = webSearchApiKey.value

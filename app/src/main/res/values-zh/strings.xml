@@ -203,6 +203,18 @@
     <string name="manual_search_method_desc">抽屉中搜索栏的查找方式</string>
     <string name="search_method_keyword">关键词</string>
     <string name="search_method_rag">语义 (RAG)</string>
+    <string name="embedding_title">嵌入模型</string>
+    <string name="embedding_source_label">来源</string>
+    <string name="embedding_source_remote">远程 API</string>
+    <string name="embedding_source_local">本地（设备端）</string>
+    <string name="embedding_model_label">模型</string>
+    <string name="embedding_base_url_label">基础 URL</string>
+    <string name="local_model_url_label">模型下载 URL</string>
+    <string name="local_model_url_hint">https://example.com/model.tflite</string>
+    <string name="local_model_status">状态</string>
+    <string name="local_model_ready">模型已下载就绪</string>
+    <string name="local_model_not_ready">尚未下载模型</string>
+    <string name="download_model">下载模型</string>
 
     <!-- Errors -->
     <string name="search_found_matches">找到 %1$d 条与 \'%2$s\' 相关的对话。</string>

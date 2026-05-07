@@ -18,6 +18,9 @@ import com.newoether.agora.model.MessageStatus
 import com.newoether.agora.model.Participant
 import com.newoether.agora.model.ToolCallData
 import com.newoether.agora.service.AgoraForegroundService
+import com.newoether.agora.api.EmbeddingClient
+import com.newoether.agora.api.LocalEmbeddingEngine
+import com.newoether.agora.data.EmbeddingIndexer
 import com.newoether.agora.util.Constants
 import com.newoether.agora.util.SearchResultFormatter
 import kotlinx.coroutines.CancellationException
@@ -64,6 +67,13 @@ class GenerationManager(
     var accessSavedMemories: Boolean = true
     var accessActiveMemory: Boolean = true
     var accessPastConversations: Boolean = true
+    var onMessagePersisted: ((messageId: String, text: String) -> Unit)? = null
+    var modelSearchMethod: String = "keyword"
+    var embeddingSource: String = "remote"
+    var embeddingModel: String = "text-embedding-3-small"
+    var embeddingBaseUrl: String = ""
+    var embeddingApiKey: String = ""
+    var localEmbeddingModelPath: String = ""
     var webSearchEnabled: Boolean = false
     var webSearchApiKey: String = ""
     var webSearchProvider: String = "brave"
@@ -237,7 +247,11 @@ class GenerationManager(
         val limit = ((args["limit"] as? kotlinx.serialization.json.JsonPrimitive)?.content?.toIntOrNull() ?: 10).coerceIn(1, 20)
 
         return try {
-            val results = chatDao.searchMessages(query, limit)
+            val results = if (modelSearchMethod == "rag" && embeddingApiKey.isNotBlank()) {
+                semanticSearch(query, limit)
+            } else {
+                chatDao.searchMessages(query, limit)
+            }
             if (results.isEmpty())
                 return buildJsonObject { put("type", "search_conversations"); put("query", query); put("error", "no_results") }.toString()
 
@@ -276,6 +290,31 @@ class GenerationManager(
                 put("message", e.message ?: "")
             }.toString()
         }
+    }
+
+    private suspend fun semanticSearch(query: String, limit: Int): List<com.newoether.agora.data.local.MessageEntity> {
+        val queryEmbedding = if (embeddingSource == "local") {
+            if (!LocalEmbeddingEngine.isModelReady(localEmbeddingModelPath)) return emptyList()
+            LocalEmbeddingEngine.computeEmbedding(query, localEmbeddingModelPath)
+        } else {
+            EmbeddingClient.computeEmbedding(
+                text = query,
+                apiKey = embeddingApiKey,
+                model = embeddingModel,
+                baseUrl = embeddingBaseUrl
+            )
+        } ?: return emptyList()
+
+        val all = chatDao.getAllEmbeddings()
+        if (all.isEmpty()) return emptyList()
+
+        return all.map {
+            val stored = EmbeddingIndexer.bytesToFloats(it.embedding)
+            it to EmbeddingIndexer.cosineSimilarity(queryEmbedding, stored)
+        }.filter { it.second > 0.3f }
+         .sortedByDescending { it.second }
+         .take(limit)
+         .let { scored -> chatDao.getMessagesByIds(scored.map { it.first.messageId }) }
     }
 
     private fun executeWebSearch(arguments: String): String {
@@ -818,6 +857,9 @@ class GenerationManager(
                                 status = currentStatus, participant = Participant.MODEL, timestamp = startTime,
                                 thoughtTimeMs = totalThoughtTimeMs, modelName = modelName, toolCallJson = segmentsJson
                             ))
+                            if (totalText.isNotBlank()) {
+                                onMessagePersisted?.invoke(modelMessageId, totalText)
+                            }
                         }
                     }
                 } catch (e: Exception) {

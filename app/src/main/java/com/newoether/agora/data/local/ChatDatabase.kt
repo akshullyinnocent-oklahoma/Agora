@@ -50,6 +50,18 @@ data class ChatEntity(
 )
 
 @Entity(
+    tableName = "embeddings",
+    indices = [Index(value = ["messageId"], unique = true)]
+)
+data class EmbeddingEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val messageId: String,
+    val embedding: ByteArray,
+    val chunkText: String,
+    val dimension: Int
+)
+
+@Entity(
     tableName = "messages",
     indices = [Index(value = ["conversationId"])],
     foreignKeys = [
@@ -103,10 +115,26 @@ interface ChatDao {
 
     @Query("SELECT * FROM messages WHERE conversationId = :conversationId ORDER BY timestamp DESC LIMIT 1")
     suspend fun getLastMessageForConversation(conversationId: String): MessageEntity?
+
+    // Embeddings
+    @Upsert
+    suspend fun upsertEmbedding(embedding: EmbeddingEntity)
+
+    @Query("SELECT * FROM embeddings WHERE messageId = :messageId LIMIT 1")
+    suspend fun getEmbedding(messageId: String): EmbeddingEntity?
+
+    @Query("SELECT * FROM embeddings")
+    suspend fun getAllEmbeddings(): List<EmbeddingEntity>
+
+    @Query("DELETE FROM embeddings WHERE messageId = :messageId")
+    suspend fun deleteEmbedding(messageId: String)
+
+    @Query("SELECT * FROM messages WHERE id IN (:ids)")
+    suspend fun getMessagesByIds(ids: List<String>): List<MessageEntity>
 }
 
 @Database(
-    entities = [ChatEntity::class, MessageEntity::class],
+    entities = [ChatEntity::class, MessageEntity::class, EmbeddingEntity::class],
     version = ChatDatabase.CURRENT_VERSION,
     exportSchema = true
 )@TypeConverters(MessageConverters::class)
@@ -114,7 +142,7 @@ abstract class ChatDatabase : RoomDatabase() {
     abstract fun chatDao(): ChatDao
 
     companion object {
-        const val CURRENT_VERSION = 9
+        const val CURRENT_VERSION = 10
         const val DB_NAME = "agora_db"
 
         val ALL_MIGRATIONS = listOf(
@@ -151,6 +179,20 @@ abstract class ChatDatabase : RoomDatabase() {
             object : Migration(8, 9) {
                 override fun migrate(db: SupportSQLiteDatabase) {
                     db.execSQL("ALTER TABLE messages ADD COLUMN toolCallJson TEXT")
+                }
+            },
+            object : Migration(9, 10) {
+                override fun migrate(db: SupportSQLiteDatabase) {
+                    db.execSQL("""
+                        CREATE TABLE IF NOT EXISTS embeddings (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                            messageId TEXT NOT NULL,
+                            embedding BLOB NOT NULL,
+                            chunkText TEXT NOT NULL,
+                            dimension INTEGER NOT NULL
+                        )
+                    """)
+                    db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_embeddings_messageId ON embeddings (messageId)")
                 }
             }
         )

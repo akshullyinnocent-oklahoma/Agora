@@ -141,9 +141,9 @@
 
     <!-- Settings - Models Page -->
     <string name="models_title">Models</string>
-    <string name="models_default">DEFAULT MODEL</string>
+    <string name="models_default">Default Model</string>
     <string name="models_no_models">No models enabled</string>
-    <string name="models_available">AVAILABLE MODELS</string>
+    <string name="models_available">Available Models</string>
     <string name="models_sync">Sync from All Providers</string>
     <string name="models_sync_desc">Fetch the latest model list for all configured APIs</string>
     <string name="models_count">%1$d models available</string>
@@ -189,10 +189,10 @@
     <string name="memory_access_active_desc">Include active memory content in every API call</string>
     <string name="memory_access_past">Access Past Conversations</string>
     <string name="memory_access_past_desc">Allow the model to search conversation history</string>
-    <string name="memory_active_title">ACTIVE MEMORY</string>
+    <string name="memory_active_title">Active Memory</string>
     <string name="memory_active_context">Active Memory Context</string>
     <string name="memory_active_empty">No active memory set. The model will remember this across all conversations.</string>
-    <string name="memory_saved_title">SAVED MEMORIES</string>
+    <string name="memory_saved_title">Saved Memories</string>
     <string name="memory_add">Add Memory</string>
     <string name="memory_add_desc">Add a new memory to saved memories</string>
     <string name="memory_no_files">No files yet</string>
@@ -228,14 +228,26 @@
     <string name="sync_completed">Sync completed</string>
 
     <!-- Memory Access -->
-    <string name="memory_access_title">ACCESS</string>
-    <string name="search_methods_title">SEARCH METHODS</string>
+    <string name="memory_access_title">Access</string>
+    <string name="search_methods_title">Search Methods</string>
     <string name="model_search_method">Model Search Method</string>
     <string name="model_search_method_desc">How the model searches past conversations via tool calls</string>
     <string name="manual_search_method">Manual Search Method</string>
     <string name="manual_search_method_desc">How the search bar in the drawer finds results</string>
     <string name="search_method_keyword">Keyword</string>
     <string name="search_method_rag">Semantic (RAG)</string>
+    <string name="embedding_title">Embedding</string>
+    <string name="embedding_source_label">Source</string>
+    <string name="embedding_source_remote">Remote API</string>
+    <string name="embedding_source_local">Local (On-Device)</string>
+    <string name="embedding_model_label">Model</string>
+    <string name="embedding_base_url_label">Base URL</string>
+    <string name="local_model_url_label">Model Download URL</string>
+    <string name="local_model_url_hint">https://example.com/model.tflite</string>
+    <string name="local_model_status">Status</string>
+    <string name="local_model_ready">Model downloaded and ready</string>
+    <string name="local_model_not_ready">Model not downloaded</string>
+    <string name="download_model">Download Model</string>
 
     <!-- Errors -->
     <string name="search_found_matches">Found %1$d matches for \'%2$s\'.</string>
