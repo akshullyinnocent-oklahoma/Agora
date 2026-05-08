@@ -323,6 +323,14 @@ fun SettingsSearchPage(viewModel: ChatViewModel, onBack: () -> Unit) {
                             singleLine = true,
                             modifier = Modifier.fillMaxWidth()
                         )
+                        testStatus?.let { status ->
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = status,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = if (status.startsWith("OK")) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
+                            )
+                        }
                     }
                 },
                 confirmButton = {
@@ -357,14 +365,6 @@ fun SettingsSearchPage(viewModel: ChatViewModel, onBack: () -> Unit) {
                             Spacer(modifier = Modifier.width(8.dp))
                         }
                         Text(stringResource(R.string.add))
-                    }
-                    testStatus?.let { status ->
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = status,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.error
-                        )
                     }
                 },
                 dismissButton = {

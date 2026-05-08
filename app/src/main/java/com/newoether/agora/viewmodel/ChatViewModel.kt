@@ -623,22 +623,24 @@ class ChatViewModel(
             return emptyList()
         }
         Log.d("AgoraVM", "RAG search: returning ${filtered.size} results")
-        val ids = filtered.map { it.first.messageId }
-        val messages = chatDao.getMessagesByIds(ids)
-        val scoreMap = filtered.associate { it.first.messageId to it.second }
-        return messages.map { it to (scoreMap[it.id] ?: 0f) }
+        val scoreById = filtered.associate { it.first.messageId to it.second }
+        val messages = chatDao.getMessagesByIds(filtered.map { it.first.messageId })
+        val messageById = messages.associateBy { it.id }
+        return filtered.mapNotNull { (entity, score) ->
+            messageById[entity.messageId]?.let { it to score }
+        }
     }
 
-    private suspend fun resolveEmbedding(text: String): FloatArray? {
+    private suspend fun resolveEmbedding(text: String): FloatArray? = withContext(Dispatchers.IO) {
         val model = activeEmbeddingModel.value
         if (model == null) {
             Log.w("AgoraVM", "resolveEmbedding: no active model")
-            return null
+            return@withContext null
         }
-        return if (model.type == EmbeddingModelType.LOCAL) {
+        if (model.type == EmbeddingModelType.LOCAL) {
             if (!LlamaEngine.isModelReady(model.localFilePath)) {
                 Log.w("AgoraVM", "resolveEmbedding: local model not ready at ${model.localFilePath}")
-                return null
+                return@withContext null
             }
             Log.d("AgoraVM", "resolveEmbedding: using local model ${model.name}")
             LlamaEngine.computeEmbedding(text, model.localFilePath)
@@ -646,7 +648,7 @@ class ChatViewModel(
             val apiKey = resolveEmbeddingApiKey()
             if (apiKey == null) {
                 Log.w("AgoraVM", "resolveEmbedding: no API key available")
-                return null
+                return@withContext null
             }
             val baseUrl = model.remoteBaseUrl.ifBlank { resolveEmbeddingBaseUrl() }
             Log.d("AgoraVM", "resolveEmbedding: calling ${model.remoteModelName} @ $baseUrl")
@@ -713,11 +715,13 @@ class ChatViewModel(
     suspend fun testRemoteEmbedding(modelName: String, baseUrl: String): String? {
         val apiKey = resolveEmbeddingApiKey() ?: return "No API key configured"
         val url = baseUrl.ifBlank { resolveEmbeddingBaseUrl() }
-        return try {
-            val result = EmbeddingClient.computeEmbedding("test connection", apiKey, modelName, url)
-            if (result != null) "OK (dim=${result.size})" else "Failed"
-        } catch (e: Exception) {
-            e.message ?: "Error"
+        return withContext(Dispatchers.IO) {
+            try {
+                val result = EmbeddingClient.computeEmbedding("test connection", apiKey, modelName, url)
+                if (result != null) "OK (dim=${result.size})" else "Failed"
+            } catch (e: Exception) {
+                e.message ?: "Error"
+            }
         }
     }
 

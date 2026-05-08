@@ -1,6 +1,7 @@
 package com.newoether.agora.api
 
 import okhttp3.MediaType.Companion.toMediaType
+import android.util.Log
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
@@ -31,6 +32,20 @@ object HttpClient {
         val requestBuilder = Request.Builder().url(url).post(body)
         headers.forEach { (k, v) -> requestBuilder.addHeader(k, v) }
         return StreamHandle(client.newCall(requestBuilder.build()).execute())
+    }
+
+    fun post(url: String, jsonBody: String, headers: Map<String, String> = emptyMap()): String? {
+        val body = jsonBody.toRequestBody(JSON)
+        val requestBuilder = Request.Builder().url(url).post(body)
+        headers.forEach { (k, v) -> requestBuilder.addHeader(k, v) }
+        val response = client.newCall(requestBuilder.build()).execute()
+        return response.use {
+            if (it.isSuccessful) it.body?.string()
+            else {
+                android.util.Log.e("HttpClient", "POST $url failed: ${it.code} ${it.body?.string()}")
+                null
+            }
+        }
     }
 
     fun fetchModels(url: String, headers: Map<String, String> = emptyMap()): String? {

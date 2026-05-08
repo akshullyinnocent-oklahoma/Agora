@@ -1,5 +1,6 @@
 package com.newoether.agora.api
 
+import android.util.Log
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.float
 import kotlinx.serialization.json.jsonArray
@@ -42,12 +43,13 @@ object EmbeddingClient {
                 "Authorization" to "Bearer $apiKey",
                 "Content-Type" to "application/json"
             )
-            val response = HttpClient.fetchModels(url, headers) ?: return null
+            val response = HttpClient.post(url, body, headers) ?: return null
             val parsed = json.parseToJsonElement(response).jsonObject
             val data = parsed["data"]?.jsonArray ?: return null
             val embedding = data.firstOrNull()?.jsonObject?.get("embedding")?.jsonArray ?: return null
             FloatArray(embedding.size) { i -> embedding[i].jsonPrimitive.float }
         } catch (e: Exception) {
+            android.util.Log.e("EmbeddingClient", "computeEmbedding failed", e)
             null
         }
     }
@@ -67,7 +69,7 @@ object EmbeddingClient {
                 "Authorization" to "Bearer $apiKey",
                 "Content-Type" to "application/json"
             )
-            val response = HttpClient.fetchModels(url, headers) ?: return texts.map { null }
+            val response = HttpClient.post(url, body, headers) ?: return texts.map { null }
             val parsed = json.parseToJsonElement(response).jsonObject
             val data = parsed["data"]?.jsonArray ?: return texts.map { null }
             data.map { item ->

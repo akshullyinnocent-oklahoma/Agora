@@ -290,23 +290,23 @@ class GenerationManager(
         }
     }
 
-    private suspend fun semanticSearch(query: String, limit: Int): List<com.newoether.agora.data.local.MessageEntity> {
+    private suspend fun semanticSearch(query: String, limit: Int): List<com.newoether.agora.data.local.MessageEntity> = withContext(Dispatchers.IO) {
         val config = activeEmbeddingConfig
         if (config == null) {
             Log.w("AgoraVM", "GM RAG: no active embedding config")
-            return emptyList()
+            return@withContext emptyList()
         }
         val queryEmbedding = if (config.type == com.newoether.agora.data.EmbeddingModelType.LOCAL) {
             if (!LlamaEngine.isModelReady(config.localFilePath)) {
                 Log.w("AgoraVM", "GM RAG: local model not ready")
-                return emptyList()
+                return@withContext emptyList()
             }
             LlamaEngine.computeEmbedding(query, config.localFilePath)
         } else {
             val apiKey = resolveEmbeddingApiKey()
             if (apiKey == null) {
                 Log.w("AgoraVM", "GM RAG: no API key")
-                return emptyList()
+                return@withContext emptyList()
             }
             EmbeddingClient.computeEmbedding(
                 text = query,
@@ -317,12 +317,12 @@ class GenerationManager(
         }
         if (queryEmbedding == null) {
             Log.w("AgoraVM", "GM RAG: failed to compute query embedding")
-            return emptyList()
+            return@withContext emptyList()
         }
 
         val all = chatDao.getEmbeddingsByModel(config.id)
         Log.d("AgoraVM", "GM RAG: ${all.size} stored embeddings, query dim=${queryEmbedding.size}")
-        if (all.isEmpty()) return emptyList()
+        if (all.isEmpty()) return@withContext emptyList()
 
         val scored = all.map {
             val stored = EmbeddingIndexer.bytesToFloats(it.embedding)
@@ -330,10 +330,11 @@ class GenerationManager(
         }
         val best = scored.maxOfOrNull { it.second } ?: 0f
         Log.d("AgoraVM", "GM RAG: best cosine = ${"%.4f".format(best)}")
-        return scored.filter { it.second > ragThreshold }
+        val filtered = scored.filter { it.second > ragThreshold }
          .sortedByDescending { it.second }
          .take(limit)
-         .let { s -> chatDao.getMessagesByIds(s.map { it.first.messageId }) }
+        val messageById = chatDao.getMessagesByIds(filtered.map { it.first.messageId }).associateBy { it.id }
+        filtered.mapNotNull { (entity, _) -> messageById[entity.messageId] }
     }
 
     private fun resolveEmbeddingApiKey(): String? {
