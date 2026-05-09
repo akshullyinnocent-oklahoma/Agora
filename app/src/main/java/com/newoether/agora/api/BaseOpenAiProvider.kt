@@ -3,6 +3,7 @@ package com.newoether.agora.api
 import android.util.Log
 import com.newoether.agora.api.util.StreamingThinkTagParser
 import com.newoether.agora.api.util.convertToOpenAiMessages
+import com.newoether.agora.api.util.keepToolPairs
 import com.newoether.agora.model.ChatMessage
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -61,7 +62,7 @@ abstract class BaseOpenAiProvider : LlmProvider {
         val baseUrl = config.baseUrl?.trimEnd('/') ?: defaultBaseUrl
 
         val limitedMessages = if (messages.size > config.maxContextWindow) {
-            messages.takeLast(config.maxContextWindow)
+            keepToolPairs(messages.takeLast(config.maxContextWindow), messages)
         } else messages
 
         val apiMessages = convertToOpenAiMessages(

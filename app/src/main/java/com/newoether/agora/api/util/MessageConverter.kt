@@ -145,3 +145,15 @@ fun convertToOpenAiMessages(
 
     return apiMessages
 }
+
+fun keepToolPairs(limited: List<ChatMessage>, full: List<ChatMessage>): List<ChatMessage> {
+    val result = limited.toMutableList()
+    while (result.firstOrNull()?.id?.startsWith(Constants.RESULT_MSG_PREFIX) == true) {
+        val parentId = result.first().parentId ?: break
+        val parent = full.find { it.id == parentId } ?: break
+        if (parent.id.startsWith(Constants.TOOL_MSG_PREFIX)) {
+            result.add(0, parent)
+        } else break
+    }
+    return result
+}

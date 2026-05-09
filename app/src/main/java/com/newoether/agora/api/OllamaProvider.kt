@@ -3,6 +3,7 @@ package com.newoether.agora.api
 import android.util.Log
 import com.newoether.agora.api.util.StreamingThinkTagParser
 import com.newoether.agora.api.util.buildToolCallId
+import com.newoether.agora.api.util.keepToolPairs
 import com.newoether.agora.model.ChatMessage
 import com.newoether.agora.model.Participant
 import com.newoether.agora.util.Constants
@@ -68,7 +69,7 @@ class OllamaProvider : LlmProvider {
         val modelName = config.modelId
 
         val limitedPath = if (messages.size > config.maxContextWindow) {
-            messages.takeLast(config.maxContextWindow)
+            keepToolPairs(messages.takeLast(config.maxContextWindow), messages)
         } else {
             messages
         }
