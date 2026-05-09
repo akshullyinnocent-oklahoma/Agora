@@ -199,14 +199,15 @@ class ChatViewModel(
     private val _cacheCounts = MutableStateFlow<Map<String, Pair<Int, Int>>>(emptyMap())
     val cacheCounts: StateFlow<Map<String, Pair<Int, Int>>> = _cacheCounts.asStateFlow()
     fun loadCacheCounts() {
-        viewModelScope.launch(Dispatchers.IO) {
-            val total = chatDao.getAllMessagesForIndexing().count { it.text.isNotBlank() }
-            val counts = embeddingModels.value.associate { model ->
-                val cached = chatDao.getEmbeddingCountByModel(model.id).coerceAtMost(total)
-                model.id to (cached to total)
-            }
-            _cacheCounts.value = counts
+        viewModelScope.launch(Dispatchers.IO) { refreshCacheCounts() }
+    }
+    private suspend fun refreshCacheCounts() {
+        val total = chatDao.getAllMessagesForIndexing().count { it.text.isNotBlank() }
+        val counts = embeddingModels.value.associate { model ->
+            val cached = chatDao.getEmbeddingCountByModel(model.id).coerceAtMost(total)
+            model.id to (cached to total)
         }
+        _cacheCounts.value = counts
     }
     val appLanguage = settingsManager.appLanguage.stateIn(viewModelScope, SharingStarted.Eagerly, "system")
     val webSearchEnabled = settingsManager.webSearchEnabled.stateIn(viewModelScope, SharingStarted.Eagerly, false)
@@ -562,11 +563,13 @@ class ChatViewModel(
             val total = allMessages.size
             if (total == 0) {
                 _snackbarMessage.emit(SnackbarEvent("No messages to cache."))
+                refreshCacheCounts()
                 return@launch
             }
             if (toProcess.isEmpty()) {
                 settingsManager.markModelCached(modelId)
                 _snackbarMessage.emit(SnackbarEvent("All $total messages already cached."))
+                refreshCacheCounts()
                 return@launch
             }
             var processed = alreadyDone
@@ -616,6 +619,7 @@ class ChatViewModel(
                 ) { cacheMessagesForModel(modelId) })
             }
             _cachingProgress.value = _cachingProgress.value - modelId
+            refreshCacheCounts()
         }
     }
 
