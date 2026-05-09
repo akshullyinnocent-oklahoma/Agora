@@ -68,6 +68,8 @@ class SettingsManager(private val context: Context) {
         val WEB_SEARCH_API_KEY = stringPreferencesKey("web_search_api_key")
         val WEB_SEARCH_BASE_URL = stringPreferencesKey("web_search_base_url")
         val RAG_THRESHOLD = stringPreferencesKey("rag_threshold")
+        val LOCAL_CHAT_MODELS_JSON = stringPreferencesKey("local_chat_models_json")
+        val ACTIVE_LOCAL_CHAT_MODEL_ID = stringPreferencesKey("active_local_chat_model_id")
     }
 
     val selectedModel: Flow<String> = context.dataStore.data.map { it[SELECTED_MODEL] ?: "gemini-1.5-flash" }
@@ -133,6 +135,11 @@ class SettingsManager(private val context: Context) {
     val webSearchApiKey: Flow<String> = context.dataStore.data.map { it[WEB_SEARCH_API_KEY] ?: "" }
     val webSearchBaseUrl: Flow<String> = context.dataStore.data.map { it[WEB_SEARCH_BASE_URL] ?: "" }
     val ragThreshold: Flow<Float> = context.dataStore.data.map { it[RAG_THRESHOLD]?.toFloatOrNull() ?: 0.5f }
+    val localChatModels: Flow<List<LocalChatModelConfig>> = context.dataStore.data.map { pref ->
+        val jsonStr = pref[LOCAL_CHAT_MODELS_JSON] ?: "[]"
+        try { json.decodeFromString<List<LocalChatModelConfig>>(jsonStr) } catch (e: Exception) { emptyList() }
+    }
+    val activeLocalChatModelId: Flow<String> = context.dataStore.data.map { it[ACTIVE_LOCAL_CHAT_MODEL_ID] ?: "" }
 
     suspend fun saveProviderBaseUrl(provider: String, url: String) {
         context.dataStore.edit { prefs ->
@@ -265,6 +272,13 @@ class SettingsManager(private val context: Context) {
     }
     suspend fun saveRagThreshold(threshold: Float) {
         context.dataStore.edit { it[RAG_THRESHOLD] = threshold.toString() }
+    }
+
+    suspend fun saveLocalChatModels(models: List<LocalChatModelConfig>) {
+        context.dataStore.edit { it[LOCAL_CHAT_MODELS_JSON] = json.encodeToString(models) }
+    }
+    suspend fun setActiveLocalChatModelId(id: String) {
+        context.dataStore.edit { it[ACTIVE_LOCAL_CHAT_MODEL_ID] = id }
     }
 
     suspend fun saveTitleGenerationModel(model: String?) {

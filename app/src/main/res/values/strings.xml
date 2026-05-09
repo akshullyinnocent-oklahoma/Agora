@@ -312,4 +312,15 @@
     <string name="conversation_prompt">Conversation Prompt</string>
     <string name="global_default_format">Global Default (%1$s)</string>
     <string name="save">Save</string>
+
+    <!-- Local Chat Provider -->
+    <string name="local_chat_models">Local Chat Models</string>
+    <string name="local_chat_models_count">%1$d model(s) imported</string>
+    <string name="import_model_chat">Import GGUF Model</string>
+    <string name="add_local_chat_model">Add Local Model</string>
+    <string name="local_ctx_size">Context Size</string>
+    <string name="local_temperature">Temperature</string>
+    <string name="local_top_p">Top P</string>
+    <string name="local_max_tokens">Max Tokens</string>
+    <string name="local_chat_delete_text">Are you sure you want to delete \'%1$s\'? This will also delete the model file.</string>
 </resources>

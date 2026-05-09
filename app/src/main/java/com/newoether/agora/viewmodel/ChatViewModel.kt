@@ -11,6 +11,7 @@ import com.newoether.agora.data.ApiKeyEntry
 import com.newoether.agora.data.EmbeddingIndexer
 import com.newoether.agora.data.EmbeddingModelConfig
 import com.newoether.agora.data.EmbeddingModelType
+import com.newoether.agora.data.LocalChatModelConfig
 import com.newoether.agora.data.MemoryManager
 import com.newoether.agora.data.SettingsManager
 import com.newoether.agora.data.SystemPromptEntry
@@ -67,6 +68,13 @@ class ChatViewModel(
                 ) { cacheMessagesForModel(active.id) })
             }
         }
+        // Sync local chat models into available models
+        viewModelScope.launch {
+            settingsManager.localChatModels.collect { models ->
+                val localIds = models.map { "Local:${it.id}" }
+                settingsManager.saveAvailableModels("Local", localIds)
+            }
+        }
     }
 
     private val generationScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -90,11 +98,14 @@ class ChatViewModel(
 
     override fun onCleared() {
         super.onCleared()
+        localProvider.close()
         generationScope.coroutineContext[Job]?.cancel()
     }
 
     val listState = LazyListState()
     val messageHeights = androidx.compose.runtime.mutableStateMapOf<String, Int>()
+
+    private val localProvider = LocalProvider(appContext, settingsManager)
 
     private val providers = mapOf(
         "Google" to GeminiProvider(),
@@ -103,7 +114,8 @@ class ChatViewModel(
         "DeepSeek" to DeepSeekProvider(),
         "Qwen" to QwenProvider(),
         "Ollama" to OllamaProvider(),
-        "Open Router" to OpenRouterProvider()
+        "Open Router" to OpenRouterProvider(),
+        "Local" to localProvider
     )
 
     fun getProviderInstance(name: String): LlmProvider {
@@ -175,6 +187,8 @@ class ChatViewModel(
     val activeEmbeddingModel = combine(embeddingModels, activeEmbeddingModelId) { models, id ->
         models.find { it.id == id }
     }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
+    val localChatModels = settingsManager.localChatModels.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+    val activeLocalChatModelId = settingsManager.activeLocalChatModelId.stateIn(viewModelScope, SharingStarted.Eagerly, "")
 
     private val _cachingProgress = MutableStateFlow<Map<String, Pair<Int, Int>>>(emptyMap())
     val cachingProgress: StateFlow<Map<String, Pair<Int, Int>>> = _cachingProgress.asStateFlow()
@@ -589,6 +603,52 @@ class ChatViewModel(
         }
     }
 
+    fun addLocalChatModel(config: LocalChatModelConfig) {
+        viewModelScope.launch {
+            val wasEmpty = localChatModels.value.isEmpty()
+            val models = localChatModels.value.toMutableList()
+            models.add(config)
+            settingsManager.saveLocalChatModels(models)
+            if (wasEmpty) {
+                settingsManager.setActiveLocalChatModelId(config.id)
+            }
+            // Auto-enable the model so it appears in the picker
+            val modelPrefixedId = "Local:${config.id}"
+            settingsManager.saveEnabledModels(enabledModels.value + modelPrefixedId)
+        }
+    }
+    fun deleteLocalChatModel(id: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val model = localChatModels.value.find { it.id == id }
+            if (model != null && model.localFilePath.isNotBlank()) {
+                java.io.File(model.localFilePath).delete()
+            }
+            val models = localChatModels.value.filter { it.id != id }
+            settingsManager.saveLocalChatModels(models)
+            if (activeLocalChatModelId.value == id && models.isNotEmpty()) {
+                settingsManager.setActiveLocalChatModelId(models.first().id)
+            }
+            // Remove from enabled and available models
+            val modelPrefixedId = "Local:$id"
+            settingsManager.saveEnabledModels(enabledModels.value - modelPrefixedId)
+            val updatedAvailable = settingsManager.availableModels.first().toMutableMap()
+            updatedAvailable["Local"] = models.map { "Local:${it.id}" }
+            settingsManager.saveAvailableModels("Local", updatedAvailable["Local"] ?: emptyList())
+        }
+    }
+    fun renameLocalChatModel(id: String, newName: String) {
+        viewModelScope.launch {
+            val models = localChatModels.value.map { if (it.id == id) it.copy(name = newName) else it }
+            settingsManager.saveLocalChatModels(models)
+        }
+    }
+    fun setActiveLocalChatModel(id: String) {
+        if (id == activeLocalChatModelId.value) return
+        viewModelScope.launch {
+            settingsManager.setActiveLocalChatModelId(id)
+        }
+    }
+
     suspend fun semanticSearch(query: String, limit: Int = 20): List<Pair<MessageEntity, Float>> {
         val activeModel = activeEmbeddingModel.value
         if (activeModel == null) {
@@ -790,7 +850,7 @@ class ChatViewModel(
             val modelId = modelIdWithPrefix.substringAfter(":")
             val activeKeyId = activeApiKeyIds.value[providerName]
             val activeKey = apiKeys.value.find { it.id == activeKeyId }?.key ?: ""
-            if (activeKey.isBlank() && providerName != "Ollama") return@launch
+            if (activeKey.isBlank() && providerName != "Ollama" && providerName != "Local") return@launch
 
             val summaryText = if (firstModelMsg != null) {
                 "User: ${firstUserMsg.text}\nAssistant: ${firstModelMsg.text.take(500)}"
@@ -897,7 +957,7 @@ class ChatViewModel(
         val activeKeyId = activeApiKeyIds.value[providerName]
         val activeKey = apiKeys.value.find { it.id == activeKeyId }?.key ?: ""
         // Ollama doesn't need a key to be "ready"
-        if (activeKey.isBlank() && providerName != "Ollama") return
+        if (activeKey.isBlank() && providerName != "Ollama" && providerName != "Local") return
 
         stopGeneration()
 
@@ -1012,7 +1072,7 @@ class ChatViewModel(
         val providerName = getProviderForModel(modelId)
         val activeKeyId = activeApiKeyIds.value[providerName]
         val activeKey = apiKeys.value.find { it.id == activeKeyId }?.key ?: ""
-        if (activeKey.isBlank() && providerName != "Ollama") return
+        if (activeKey.isBlank() && providerName != "Ollama" && providerName != "Local") return
 
         stopGeneration()
         generationJob = generationScope.launch {
@@ -1227,6 +1287,8 @@ class ChatViewModel(
             var skippedCount = 0
 
             providers.forEach { (name, providerInstance) ->
+                if (name == "Local") return@forEach
+
                 val activeKeyId = activeApiKeyIds.value[name]
                 val activeKey = apiKeys.value.find { it.id == activeKeyId }?.key ?: ""
                 val currentBaseUrl = providerBaseUrls.value[name]

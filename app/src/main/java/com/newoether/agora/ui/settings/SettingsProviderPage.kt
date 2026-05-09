@@ -1,5 +1,8 @@
 package com.newoether.agora.ui.settings
 
+import android.util.Log
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
@@ -12,6 +15,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
@@ -24,6 +28,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -31,6 +36,8 @@ import androidx.compose.ui.unit.dp
 import com.newoether.agora.R
 import com.newoether.agora.data.ApiKeyEntry
 import com.newoether.agora.viewmodel.ChatViewModel
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -43,7 +50,7 @@ fun SettingsProviderPage(viewModel: ChatViewModel, onBack: () -> Unit) {
     var showDeleteKeyConfirm by remember { mutableStateOf<ApiKeyEntry?>(null) }
     var showProviderDialog by remember { mutableStateOf(false) }
 
-    val providers = listOf("Google", "OpenAI", "Anthropic", "DeepSeek", "Qwen", "Ollama", "Open Router")
+    val providers = listOf("Google", "OpenAI", "Anthropic", "DeepSeek", "Qwen", "Ollama", "Open Router", "Local")
 
     val noOpResponder = remember {
         object : BringIntoViewResponder {
@@ -89,6 +96,247 @@ fun SettingsProviderPage(viewModel: ChatViewModel, onBack: () -> Unit) {
                 )
                 HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
 
+                if (viewingProvider == "Local") {
+                    // Local chat model management
+                    val localModels by viewModel.localChatModels.collectAsState()
+                    val activeLocalId by viewModel.activeLocalChatModelId.collectAsState()
+                    val context = LocalContext.current
+                    val scope = rememberCoroutineScope()
+                    var showAddDialog by remember { mutableStateOf(false) }
+                    var showRenameDialog by remember { mutableStateOf<com.newoether.agora.data.LocalChatModelConfig?>(null) }
+                    var showDeleteConfirm by remember { mutableStateOf<com.newoether.agora.data.LocalChatModelConfig?>(null) }
+                    var importingModel by remember { mutableStateOf(false) }
+                    var copiedFilePath by remember { mutableStateOf<String?>(null) }
+
+                    val filePickerLauncher = rememberLauncherForActivityResult(
+                        contract = ActivityResultContracts.OpenDocument()
+                    ) { uri ->
+                        if (uri != null) {
+                            importingModel = true
+                            scope.launch(Dispatchers.IO) {
+                                try {
+                                    val destFile = java.io.File(context.filesDir, "chat_model_${java.util.UUID.randomUUID()}.gguf")
+                                    context.contentResolver.openInputStream(uri)?.use { input ->
+                                        destFile.outputStream().use { output ->
+                                            input.copyTo(output)
+                                        }
+                                    }
+                                    copiedFilePath = destFile.absolutePath
+                                    showAddDialog = true
+                                } catch (e: Exception) {
+                                    android.util.Log.e("SettingsProvider", "Failed to import GGUF", e)
+                                } finally {
+                                    importingModel = false
+                                }
+                            }
+                        }
+                    }
+
+                    ListItem(
+                        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                        headlineContent = { Text(stringResource(R.string.local_chat_models)) },
+                        supportingContent = { Text(stringResource(R.string.local_chat_models_count, localModels.size)) },
+                        leadingContent = {
+                            Icon(
+                                Icons.Default.AutoAwesome,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    )
+
+                    localModels.forEach { model ->
+                        var showMenu by remember { mutableStateOf(false) }
+                        ListItem(
+                            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                            headlineContent = { Text(model.name, fontWeight = FontWeight.Medium) },
+                            supportingContent = {
+                                Text("ctx=${model.nCtx}  temp=${model.temperature}  topP=${model.topP}")
+                            },
+                            leadingContent = {
+                                RadioButton(
+                                    selected = model.id == activeLocalId,
+                                    onClick = { viewModel.setActiveLocalChatModel(model.id) }
+                                )
+                            },
+                            trailingContent = {
+                                Box {
+                                    IconButton(onClick = { showMenu = true }) {
+                                        Icon(Icons.Default.MoreVert, contentDescription = stringResource(R.string.options))
+                                    }
+                                    DropdownMenu(
+                                        expanded = showMenu,
+                                        onDismissRequest = { showMenu = false },
+                                        shape = RoundedCornerShape(12.dp)
+                                    ) {
+                                        DropdownMenuItem(
+                                            text = { Text(stringResource(R.string.rename)) },
+                                            leadingIcon = { Icon(Icons.Default.Edit, null) },
+                                            onClick = { showMenu = false; showRenameDialog = model }
+                                        )
+                                        DropdownMenuItem(
+                                            text = { Text(stringResource(R.string.delete), color = MaterialTheme.colorScheme.error) },
+                                            leadingIcon = { Icon(Icons.Default.Delete, null, tint = MaterialTheme.colorScheme.error) },
+                                            onClick = { showMenu = false; showDeleteConfirm = model }
+                                        )
+                                    }
+                                }
+                            },
+                            modifier = Modifier.clickable { viewModel.setActiveLocalChatModel(model.id) }.padding(start = 16.dp)
+                        )
+                    }
+
+                    TextButton(
+                        onClick = { filePickerLauncher.launch(arrayOf("*/*")) },
+                        enabled = !importingModel,
+                        modifier = Modifier.padding(start = 16.dp, top = 4.dp, bottom = 8.dp)
+                    ) {
+                        if (importingModel) {
+                            CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(stringResource(R.string.importing_model))
+                        } else {
+                            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(stringResource(R.string.import_model_chat))
+                        }
+                    }
+
+                    // Add local model config dialog
+                    if (showAddDialog && copiedFilePath != null) {
+                        var modelName by remember { mutableStateOf("") }
+                        var nCtx by remember { mutableStateOf("2048") }
+                        var temperature by remember { mutableStateOf("0.7") }
+                        var topP by remember { mutableStateOf("0.9") }
+                        var maxTokens by remember { mutableStateOf("4096") }
+                        val fm = LocalFocusManager.current
+
+                        AlertDialog(
+                            onDismissRequest = {
+                                // Clean up copied file on cancel
+                                scope.launch(Dispatchers.IO) {
+                                    copiedFilePath?.let { java.io.File(it).delete() }
+                                }
+                                showAddDialog = false
+                                copiedFilePath = null
+                            },
+                            title = { Text(stringResource(R.string.add_local_chat_model)) },
+                            text = {
+                                Column(
+                                    Modifier
+                                        .fillMaxWidth()
+                                        .clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) { fm.clearFocus() }
+                                        .verticalScroll(rememberScrollState())
+                                ) {
+                                    OutlinedTextField(
+                                        value = modelName,
+                                        onValueChange = { modelName = it },
+                                        label = { Text(stringResource(R.string.model_name_label)) },
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    OutlinedTextField(
+                                        value = nCtx,
+                                        onValueChange = { nCtx = it },
+                                        label = { Text(stringResource(R.string.local_ctx_size)) },
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    OutlinedTextField(
+                                        value = temperature,
+                                        onValueChange = { temperature = it },
+                                        label = { Text(stringResource(R.string.local_temperature)) },
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    OutlinedTextField(
+                                        value = topP,
+                                        onValueChange = { topP = it },
+                                        label = { Text(stringResource(R.string.local_top_p)) },
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    OutlinedTextField(
+                                        value = maxTokens,
+                                        onValueChange = { maxTokens = it },
+                                        label = { Text(stringResource(R.string.local_max_tokens)) },
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
+                                }
+                            },
+                            confirmButton = {
+                                TextButton(onClick = {
+                                    val path = copiedFilePath ?: return@TextButton
+                                    val config = com.newoether.agora.data.LocalChatModelConfig(
+                                        name = modelName.ifBlank { "Local Model" },
+                                        localFilePath = path,
+                                        nCtx = nCtx.toIntOrNull() ?: 2048,
+                                        temperature = temperature.toFloatOrNull() ?: 0.7f,
+                                        topP = topP.toFloatOrNull() ?: 0.9f,
+                                        maxTokens = maxTokens.toIntOrNull() ?: 4096
+                                    )
+                                    viewModel.addLocalChatModel(config)
+                                    showAddDialog = false
+                                    copiedFilePath = null
+                                }) { Text(stringResource(R.string.add)) }
+                            },
+                            dismissButton = {
+                                TextButton(onClick = {
+                                    scope.launch(Dispatchers.IO) {
+                                        copiedFilePath?.let { java.io.File(it).delete() }
+                                    }
+                                    showAddDialog = false
+                                    copiedFilePath = null
+                                }) { Text(stringResource(R.string.cancel)) }
+                            }
+                        )
+                    }
+
+                    // Rename dialog
+                    showRenameDialog?.let { model ->
+                        var newName by remember { mutableStateOf(model.name) }
+                        AlertDialog(
+                            onDismissRequest = { showRenameDialog = null },
+                            title = { Text(stringResource(R.string.models_rename)) },
+                            text = {
+                                OutlinedTextField(
+                                    value = newName,
+                                    onValueChange = { newName = it },
+                                    label = { Text(stringResource(R.string.model_name_label)) },
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            },
+                            confirmButton = {
+                                TextButton(onClick = {
+                                    if (newName.isNotBlank()) {
+                                        viewModel.renameLocalChatModel(model.id, newName)
+                                        showRenameDialog = null
+                                    }
+                                }) { Text(stringResource(R.string.save)) }
+                            },
+                            dismissButton = { TextButton(onClick = { showRenameDialog = null }) { Text(stringResource(R.string.cancel)) } }
+                        )
+                    }
+
+                    // Delete confirmation
+                    showDeleteConfirm?.let { model ->
+                        AlertDialog(
+                            onDismissRequest = { showDeleteConfirm = null },
+                            title = { Text(stringResource(R.string.delete_chat)) },
+                            text = { Text(stringResource(R.string.local_chat_delete_text, model.name)) },
+                            confirmButton = {
+                                TextButton(
+                                    onClick = {
+                                        viewModel.deleteLocalChatModel(model.id)
+                                        showDeleteConfirm = null
+                                    },
+                                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                                ) { Text(stringResource(R.string.delete)) }
+                            },
+                            dismissButton = { TextButton(onClick = { showDeleteConfirm = null }) { Text(stringResource(R.string.cancel)) } }
+                        )
+                    }
+                } else {
                 val providerInstance = viewModel.getProviderInstance(viewingProvider)
                 val baseUrlState = remember(viewingProvider) {
                     val saved = providerBaseUrls[viewingProvider]
@@ -182,6 +430,7 @@ fun SettingsProviderPage(viewModel: ChatViewModel, onBack: () -> Unit) {
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(stringResource(R.string.provider_add_key))
                 }
+                }
             }
         }
     }
@@ -194,10 +443,10 @@ fun SettingsProviderPage(viewModel: ChatViewModel, onBack: () -> Unit) {
             text = {
                 Column {
                     providers.forEach { p ->
-                        val isConfigured = if (p == "Ollama") {
-                            !providerBaseUrls[p].isNullOrBlank()
-                        } else {
-                            apiKeys.any { it.provider == p }
+                        val isConfigured = when (p) {
+                            "Ollama" -> !providerBaseUrls[p].isNullOrBlank()
+                            "Local" -> true
+                            else -> apiKeys.any { it.provider == p }
                         }
 
                         ListItem(
