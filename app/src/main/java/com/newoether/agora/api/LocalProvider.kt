@@ -49,11 +49,11 @@ class LocalProvider(
             return@flow
         }
 
-        // Convert messages and build prompt entirely in Kotlin.
-        // llama_chat_apply_template() is unreliable across GGUF models — some
-        // crash on unrecognised templates. We control the format here instead.
+        // Convert messages, then try the model's native chat template first,
+        // fall back to ChatML if the model has no template.
         val templateMessages = buildTemplateMessages(messages, config.systemPrompt)
-        val prompt = buildPrompt(templateMessages)
+        val prompt = engine.applyTemplate(templateMessages, addAss = true)
+            ?: buildPrompt(templateMessages)
 
         Log.d(TAG, "Generated prompt (${prompt.length} chars): ${prompt.take(200)}...")
 

@@ -39,6 +39,7 @@ Java_com_newoether_agora_api_LlamaChatEngine_nativeChatLoadModel(
     }
 
     llama_backend_init();
+    ggml_backend_load_all();
 
     llama_model_params model_params = llama_model_default_params();
     handle->model = llama_model_load_from_file(path_str, model_params);
@@ -54,10 +55,8 @@ Java_com_newoether_agora_api_LlamaChatEngine_nativeChatLoadModel(
     handle->n_ctx = n_ctx;
 
     llama_context_params ctx_params = llama_context_default_params();
-    ctx_params.embeddings   = false;
-    ctx_params.pooling_type = LLAMA_POOLING_TYPE_NONE;
-    ctx_params.n_ctx = n_ctx;
-    ctx_params.no_perf = false;
+    ctx_params.n_ctx   = n_ctx;
+    ctx_params.n_batch = n_ctx;
 
     handle->ctx = llama_init_from_model(handle->model, ctx_params);
     if (!handle->ctx) {
@@ -129,6 +128,12 @@ Java_com_newoether_agora_api_LlamaChatEngine_nativeChatApplyTemplate(
         env->DeleteLocalRef(msg);
     }
 
+    // Follow simple-chat.cpp: get the template from the model, pass it
+    // directly to llama_chat_apply_template. Falls back to nullptr (auto-
+    // detect) if the model has no template.
+    const char * tmpl = llama_model_chat_template(handle->model, nullptr);
+    LOGD("Chat template: %s", tmpl ? "found" : "none (will auto-detect)");
+
     int32_t total_chars = 0;
     for (const auto & m : chat_msgs) {
         if (m.content) total_chars += strlen(m.content);
@@ -136,10 +141,8 @@ Java_com_newoether_agora_api_LlamaChatEngine_nativeChatApplyTemplate(
     int32_t buf_size = std::max(4096, total_chars * 2);
 
     std::vector<char> buf(buf_size);
-    // nullptr = use model's built-in template. If the model has none,
-    // return null so Kotlin can use its own fallback.
     int32_t result = llama_chat_apply_template(
-        nullptr,
+        tmpl,
         chat_msgs.data(), chat_msgs.size(),
         add_ass,
         buf.data(), buf_size
@@ -148,7 +151,7 @@ Java_com_newoether_agora_api_LlamaChatEngine_nativeChatApplyTemplate(
     if (result > buf_size) {
         buf.resize(result);
         result = llama_chat_apply_template(
-            nullptr,
+            tmpl,
             chat_msgs.data(), chat_msgs.size(),
             add_ass,
             buf.data(), result
@@ -225,74 +228,83 @@ Java_com_newoether_agora_api_LlamaChatEngine_nativeChatGenerate(
     LOGD("Generating: prompt_len=%zu, n_tokens=%d, max_tokens=%d",
          prompt_text.size(), n_tokens, max_tokens);
 
-    // Prefill: split prompt into n_batch-sized chunks to avoid
-    // exceeding the context's batch limit (crashes llama_decode).
-    int32_t n_batch = llama_n_batch(handle->ctx);
-    int32_t processed = 0;
-    while (processed < n_tokens) {
-        int32_t chunk = std::min(n_batch, n_tokens - processed);
-        llama_batch batch = llama_batch_init(chunk, 0, 1);
-        for (int i = 0; i < chunk; i++) {
-            int32_t idx = processed + i;
-            batch.token[i]    = tokens[idx];
-            batch.pos[i]      = idx;
-            batch.n_seq_id[i] = 1;
-            batch.seq_id[i][0]= 0;
-            batch.logits[i]   = (idx == n_tokens - 1) ? 1 : 0;
-        }
-        batch.n_tokens = chunk;
-
-        if (llama_decode(handle->ctx, batch) != 0) {
-            LOGE("Prefill decode failed at token %d/%d", processed, n_tokens);
-            llama_batch_free(batch);
-            env->CallVoidMethod(callback, on_error, env->NewStringUTF("Prefill decode failed"));
-            env->DeleteLocalRef(cb_class);
-            return -1;
-        }
-        llama_batch_free(batch);
-        processed += chunk;
-    }
-
-    // Set up sampler chain
+    // Sampler chain: min_p → top_p → temp → dist
+    // (simple-chat.cpp uses min_p → temp → dist; we add top_p for configurability)
     auto sparams = llama_sampler_chain_default_params();
     llama_sampler * smpl = llama_sampler_chain_init(sparams);
-    llama_sampler_chain_add(smpl, llama_sampler_init_temp(temperature));
+    llama_sampler_chain_add(smpl, llama_sampler_init_min_p(0.05f, 1));
     llama_sampler_chain_add(smpl, llama_sampler_init_top_p(top_p, 1));
+    llama_sampler_chain_add(smpl, llama_sampler_init_temp(temperature));
     llama_sampler_chain_add(smpl, llama_sampler_init_dist(LLAMA_DEFAULT_SEED));
+
+    // Prefill + generation loop (pattern from simple-chat.cpp)
+    int32_t n_ctx = llama_n_ctx(handle->ctx);
+
+    // Context space check before prefill
+    int32_t n_ctx_used = llama_memory_seq_pos_max(llama_get_memory(handle->ctx), 0) + 1;
+    if (n_ctx_used + n_tokens > n_ctx) {
+        LOGE("Context size exceeded: used=%d + prompt=%d > ctx=%d", n_ctx_used, n_tokens, n_ctx);
+        llama_sampler_free(smpl);
+        env->CallVoidMethod(callback, on_error, env->NewStringUTF("Context size exceeded"));
+        env->DeleteLocalRef(cb_class);
+        return -1;
+    }
+
+    // Prefill all prompt tokens in one batch (n_batch == n_ctx, so this always fits)
+    llama_batch batch = llama_batch_get_one(tokens.data(), n_tokens);
+    if (llama_decode(handle->ctx, batch) != 0) {
+        LOGE("Prefill decode failed");
+        llama_batch_free(batch);
+        llama_sampler_free(smpl);
+        env->CallVoidMethod(callback, on_error, env->NewStringUTF("Prefill decode failed"));
+        env->DeleteLocalRef(cb_class);
+        return -1;
+    }
+    llama_batch_free(batch);
 
     // Generation loop
     int32_t generated = 0;
-    llama_token prev_token = tokens.back();
+    llama_token new_token_id;
 
-    for (int i = 0; i < max_tokens; i++) {
+    // Generation loop
+    while (generated < max_tokens) {
         if (handle->cancelled) {
             LOGD("Generation cancelled at %d tokens", generated);
             break;
         }
 
-        // Sample the next token
-        llama_token id = llama_sampler_sample(smpl, handle->ctx, -1);
+        // Context space check
+        int32_t n_ctx_used = llama_memory_seq_pos_max(llama_get_memory(handle->ctx), 0) + 1;
+        if (n_ctx_used + 1 > n_ctx) {
+            LOGD("Context full at %d tokens", generated);
+            break;
+        }
 
-        if (llama_vocab_is_eog(handle->vocab, id)) {
-            LOGD("EOG token %d at position %d", id, generated);
+        // Synchronize before sampling (best practice)
+        llama_synchronize(handle->ctx);
+
+        // Sample the next token
+        new_token_id = llama_sampler_sample(smpl, handle->ctx, -1);
+
+        if (llama_vocab_is_eog(handle->vocab, new_token_id)) {
+            LOGD("EOG token %d at position %d", new_token_id, generated);
             break;
         }
 
         // Convert token to text
-        char buf[256];
-        int32_t n_chars = llama_token_to_piece(handle->vocab, id, buf, sizeof(buf), 0, true);
-        if (n_chars < 0) {
+        char piece[256];
+        int32_t n = llama_token_to_piece(handle->vocab, new_token_id, piece, sizeof(piece), 0, true);
+        if (n < 0) {
             LOGE("llama_token_to_piece failed");
             break;
         }
-        std::string token_text(buf, n_chars);
+        std::string token_text(piece, n);
 
         // Call back to Kotlin
         jstring jtoken = env->NewStringUTF(token_text.c_str());
         env->CallVoidMethod(callback, on_token, jtoken);
         env->DeleteLocalRef(jtoken);
 
-        // Check for Java exception from callback
         if (env->ExceptionCheck()) {
             env->ExceptionDescribe();
             env->ExceptionClear();
@@ -303,7 +315,7 @@ Java_com_newoether_agora_api_LlamaChatEngine_nativeChatGenerate(
         generated++;
 
         // Decode the new token
-        llama_batch single = llama_batch_get_one(&id, 1);
+        llama_batch single = llama_batch_get_one(&new_token_id, 1);
         if (llama_decode(handle->ctx, single) != 0) {
             LOGE("Decode failed at token %d", generated);
             break;
