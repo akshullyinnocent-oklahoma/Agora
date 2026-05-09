@@ -507,7 +507,21 @@ class GenerationManager(
                 pathEntities.add(0, msg)
                 currId = msg.parentId
             }
-            val currentPath = pathEntities.map {
+            // Inject all result_ siblings of each tool_ message so multi-tool
+            // responses include every tool result, not just the branch ancestor.
+            val expanded = mutableListOf<MessageEntity>()
+            for (entity in pathEntities) {
+                expanded.add(entity)
+                if (entity.id.startsWith(Constants.TOOL_MSG_PREFIX)) {
+                    val resultSiblings = dbMessages
+                        .filter { it.parentId == entity.id && it.id.startsWith(Constants.RESULT_MSG_PREFIX) }
+                        .sortedBy { it.timestamp }
+                    for (sibling in resultSiblings) {
+                        if (sibling !in expanded) expanded.add(sibling)
+                    }
+                }
+            }
+            val currentPath = expanded.map {
                 val segs = it.toolCallJson?.let { json -> try { Json.decodeFromString<List<MessageSegment>>(json) } catch (_: Exception) { null } }
                 val toolCall = segs?.lastOrNull { s -> s.type == "tool" }?.let { s ->
                     ToolCallData(s.toolName ?: "", s.toolArgs ?: "{}", s.toolResult ?: "")
