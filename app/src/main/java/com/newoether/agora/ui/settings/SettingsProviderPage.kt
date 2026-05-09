@@ -151,7 +151,7 @@ fun SettingsProviderPage(viewModel: ChatViewModel, onBack: () -> Unit) {
                             colors = ListItemDefaults.colors(containerColor = Color.Transparent),
                             headlineContent = { Text(model.alias, fontWeight = FontWeight.Medium) },
                             supportingContent = {
-                                Text("${model.modelId}  ctx=${model.nCtx}  temp=${model.temperature}  topP=${model.topP}")
+                                Text("${model.modelId}\nctx=${model.nCtx}  temp=${model.temperature}  topP=${model.topP}")
                             },
                             leadingContent = {
                                 RadioButton(
