@@ -517,7 +517,7 @@ class GenerationManager(
                         .filter { it.parentId == entity.id && it.id.startsWith(Constants.RESULT_MSG_PREFIX) }
                         .sortedBy { it.timestamp }
                     for (sibling in resultSiblings) {
-                        if (sibling !in expanded) expanded.add(sibling)
+                        if (sibling !in pathEntities) expanded.add(sibling)
                     }
                 }
             }
