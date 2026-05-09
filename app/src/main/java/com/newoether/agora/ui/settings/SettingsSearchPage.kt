@@ -50,7 +50,10 @@ fun SettingsSearchPage(viewModel: ChatViewModel, onBack: () -> Unit) {
     val embeddingModels by viewModel.embeddingModels.collectAsState()
     val activeEmbeddingModelId by viewModel.activeEmbeddingModelId.collectAsState()
     val cachingProgress by viewModel.cachingProgress.collectAsState()
+    val cacheCounts by viewModel.cacheCounts.collectAsState()
     val ragThreshold by viewModel.ragThreshold.collectAsState()
+
+    LaunchedEffect(Unit) { viewModel.loadCacheCounts() }
     var showRemoteDialog by remember { mutableStateOf(false) }
     var showLocalDialog by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf<String?>(null) }
@@ -170,9 +173,17 @@ fun SettingsSearchPage(viewModel: ChatViewModel, onBack: () -> Unit) {
                                 val typeLabel = if (model.type == com.newoether.agora.data.EmbeddingModelType.REMOTE)
                                     stringResource(R.string.embedding_type_remote)
                                 else stringResource(R.string.embedding_type_local)
-                                val cacheLabel = if (isCaching) "${progress!!.second - progress!!.first} ${stringResource(R.string.not_cached)} (${progress!!.first}/${progress!!.second})"
-                                else if (model.cached) stringResource(R.string.cached)
-                                else stringResource(R.string.not_cached)
+                                val cacheLabel = if (isCaching) {
+                                    "${progress!!.second - progress!!.first} ${stringResource(R.string.not_cached)} (${progress!!.first}/${progress!!.second})"
+                                } else {
+                                    val counts = cacheCounts[model.id]
+                                    if (counts != null && counts.second > 0) {
+                                        val notCached = (counts.second - counts.first).coerceAtLeast(0)
+                                        if (notCached == 0) stringResource(R.string.cached)
+                                        else "${notCached} ${stringResource(R.string.not_cached)} (${counts.first}/${counts.second})"
+                                    } else if (model.cached) stringResource(R.string.cached)
+                                    else stringResource(R.string.not_cached)
+                                }
                                 Text("$typeLabel · $cacheLabel")
                             },
                             leadingContent = {

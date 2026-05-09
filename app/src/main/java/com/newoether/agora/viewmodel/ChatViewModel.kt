@@ -196,6 +196,18 @@ class ChatViewModel(
 
     private val _cachingProgress = MutableStateFlow<Map<String, Pair<Int, Int>>>(emptyMap())
     val cachingProgress: StateFlow<Map<String, Pair<Int, Int>>> = _cachingProgress.asStateFlow()
+    private val _cacheCounts = MutableStateFlow<Map<String, Pair<Int, Int>>>(emptyMap())
+    val cacheCounts: StateFlow<Map<String, Pair<Int, Int>>> = _cacheCounts.asStateFlow()
+    fun loadCacheCounts() {
+        viewModelScope.launch(Dispatchers.IO) {
+            val total = chatDao.getAllMessagesForIndexing().count { it.text.isNotBlank() }
+            val counts = embeddingModels.value.associate { model ->
+                val cached = chatDao.getEmbeddingCountByModel(model.id).coerceAtMost(total)
+                model.id to (cached to total)
+            }
+            _cacheCounts.value = counts
+        }
+    }
     val appLanguage = settingsManager.appLanguage.stateIn(viewModelScope, SharingStarted.Eagerly, "system")
     val webSearchEnabled = settingsManager.webSearchEnabled.stateIn(viewModelScope, SharingStarted.Eagerly, false)
     val webSearchProvider = settingsManager.webSearchProvider.stateIn(viewModelScope, SharingStarted.Eagerly, "brave")
@@ -950,7 +962,9 @@ class ChatViewModel(
         if (_currentConversationId.value == id) {
             stopGeneration()
         }
-        viewModelScope.launch {
+        viewModelScope.launch(Dispatchers.IO) {
+            chatDao.deleteEmbeddingsByConversation(id)
+            chatDao.deleteMessagesByConversation(id)
             chatDao.deleteConversation(id)
             if (_currentConversationId.value == id) createNewChat()
         }

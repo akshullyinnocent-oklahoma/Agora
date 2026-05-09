@@ -111,6 +111,12 @@ interface ChatDao {
     @Query("DELETE FROM conversations WHERE id = :conversationId")
     suspend fun deleteConversation(conversationId: String)
 
+    @Query("DELETE FROM messages WHERE conversationId = :conversationId")
+    suspend fun deleteMessagesByConversation(conversationId: String)
+
+    @Query("DELETE FROM embeddings WHERE messageId IN (SELECT id FROM messages WHERE conversationId = :conversationId)")
+    suspend fun deleteEmbeddingsByConversation(conversationId: String)
+
     @Query("SELECT m.* FROM messages m INNER JOIN conversations c ON m.conversationId = c.id WHERE (m.text LIKE '%' || :query || '%' OR c.title LIKE '%' || :query || '%') AND m.participant IN ('USER', 'MODEL') AND m.id NOT LIKE 'tool_%' AND m.id NOT LIKE 'result_%' ORDER BY m.timestamp DESC LIMIT :limit")
     suspend fun searchMessages(query: String, limit: Int = 10): List<MessageEntity>
 
