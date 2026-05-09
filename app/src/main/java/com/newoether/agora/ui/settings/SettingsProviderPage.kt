@@ -416,7 +416,7 @@ fun SettingsProviderPage(viewModel: ChatViewModel, onBack: () -> Unit) {
                     showDeleteConfirm?.let { model ->
                         AlertDialog(
                             onDismissRequest = { showDeleteConfirm = null },
-                            title = { Text(stringResource(R.string.delete_chat)) },
+                            title = { Text(stringResource(R.string.local_chat_delete_title)) },
                             text = { Text(stringResource(R.string.local_chat_delete_text, model.alias)) },
                             confirmButton = {
                                 TextButton(
