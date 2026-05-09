@@ -18,6 +18,7 @@ import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -100,14 +101,12 @@ fun SettingsWebSearchPage(viewModel: ChatViewModel, onBack: () -> Unit) {
                                 Spacer(modifier = Modifier.width(16.dp))
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(stringResource(R.string.web_search_brave_key), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface)
-                                    val keyState = rememberTextFieldState(webSearchApiKey)
-                                    LaunchedEffect(keyState.text) {
-                                        viewModel.setWebSearchApiKey(keyState.text.toString())
-                                    }
                                     Box(modifier = Modifier.bringIntoViewResponder(noOpResponder).padding(top = 8.dp)) {
                                         OutlinedTextField(
-                                            state = keyState,
+                                            value = webSearchApiKey,
+                                            onValueChange = { viewModel.setWebSearchApiKey(it) },
                                             placeholder = { Text(stringResource(R.string.web_search_brave_key_hint)) },
+                                            visualTransformation = PasswordVisualTransformation(),
                                             modifier = Modifier.fillMaxWidth(),
                                             textStyle = MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
                                         )
