@@ -43,30 +43,4 @@ object LlamaEngine {
             nativeFreeModel(handle)
         }
     }
-
-    fun computeEmbeddings(texts: List<String>, modelPath: String): List<FloatArray?> {
-        if (texts.isEmpty()) return emptyList()
-        val start = System.currentTimeMillis()
-        val handle = nativeLoadModel(modelPath)
-        if (handle == 0L) {
-            Log.e(TAG, "Failed to load model (${System.currentTimeMillis() - start}ms): $modelPath")
-            return texts.map { null }
-        }
-        Log.d(TAG, "Model loaded in ${System.currentTimeMillis() - start}ms, dim=${nativeGetEmbeddingDim(handle)}")
-        return try {
-            texts.map { text ->
-                val embd = nativeComputeEmbedding(handle, text)
-                if (embd == null) {
-                    Log.e(TAG, "nativeComputeEmbedding returned null for text len=${text.length}")
-                }
-                embd
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Batch embedding crashed", e)
-            texts.map { null }
-        } finally {
-            nativeFreeModel(handle)
-            Log.d(TAG, "Batch: ${texts.size} embeddings in ${System.currentTimeMillis() - start}ms")
-        }
-    }
 }

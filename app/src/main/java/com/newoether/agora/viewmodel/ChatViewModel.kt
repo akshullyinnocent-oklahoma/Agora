@@ -579,44 +579,38 @@ class ChatViewModel(
             var processed = alreadyDone
             var succeeded = 0
             _cachingProgress.value = _cachingProgress.value + (modelId to (alreadyDone to total))
-
-            val batchSize = 8
-            val batches = toProcess.chunked(batchSize)
-            val apiKey = if (model.type == EmbeddingModelType.REMOTE) resolveEmbeddingApiKey() else null
-            val baseUrl = if (model.type == EmbeddingModelType.REMOTE) model.remoteBaseUrl.ifBlank { resolveEmbeddingBaseUrl() } else ""
-
-            for (batch in batches) {
+            for (msg in toProcess) {
                 if (embeddingModels.value.none { it.id == modelId }) {
                     _cachingProgress.value = _cachingProgress.value - modelId
                     return@launch
                 }
-                val batchTexts = batch.map { it.text.take(8000) }
-                val embeddings: List<FloatArray?> = if (model.type == EmbeddingModelType.LOCAL) {
+                val text = msg.text.take(8000)
+                val embedding: FloatArray? = if (model.type == EmbeddingModelType.LOCAL) {
                     if (LlamaEngine.isModelReady(model.localFilePath))
-                        LlamaEngine.computeEmbeddings(batchTexts, model.localFilePath)
-                    else emptyList()
+                        LlamaEngine.computeEmbedding(text, model.localFilePath)
+                    else null
                 } else {
+                    val apiKey = resolveEmbeddingApiKey()
                     if (apiKey == null) {
                         _cachingProgress.value = _cachingProgress.value - modelId
                         _snackbarMessage.emit(SnackbarEvent("No API key configured."))
                         return@launch
                     }
-                    EmbeddingClient.computeEmbeddings(batchTexts, apiKey, model.remoteModelName, baseUrl)
+                    val baseUrl = model.remoteBaseUrl.ifBlank { resolveEmbeddingBaseUrl() }
+                    EmbeddingClient.computeEmbedding(text, apiKey, model.remoteModelName, baseUrl)
                 }
-                for ((index, emb) in embeddings.withIndex()) {
-                    if (emb != null) {
-                        chatDao.upsertEmbedding(EmbeddingEntity(
-                            messageId = batch[index].id,
-                            modelId = modelId,
-                            embedding = EmbeddingIndexer.floatsToBytes(emb),
-                            chunkText = batchTexts[index].take(500),
-                            dimension = emb.size
-                        ))
-                        succeeded++
-                    }
-                    processed++
-                    _cachingProgress.value = _cachingProgress.value + (modelId to (processed to total))
+                if (embedding != null) {
+                    chatDao.upsertEmbedding(EmbeddingEntity(
+                        messageId = msg.id,
+                        modelId = modelId,
+                        embedding = EmbeddingIndexer.floatsToBytes(embedding),
+                        chunkText = text.take(500),
+                        dimension = embedding.size
+                    ))
+                    succeeded++
                 }
+                processed++
+                _cachingProgress.value = _cachingProgress.value + (modelId to (processed to total))
             }
             val failed = toProcess.size - succeeded
             if (failed == 0) {
