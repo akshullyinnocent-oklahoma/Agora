@@ -1043,8 +1043,7 @@ class ChatViewModel(
                     modelName = currentActiveModel.value, toolCallJson = null
                 ))
             } else {
-                // New message ID — delete old embedding so it doesn't outlive the replaced message
-                chatDao.deleteEmbedding(messageId)
+                // New branch — old message's embedding stays (it's still a valid branch)
                 chatDao.upsertMessage(MessageEntity(
                     id = modelMessageId, conversationId = currentId, parentId = parentId,
                     text = "", thoughts = null, status = MessageStatus.SENDING, participant = Participant.MODEL, timestamp = startTime,
