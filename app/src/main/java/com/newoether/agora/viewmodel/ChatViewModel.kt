@@ -59,13 +59,16 @@ class ChatViewModel(
 ) : AndroidViewModel(application) {
 
     init {
-        viewModelScope.launch {
+        viewModelScope.launch(Dispatchers.IO) {
             val models = settingsManager.embeddingModels.first()
             val activeId = settingsManager.activeEmbeddingModelId.first()
-            val active = models.find { it.id == activeId }
-            if (active != null && !active.cached && !_cachingProgress.value.containsKey(active.id)) {
+            val active = models.find { it.id == activeId } ?: return@launch
+            val total = chatDao.getAllMessagesForIndexing().count { it.text.isNotBlank() }
+            val cached = chatDao.getEmbeddingCountByModel(active.id)
+            val notCached = (total - cached).coerceAtLeast(0)
+            if (notCached > 0 && !_cachingProgress.value.containsKey(active.id)) {
                 _snackbarMessage.emit(SnackbarEvent(
-                    "Embedding model \"${active.name}\" is not cached.",
+                    "$notCached of $total messages not cached.",
                     "Cache Now"
                 ) { cacheMessagesForModel(active.id) })
             }
@@ -546,16 +549,20 @@ class ChatViewModel(
     }
     fun setActiveEmbeddingModel(id: String) {
         if (id == activeEmbeddingModelId.value) return
-        viewModelScope.launch {
+        viewModelScope.launch(Dispatchers.IO) {
             settingsManager.setActiveEmbeddingModelId(id)
-            val model = embeddingModels.value.find { it.id == id }
-            if (model != null && !model.cached) {
+            val model = embeddingModels.value.find { it.id == id } ?: return@launch
+            val total = chatDao.getAllMessagesForIndexing().count { it.text.isNotBlank() }
+            val cached = chatDao.getEmbeddingCountByModel(id)
+            val notCached = (total - cached).coerceAtLeast(0)
+            if (notCached > 0) {
                 if (cachingProgress.value.containsKey(id)) {
-                    emitSnackbar("Embedding model \"${model.name}\" is caching...")
+                    _snackbarMessage.emit(SnackbarEvent("Embedding model \"${model.name}\" is caching..."))
                 } else {
-                    emitSnackbar("Embedding model \"${model.name}\" is not cached.", "Cache Now") {
-                        cacheMessagesForModel(model.id)
-                    }
+                    _snackbarMessage.emit(SnackbarEvent(
+                        "$notCached of $total messages not cached.",
+                        "Cache Now"
+                    ) { cacheMessagesForModel(id) })
                 }
             }
         }
