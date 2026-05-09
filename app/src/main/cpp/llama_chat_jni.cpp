@@ -99,14 +99,6 @@ Java_com_newoether_agora_api_LlamaChatEngine_nativeChatApplyTemplate(
     ChatHandle * handle = reinterpret_cast<ChatHandle *>(handle_ptr);
     if (!handle->model) return nullptr;
 
-    const char * tmpl = llama_model_chat_template(handle->model, nullptr);
-    // Fallback to a simple template if none in the GGUF
-    const char * fallback_tmpl = nullptr;
-    if (!tmpl || strlen(tmpl) == 0) {
-        // Use the "chatml" built-in template as fallback
-        fallback_tmpl = "chatml";
-    }
-
     jint n_msg = env->GetArrayLength(messages);
 
     std::vector<llama_chat_message> chat_msgs(n_msg);
@@ -139,7 +131,6 @@ Java_com_newoether_agora_api_LlamaChatEngine_nativeChatApplyTemplate(
         env->DeleteLocalRef(msg);
     }
 
-    // Estimate needed buffer size: 2 * total characters
     int32_t total_chars = 0;
     for (const auto & m : chat_msgs) {
         if (m.content) total_chars += strlen(m.content);
@@ -147,33 +138,34 @@ Java_com_newoether_agora_api_LlamaChatEngine_nativeChatApplyTemplate(
     int32_t buf_size = std::max(4096, total_chars * 2);
 
     std::vector<char> buf(buf_size);
-    const char * tpl = (tmpl && strlen(tmpl) > 0) ? tmpl : fallback_tmpl;
-    int32_t result = llama_chat_apply_template(
-        tpl,
-        chat_msgs.data(), chat_msgs.size(),
-        add_ass,
-        buf.data(), buf_size
-    );
-
-    if (result < 0) {
-        LOGE("llama_chat_apply_template failed with %d", result);
-        return nullptr;
-    }
-
-    if (result > buf_size) {
-        // Buffer too small, realloc and retry
-        buf.resize(result);
+    // Try nullptr first (auto-detect from model), then "chatml" as fallback.
+    // Never pass the raw Jinja from llama_model_chat_template — it only
+    // supports built-in template names, not arbitrary Jinja strings.
+    int32_t result = -1;
+    const char * templates[] = { nullptr, "chatml" };
+    for (const char * tpl : templates) {
         result = llama_chat_apply_template(
             tpl,
             chat_msgs.data(), chat_msgs.size(),
             add_ass,
-            buf.data(), result
+            buf.data(), buf_size
         );
-        if (result < 0) {
-            LOGE("llama_chat_apply_template retry failed with %d", result);
-            return nullptr;
+        if (result >= 0 && result <= buf_size) break;
+        if (result > buf_size) {
+            buf.resize(result);
+            result = llama_chat_apply_template(
+                tpl,
+                chat_msgs.data(), chat_msgs.size(),
+                add_ass,
+                buf.data(), result
+            );
+            if (result >= 0) break;
         }
+        LOGE("llama_chat_apply_template(tpl=%s) failed with %d",
+             tpl ? tpl : "null", result);
     }
+
+    if (result < 0) return nullptr;
 
     return env->NewStringUTF(buf.data());
 }
