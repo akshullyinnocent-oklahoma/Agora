@@ -3,13 +3,13 @@ package com.newoether.agora.ui.settings
 import android.annotation.SuppressLint
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -30,7 +30,6 @@ import androidx.compose.material.icons.filled.TextFields
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.runtime.key
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -39,7 +38,6 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import kotlinx.coroutines.delay
 import com.newoether.agora.R
 import com.newoether.agora.data.PredefinedVariables
 import com.newoether.agora.data.PromptItemType
@@ -98,7 +96,6 @@ fun SystemPromptEditorPage(
     var showVariablePicker by remember { mutableStateOf(false) }
     var insertAtIndex by remember { mutableIntStateOf(-1) }
     var titleError by remember { mutableStateOf(false) }
-    var pendingRemovals by remember { mutableStateOf(emptySet<String>()) }
 
     val currentItems: MutableList<PromptTemplateItem> = when (selectedTab) {
         0 -> systemItems
@@ -212,7 +209,12 @@ fun SystemPromptEditorPage(
 
             // Tab content
             AnimatedContent(
-                targetState = selectedTab
+                targetState = selectedTab,
+                transitionSpec = {
+                    val dir = if (targetState > initialState) 1 else -1
+                    (fadeIn(tween(200)) + slideInVertically(tween(200)) { it * dir })
+                        .togetherWith(fadeOut(tween(200)) + slideOutVertically(tween(200)) { it * -dir })
+                }
             ) {
                 Column {
                     if (currentItems.isEmpty()) {
@@ -237,35 +239,19 @@ fun SystemPromptEditorPage(
 
                     for (i in currentItems.indices) {
                         val item = currentItems[i]
-                        val pending = item.id in pendingRemovals
 
                         InsertBetweenButton(
                             onInsertText = { currentItems.add(i, PromptTemplateItem(type = PromptItemType.CUSTOM, value = "")) },
                             onInsertVariable = { insertAtIndex = i; showVariablePicker = true }
                         )
 
-                        key(item.id) {
-                            if (pending) {
-                                LaunchedEffect(item.id) {
-                                    delay(220)
-                                    currentItems.removeAll { it.id == item.id }
-                                    pendingRemovals = pendingRemovals - item.id
-                                }
-                            }
-                            AnimatedVisibility(
-                                visible = !pending,
-                                enter = fadeIn(tween(200)) + expandVertically(tween(200)),
-                                exit = fadeOut(tween(200)) + shrinkVertically(tween(200))
-                            ) {
-                                TemplateItemRow(
-                                    item = item,
-                                    onChange = { updated -> currentItems[i] = updated },
-                                    onDelete = { pendingRemovals = pendingRemovals + item.id },
-                                    onMoveUp = if (i > 0) {{ val moved = currentItems.removeAt(i); currentItems.add(i - 1, moved) }} else null,
-                                    onMoveDown = if (i < currentItems.lastIndex) {{ val moved = currentItems.removeAt(i); currentItems.add(i + 1, moved) }} else null
-                                )
-                            }
-                        }
+                        TemplateItemRow(
+                            item = item,
+                            onChange = { updated -> currentItems[i] = updated },
+                            onDelete = { currentItems.removeAt(i) },
+                            onMoveUp = if (i > 0) {{ val moved = currentItems.removeAt(i); currentItems.add(i - 1, moved) }} else null,
+                            onMoveDown = if (i < currentItems.lastIndex) {{ val moved = currentItems.removeAt(i); currentItems.add(i + 1, moved) }} else null
+                        )
                     }
 
                     InsertBetweenButton(
