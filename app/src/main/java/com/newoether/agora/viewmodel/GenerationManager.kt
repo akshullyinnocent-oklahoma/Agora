@@ -67,7 +67,7 @@ data class GenerationContext(
     val embeddingApiKey: String = "",
     val ragThreshold: Float = 0.5f,
     val webSearchEnabled: Boolean = false,
-    val webSearchApiKey: String = "",
+    val webSearchApiKeys: Map<String, String> = emptyMap(),
     val webSearchProvider: String = "brave",
     val webSearchBaseUrl: String = ""
 )
@@ -364,42 +364,31 @@ class GenerationManager(
         val numResults = ((args["num_results"] as? kotlinx.serialization.json.JsonPrimitive)?.content?.toIntOrNull() ?: 5).coerceIn(1, 10)
 
         return try {
+            val apiKey = ctx.webSearchApiKeys[ctx.webSearchProvider].orEmpty()
+            if (ctx.webSearchProvider != "searxng" && apiKey.isBlank()) {
+                return buildJsonObject { put("type", "web_search"); put("query", query); put("error", "no_api_key") }.toString()
+            }
             val body = when (ctx.webSearchProvider) {
-                "serper" -> {
-                    val apiKey = ctx.webSearchApiKey.ifBlank {
-                        return buildJsonObject { put("type", "web_search"); put("query", query); put("error", "no_api_key") }.toString()
-                    }
-                    com.newoether.agora.api.HttpClient.post(
-                        "https://google.serper.dev/search",
-                        Json.encodeToString(buildJsonObject { put("q", query); put("num", numResults) }),
-                        mapOf("X-API-KEY" to apiKey)
-                    )
-                }
-                "tavily" -> {
-                    val apiKey = ctx.webSearchApiKey.ifBlank {
-                        return buildJsonObject { put("type", "web_search"); put("query", query); put("error", "no_api_key") }.toString()
-                    }
-                    com.newoether.agora.api.HttpClient.post(
-                        "https://api.tavily.com/search",
-                        Json.encodeToString(buildJsonObject { put("api_key", apiKey); put("query", query); put("max_results", numResults) }),
-                        emptyMap()
-                    )
-                }
+                "serper" -> com.newoether.agora.api.HttpClient.post(
+                    "https://google.serper.dev/search",
+                    Json.encodeToString(buildJsonObject { put("q", query); put("num", numResults) }),
+                    mapOf("X-API-KEY" to apiKey)
+                )
+                "tavily" -> com.newoether.agora.api.HttpClient.post(
+                    "https://api.tavily.com/search",
+                    Json.encodeToString(buildJsonObject { put("api_key", apiKey); put("query", query); put("max_results", numResults) }),
+                    emptyMap()
+                )
                 "searxng" -> {
                     val baseUrl = ctx.webSearchBaseUrl.ifBlank { "https://searx.be" }
                     com.newoether.agora.api.HttpClient.fetchModels(
                         "$baseUrl/search?q=${java.net.URLEncoder.encode(query, "UTF-8")}&format=json&engines=google,brave"
                     )
                 }
-                else -> {
-                    val apiKey = ctx.webSearchApiKey.ifBlank {
-                        return buildJsonObject { put("type", "web_search"); put("query", query); put("error", "no_api_key") }.toString()
-                    }
-                    com.newoether.agora.api.HttpClient.fetchModels(
-                        "https://api.search.brave.com/res/v1/web/search?q=${java.net.URLEncoder.encode(query, "UTF-8")}&count=$numResults",
-                        mapOf("Accept" to "application/json", "X-Subscription-Token" to apiKey)
-                    )
-                }
+                else -> com.newoether.agora.api.HttpClient.fetchModels(
+                    "https://api.search.brave.com/res/v1/web/search?q=${java.net.URLEncoder.encode(query, "UTF-8")}&count=$numResults",
+                    mapOf("Accept" to "application/json", "X-Subscription-Token" to apiKey)
+                )
             } ?: return buildJsonObject { put("type", "web_search"); put("query", query); put("error", "no_response") }.toString()
 
             val json: Map<String, kotlinx.serialization.json.JsonElement> = Json.decodeFromString(body)

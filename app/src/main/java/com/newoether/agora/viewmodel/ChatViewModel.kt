@@ -224,7 +224,7 @@ class ChatViewModel(
     val appLanguage = settingsManager.appLanguage.stateIn(viewModelScope, SharingStarted.Eagerly, "system")
     val webSearchEnabled = settingsManager.webSearchEnabled.stateIn(viewModelScope, SharingStarted.Eagerly, false)
     val webSearchProvider = settingsManager.webSearchProvider.stateIn(viewModelScope, SharingStarted.Eagerly, "brave")
-    val webSearchApiKey = settingsManager.webSearchApiKey.stateIn(viewModelScope, SharingStarted.Eagerly, "")
+    val webSearchApiKeys = settingsManager.webSearchApiKeys.stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
     val webSearchBaseUrl = settingsManager.webSearchBaseUrl.stateIn(viewModelScope, SharingStarted.Eagerly, "")
     val ragThreshold = settingsManager.ragThreshold.stateIn(viewModelScope, SharingStarted.Eagerly, 0.5f)
 
@@ -751,7 +751,7 @@ class ChatViewModel(
             embeddingApiKey = resolveEmbeddingApiKey() ?: "",
             ragThreshold = ragThreshold.value,
             webSearchEnabled = webSearchEnabled.value,
-            webSearchApiKey = webSearchApiKey.value,
+            webSearchApiKeys = webSearchApiKeys.value,
             webSearchProvider = webSearchProvider.value,
             webSearchBaseUrl = webSearchBaseUrl.value
         )
@@ -837,7 +837,7 @@ class ChatViewModel(
     fun setAppLanguage(language: String) { viewModelScope.launch { settingsManager.saveAppLanguage(language) } }
     fun setWebSearchEnabled(enabled: Boolean) { viewModelScope.launch { settingsManager.saveWebSearchEnabled(enabled) } }
     fun setWebSearchProvider(provider: String) { viewModelScope.launch { settingsManager.saveWebSearchProvider(provider) } }
-    fun setWebSearchApiKey(apiKey: String) { viewModelScope.launch { settingsManager.saveWebSearchApiKey(apiKey) } }
+    fun setWebSearchApiKey(provider: String, apiKey: String) { viewModelScope.launch { settingsManager.saveWebSearchApiKey(provider, apiKey) } }
     fun setWebSearchBaseUrl(url: String) { viewModelScope.launch { settingsManager.saveWebSearchBaseUrl(url) } }
     fun setRagThreshold(threshold: Float) { viewModelScope.launch { settingsManager.saveRagThreshold(threshold) } }
     suspend fun testRemoteEmbedding(modelName: String, baseUrl: String): String? {
@@ -1098,7 +1098,7 @@ class ChatViewModel(
                 embeddingApiKey = resolveEmbeddingApiKey() ?: "",
                 ragThreshold = ragThreshold.value,
                 webSearchEnabled = webSearchEnabled.value,
-                webSearchApiKey = webSearchApiKey.value,
+                webSearchApiKeys = webSearchApiKeys.value,
                 webSearchProvider = webSearchProvider.value,
                 webSearchBaseUrl = webSearchBaseUrl.value
             )
@@ -1192,7 +1192,7 @@ class ChatViewModel(
                 embeddingApiKey = resolveEmbeddingApiKey() ?: "",
                 ragThreshold = ragThreshold.value,
                 webSearchEnabled = webSearchEnabled.value,
-                webSearchApiKey = webSearchApiKey.value,
+                webSearchApiKeys = webSearchApiKeys.value,
                 webSearchProvider = webSearchProvider.value,
                 webSearchBaseUrl = webSearchBaseUrl.value
             )
@@ -1357,7 +1357,7 @@ class ChatViewModel(
                 embeddingApiKey = resolveEmbeddingApiKey() ?: "",
                 ragThreshold = ragThreshold.value,
                 webSearchEnabled = webSearchEnabled.value,
-                webSearchApiKey = webSearchApiKey.value,
+                webSearchApiKeys = webSearchApiKeys.value,
                 webSearchProvider = webSearchProvider.value,
                 webSearchBaseUrl = webSearchBaseUrl.value
             )

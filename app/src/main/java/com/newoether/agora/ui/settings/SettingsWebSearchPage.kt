@@ -30,7 +30,7 @@ import com.newoether.agora.viewmodel.ChatViewModel
 fun SettingsWebSearchPage(viewModel: ChatViewModel, onBack: () -> Unit) {
     val webSearchEnabled by viewModel.webSearchEnabled.collectAsState()
     val webSearchProvider by viewModel.webSearchProvider.collectAsState()
-    val webSearchApiKey by viewModel.webSearchApiKey.collectAsState()
+    val webSearchApiKeys by viewModel.webSearchApiKeys.collectAsState()
     val webSearchBaseUrl by viewModel.webSearchBaseUrl.collectAsState()
     var showProviderDialog by remember { mutableStateOf(false) }
 
@@ -121,8 +121,8 @@ fun SettingsWebSearchPage(viewModel: ChatViewModel, onBack: () -> Unit) {
                                     )
                                     Box(modifier = Modifier.bringIntoViewResponder(noOpResponder).padding(top = 8.dp)) {
                                         OutlinedTextField(
-                                            value = webSearchApiKey,
-                                            onValueChange = { viewModel.setWebSearchApiKey(it) },
+                                            value = webSearchApiKeys[webSearchProvider] ?: "",
+                                            onValueChange = { viewModel.setWebSearchApiKey(webSearchProvider, it) },
                                             placeholder = {
                                                 Text(
                                                     stringResource(

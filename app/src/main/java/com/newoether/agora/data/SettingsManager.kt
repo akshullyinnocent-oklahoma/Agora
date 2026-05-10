@@ -73,7 +73,7 @@ class SettingsManager(private val context: Context) {
         val APP_LANGUAGE = stringPreferencesKey("app_language")
         val WEB_SEARCH_ENABLED = booleanPreferencesKey("web_search_enabled")
         val WEB_SEARCH_PROVIDER = stringPreferencesKey("web_search_provider")
-        val WEB_SEARCH_API_KEY = stringPreferencesKey("web_search_api_key")
+        val WEB_SEARCH_API_KEYS_JSON = stringPreferencesKey("web_search_api_keys_json")
         val WEB_SEARCH_BASE_URL = stringPreferencesKey("web_search_base_url")
         val RAG_THRESHOLD = stringPreferencesKey("rag_threshold")
         val LOCAL_CHAT_MODELS_JSON = stringPreferencesKey("local_chat_models_json")
@@ -140,7 +140,10 @@ class SettingsManager(private val context: Context) {
     val appLanguage: Flow<String> = context.dataStore.data.map { it[APP_LANGUAGE] ?: "system" }
     val webSearchEnabled: Flow<Boolean> = context.dataStore.data.map { it[WEB_SEARCH_ENABLED] ?: false }
     val webSearchProvider: Flow<String> = context.dataStore.data.map { it[WEB_SEARCH_PROVIDER] ?: "brave" }
-    val webSearchApiKey: Flow<String> = context.dataStore.data.map { it[WEB_SEARCH_API_KEY] ?: "" }
+    val webSearchApiKeys: Flow<Map<String, String>> = context.dataStore.data.map { pref ->
+        val jsonStr = pref[WEB_SEARCH_API_KEYS_JSON] ?: "{}"
+        try { json.decodeFromString<Map<String, String>>(jsonStr) } catch (e: Exception) { Log.e("SettingsManager", "Failed to decode webSearchApiKeys", e); emptyMap() }
+    }
     val webSearchBaseUrl: Flow<String> = context.dataStore.data.map { it[WEB_SEARCH_BASE_URL] ?: "" }
     val ragThreshold: Flow<Float> = context.dataStore.data.map { it[RAG_THRESHOLD]?.toFloatOrNull() ?: 0.5f }
     val localChatModels: Flow<List<LocalChatModelConfig>> = context.dataStore.data.map { pref ->
@@ -263,8 +266,13 @@ class SettingsManager(private val context: Context) {
         context.dataStore.edit { it[WEB_SEARCH_PROVIDER] = provider }
     }
 
-    suspend fun saveWebSearchApiKey(apiKey: String) {
-        context.dataStore.edit { it[WEB_SEARCH_API_KEY] = apiKey }
+    suspend fun saveWebSearchApiKey(provider: String, apiKey: String) {
+        context.dataStore.edit { prefs ->
+            val current = prefs[WEB_SEARCH_API_KEYS_JSON] ?: "{}"
+            val map = try { json.decodeFromString<MutableMap<String, String>>(current) } catch (e: Exception) { mutableMapOf() }
+            if (apiKey.isBlank()) map.remove(provider) else map[provider] = apiKey
+            prefs[WEB_SEARCH_API_KEYS_JSON] = json.encodeToString(map)
+        }
     }
 
     suspend fun saveWebSearchBaseUrl(url: String) {
