@@ -3,13 +3,10 @@ package com.newoether.agora.ui.settings
 import android.annotation.SuppressLint
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
@@ -212,7 +209,12 @@ fun SystemPromptEditorPage(
 
             // Tab content
             AnimatedContent(
-                targetState = selectedTab
+                targetState = selectedTab,
+                transitionSpec = {
+                    val dir = if (targetState > initialState) 1 else -1
+                    (fadeIn(tween(200)) + slideInVertically(tween(200)) { it * dir })
+                        .togetherWith(fadeOut(tween(200)) + slideOutVertically(tween(200)) { it * -dir })
+                }
             ) {
                 Column {
                     if (currentItems.isEmpty()) {
@@ -243,19 +245,13 @@ fun SystemPromptEditorPage(
                             onInsertVariable = { insertAtIndex = i; showVariablePicker = true }
                         )
 
-                        AnimatedVisibility(
-                            visible = true,
-                            enter = fadeIn(tween(200)) + expandVertically(tween(200)),
-                            exit = fadeOut(tween(200)) + shrinkVertically(tween(200))
-                        ) {
-                            TemplateItemRow(
-                                item = item,
-                                onChange = { updated -> currentItems[i] = updated },
-                                onDelete = { currentItems.removeAt(i) },
-                                onMoveUp = if (i > 0) {{ val moved = currentItems.removeAt(i); currentItems.add(i - 1, moved) }} else null,
-                                onMoveDown = if (i < currentItems.lastIndex) {{ val moved = currentItems.removeAt(i); currentItems.add(i + 1, moved) }} else null
-                            )
-                        }
+                        TemplateItemRow(
+                            item = item,
+                            onChange = { updated -> currentItems[i] = updated },
+                            onDelete = { currentItems.removeAt(i) },
+                            onMoveUp = if (i > 0) {{ val moved = currentItems.removeAt(i); currentItems.add(i - 1, moved) }} else null,
+                            onMoveDown = if (i < currentItems.lastIndex) {{ val moved = currentItems.removeAt(i); currentItems.add(i + 1, moved) }} else null
+                        )
                     }
 
                     InsertBetweenButton(
