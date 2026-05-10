@@ -381,7 +381,6 @@ class GenerationManager(
                         put("query", query)
                         put("max_results", numResults)
                         put("search_depth", "advanced")
-                        put("include_raw_content", true)
                     }),
                     emptyMap()
                 )
@@ -417,7 +416,7 @@ class GenerationManager(
                     add(buildJsonObject {
                         put("title", (obj["title"] as? JsonPrimitive)?.content ?: "")
                         put("url", (obj["link"] as? JsonPrimitive)?.content ?: (obj["url"] as? JsonPrimitive)?.content ?: "")
-                        put("description", (obj["snippet"] as? JsonPrimitive)?.content ?: (obj["raw_content"] as? JsonPrimitive)?.content ?: (obj["content"] as? JsonPrimitive)?.content ?: (obj["description"] as? JsonPrimitive)?.content ?: "")
+                        put("description", (obj["snippet"] as? JsonPrimitive)?.content ?: (obj["content"] as? JsonPrimitive)?.content ?: (obj["description"] as? JsonPrimitive)?.content ?: "")
                     })
                 }
             }
