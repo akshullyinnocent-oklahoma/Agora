@@ -376,7 +376,13 @@ class GenerationManager(
                 )
                 "tavily" -> com.newoether.agora.api.HttpClient.post(
                     "https://api.tavily.com/search",
-                    Json.encodeToString(buildJsonObject { put("api_key", apiKey); put("query", query); put("max_results", numResults) }),
+                    Json.encodeToString(buildJsonObject {
+                        put("api_key", apiKey)
+                        put("query", query)
+                        put("max_results", numResults)
+                        put("search_depth", "advanced")
+                        put("include_raw_content", true)
+                    }),
                     emptyMap()
                 )
                 "searxng" -> {
@@ -411,7 +417,7 @@ class GenerationManager(
                     add(buildJsonObject {
                         put("title", (obj["title"] as? JsonPrimitive)?.content ?: "")
                         put("url", (obj["link"] as? JsonPrimitive)?.content ?: (obj["url"] as? JsonPrimitive)?.content ?: "")
-                        put("description", (obj["snippet"] as? JsonPrimitive)?.content ?: (obj["content"] as? JsonPrimitive)?.content ?: (obj["description"] as? JsonPrimitive)?.content ?: "")
+                        put("description", (obj["snippet"] as? JsonPrimitive)?.content ?: (obj["raw_content"] as? JsonPrimitive)?.content ?: (obj["content"] as? JsonPrimitive)?.content ?: (obj["description"] as? JsonPrimitive)?.content ?: "")
                     })
                 }
             }
