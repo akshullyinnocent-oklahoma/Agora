@@ -138,8 +138,6 @@
     <string name="prompts_content_hint">System Prompt</string>
     <string name="prompts_delete_title">Delete System Instruction?</string>
     <string name="prompts_delete_text">Are you sure you want to delete \'%1$s\'? This action cannot be undone.</string>
-    <string name="template_edit_title">Edit Template</string>
-    <string name="template_add_title">New Template</string>
     <string name="template_title_required">Title is required</string>
     <string name="template_tab_system">System Prompt</string>
     <string name="template_tab_prepend">User Prepend</string>

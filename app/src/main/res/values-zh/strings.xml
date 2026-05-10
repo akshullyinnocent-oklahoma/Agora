@@ -29,7 +29,7 @@
     <string name="tool_update_active_memory">更新活跃记忆</string>
     <string name="tool_web_search">网页搜索</string>
     <string name="tool_search_conversations">搜索对话</string>
-    <string name="tool_searching_web">正在网上搜索 \'%1$s\'</string>
+    <string name="tool_searching_web">正在网络搜索 \'%1$s\'</string>
     <string name="tool_searching_conversations">正在对话中搜索 \'%1$s\'</string>
     <string name="tool_search_failed">搜索失败</string>
     <string name="tool_search_done">搜索完成</string>
@@ -105,8 +105,6 @@
     <string name="prompts_content_hint">系统指令</string>
     <string name="prompts_delete_title">删除系统指令？</string>
     <string name="prompts_delete_text">确定要删除 \'%1$s\' 吗？此操作无法撤销。</string>
-    <string name="template_edit_title">编辑模板</string>
-    <string name="template_add_title">新建模板</string>
     <string name="template_title_required">标题不能为空</string>
     <string name="template_tab_system">系统指令</string>
     <string name="template_tab_prepend">用户前缀</string>
