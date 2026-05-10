@@ -338,9 +338,8 @@ class GenerationManager(
         val filtered = scored.filter { it.second > ctx.ragThreshold }
          .sortedByDescending { it.second }
          .take(limit)
-        val scoreById = filtered.associate { it.first.messageId to it.second }
-        val messages = chatDao.getMessagesByIds(filtered.map { it.first.messageId })
-        messages.mapNotNull { msg -> scoreById[msg.id]?.let { msg to it } }
+        val messagesById = chatDao.getMessagesByIds(filtered.map { it.first.messageId }).associateBy { it.id }
+        filtered.mapNotNull { (embedding, score) -> messagesById[embedding.messageId]?.let { it to score } }
     }
 
     private fun resolveEmbeddingApiKey(ctx: GenerationContext): String? {
