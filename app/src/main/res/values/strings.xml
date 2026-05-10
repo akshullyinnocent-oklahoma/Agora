@@ -28,6 +28,11 @@
     <string name="tool_delete_memory">Delete Memory</string>
     <string name="tool_update_active_memory">Update Active Memory</string>
     <string name="tool_web_search">Web Search</string>
+    <string name="tool_web_fetch">Web Fetch</string>
+    <string name="tool_web_fetch_done">Fetched page</string>
+    <string name="tool_web_fetching">Fetching %1$s…</string>
+    <string name="tool_web_fetch_default">Fetching web page</string>
+    <string name="tool_web_fetch_failed">Fetch failed</string>
     <string name="tool_search_conversations">Search Conversations</string>
     <string name="tool_searching_web">Searching \'%1$s\' on the web</string>
     <string name="tool_searching_conversations">Searching \'%1$s\' in conversations</string>

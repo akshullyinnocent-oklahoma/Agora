@@ -221,6 +221,16 @@ class GenerationManager(
                     ),
                     required = listOf("query")
                 )
+            )),
+            ToolDefinition(function = ToolFunction(
+                name = "web_fetch",
+                description = "Fetch and read the full text content of a web page. Use this after web_search when you need more detail from a specific page.",
+                parameters = ToolParameters(
+                    properties = mapOf(
+                        "url" to ToolProperty("string", "The URL of the page to fetch.")
+                    ),
+                    required = listOf("url")
+                )
             ))
         )
     }
@@ -408,6 +418,44 @@ class GenerationManager(
         }
     }
 
+    private suspend fun executeWebFetch(arguments: String, ctx: GenerationContext): String {
+        val argsStr = arguments.ifBlank { "{}" }
+        val args = Json.decodeFromString<Map<String, kotlinx.serialization.json.JsonElement>>(argsStr)
+        val url = (args["url"] as? kotlinx.serialization.json.JsonPrimitive)?.content
+            ?: return buildJsonObject { put("type", "web_fetch"); put("error", "no_url") }.toString()
+
+        return try {
+            val html = com.newoether.agora.api.HttpClient.fetchModels(url)
+                ?: return buildJsonObject { put("type", "web_fetch"); put("url", url); put("error", "no_response") }.toString()
+            val text = html
+                .replace(Regex("<script[^>]*>[\\s\\S]*?</script>", RegexOption.IGNORE_CASE), " ")
+                .replace(Regex("<style[^>]*>[\\s\\S]*?</style>", RegexOption.IGNORE_CASE), " ")
+                .replace(Regex("<[^>]+>"), " ")
+                .replace(Regex("&[a-z]+;|&#\\d+;")) { match ->
+                    when (match.value) {
+                        "&amp;" -> "&"; "&lt;" -> "<"; "&gt;" -> ">"; "&quot;" -> "\""
+                        "&apos;" -> "'"; "&nbsp;" -> " "; "&#39;" -> "'"
+                        else -> " "
+                    }
+                }
+                .replace(Regex("\\s+"), " ")
+                .trim()
+                .take(4000)
+            buildJsonObject {
+                put("type", "web_fetch")
+                put("url", url)
+                put("text", text)
+            }.toString()
+        } catch (e: Exception) {
+            buildJsonObject {
+                put("type", "web_fetch")
+                put("url", url)
+                put("error", "fetch_error")
+                put("message", e.message ?: "")
+            }.toString()
+        }
+    }
+
     private suspend fun executeTool(name: String, arguments: String, ctx: GenerationContext): String {
         return try {
             val argsStr = arguments.ifBlank { "{}" }
@@ -446,6 +494,7 @@ class GenerationManager(
                     memoryManager.updateActiveMemory(arg("content"), mode)
                 }
                 "web_search" -> executeWebSearch(arguments, ctx)
+                "web_fetch" -> executeWebFetch(arguments, ctx)
                 "search_conversations" -> executeSearchConversations(arguments, ctx)
                 else -> "Unknown tool: $name"
             }

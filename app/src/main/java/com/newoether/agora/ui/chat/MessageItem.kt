@@ -126,6 +126,7 @@ private fun toolDisplayName(toolName: String?): String {
         "delete_memory_file" -> stringResource(R.string.tool_delete_memory)
         "update_active_memory" -> stringResource(R.string.tool_update_active_memory)
         "web_search" -> stringResource(R.string.tool_web_search)
+        "web_fetch" -> stringResource(R.string.tool_web_fetch)
         "search_conversations" -> stringResource(R.string.tool_search_conversations)
         else -> (toolName ?: stringResource(R.string.tool_context)).split("_").joinToString(" ") { it.replaceFirstChar { c -> c.uppercaseChar() } }
     }
@@ -174,6 +175,11 @@ private fun toolSummary(seg: MessageSegment): String {
             else if (content.isNotEmpty()) SearchResultFormatter.getFirstLine(content, LocalContext.current)
             else if (query != null) stringResource(R.string.tool_searching_web, query) else stringResource(R.string.tool_searching_web_default)
         }
+        "web_fetch" -> {
+            val url = argsJson?.get("url")?.let { (it as? JsonPrimitive)?.content }
+            if (isError) stringResource(R.string.tool_web_fetch_failed)
+            else if (url != null) stringResource(R.string.tool_web_fetching, url.take(40)) else stringResource(R.string.tool_web_fetch_default)
+        }
         "search_conversations" -> {
             val query = argsJson?.get("query")?.let { (it as? JsonPrimitive)?.content }
             if (isError) stringResource(R.string.tool_search_failed)
@@ -207,6 +213,7 @@ private fun toolResultSummary(toolName: String, toolArgs: String, result: String
         "list_memory_files" -> stringResource(R.string.tool_lookup_default)
         "update_active_memory" -> stringResource(R.string.tool_update_active_default)
         "web_search" -> SearchResultFormatter.getFirstLine(result, LocalContext.current).ifBlank { stringResource(R.string.tool_web_search_done) }
+        "web_fetch" -> stringResource(R.string.tool_web_fetch_done)
         "search_conversations" -> SearchResultFormatter.getFirstLine(result, LocalContext.current).ifBlank { stringResource(R.string.tool_conversation_search_done) }
         else -> stringResource(R.string.tool_done)
     }

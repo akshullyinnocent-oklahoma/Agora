@@ -28,6 +28,11 @@
     <string name="tool_delete_memory">删除记忆</string>
     <string name="tool_update_active_memory">更新活跃记忆</string>
     <string name="tool_web_search">网页搜索</string>
+    <string name="tool_web_fetch">网页抓取</string>
+    <string name="tool_web_fetch_done">已抓取页面</string>
+    <string name="tool_web_fetching">正在抓取 %1$s…</string>
+    <string name="tool_web_fetch_default">正在抓取网页</string>
+    <string name="tool_web_fetch_failed">抓取失败</string>
     <string name="tool_search_conversations">搜索对话</string>
     <string name="tool_searching_web">正在网络搜索 \'%1$s\'</string>
     <string name="tool_searching_conversations">正在对话中搜索 \'%1$s\'</string>
