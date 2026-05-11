@@ -114,6 +114,18 @@ class DataExporter(
         val imagesExported: Int = 0
     )
 
+    private fun openImageStream(imgUri: String): java.io.InputStream? {
+        val uri = Uri.parse(imgUri)
+        // Handle content:// and file:// URIs
+        if (uri.scheme == "content" || uri.scheme == "file") {
+            return try { context.contentResolver.openInputStream(uri) } catch (_: Exception) { null }
+        }
+        // Handle bare file paths (from processImages)
+        val file = java.io.File(imgUri)
+        if (file.exists()) return try { file.inputStream() } catch (_: Exception) { null }
+        return null
+    }
+
     suspend fun export(
         uri: Uri,
         categories: Set<ExportCategory>,
@@ -157,7 +169,7 @@ class DataExporter(
                     val surviving = mutableListOf<String>()
                     for ((idx, imgUri) in msg.images.withIndex()) {
                         try {
-                            val inStream = context.contentResolver.openInputStream(Uri.parse(imgUri))
+                            val inStream = openImageStream(imgUri)
                             val bytes = inStream?.readBytes()
                             inStream?.close()
                             if (bytes != null && bytes.isNotEmpty()) {
