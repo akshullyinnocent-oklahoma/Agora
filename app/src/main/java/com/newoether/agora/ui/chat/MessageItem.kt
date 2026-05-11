@@ -1213,23 +1213,21 @@ private fun RecomposeSafeMarkdown(
     }
 
     Box(modifier = modifier) {
-        // Stable layer: previous content, fades out during transition.
-        val stableAlpha = if (showNewLayer && stableText.isNotEmpty()) 1f - transitionAlpha else 0f
+        // Stable layer: always at full opacity behind (never fades).
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .alpha(stableAlpha)
+                .alpha(if (showNewLayer && stableText.isNotEmpty()) 1f else 0f)
         ) {
             if (stableText.isNotEmpty()) {
                 render(stableText)
             }
         }
-        // Live layer: current content, fades in during transition.
-        val liveAlpha = if (showNewLayer) transitionAlpha else 1f
+        // Live layer: fades in from 0 to 1 over stable layer during transition.
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .alpha(liveAlpha)
+                .alpha(if (showNewLayer) transitionAlpha else 1f)
         ) {
             render(content)
         }
