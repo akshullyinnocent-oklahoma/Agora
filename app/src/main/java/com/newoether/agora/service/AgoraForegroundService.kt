@@ -33,10 +33,7 @@ class AgoraForegroundService : Service() {
         }
 
         fun createChannel(context: Context) {
-            // Delete and recreate so IMPORTANCE_MIN takes effect (channels are immutable)
             val manager = context.getSystemService(NotificationManager::class.java)
-            manager.deleteNotificationChannel(CHANNEL_ID)
-
             val channel = NotificationChannel(
                 CHANNEL_ID,
                 "Generation",
