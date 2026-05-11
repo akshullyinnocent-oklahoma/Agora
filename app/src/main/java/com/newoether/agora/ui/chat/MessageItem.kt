@@ -1226,15 +1226,16 @@ private fun RecomposeSafeMarkdown(
         }
     }
 
-    // Always two-layer structure — never switch tree shape, only alpha
+    // Always two-layer structure — never switch tree shape, only alpha.
+    // key() prevents Markdown from recomposing when only alpha changes.
     Box(modifier = modifier) {
         if (stableText.isNotEmpty()) {
             Box(modifier = Modifier.fillMaxWidth().alpha(if (crossfading) 1f else 0f)) {
-                render(stableText)
+                key(stableText) { render(stableText) }
             }
         }
         Box(modifier = Modifier.fillMaxWidth().alpha(if (crossfading) transitionAlpha else 1f)) {
-            render(content)
+            key(content) { render(content) }
         }
     }
 }
