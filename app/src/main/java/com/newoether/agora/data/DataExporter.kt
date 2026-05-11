@@ -204,15 +204,15 @@ class DataExporter(
                     ragSearchEnabled = settingsManager.ragSearchEnabled.first(),
                     modelSearchMethod = settingsManager.modelSearchMethod.first(),
                     manualSearchMethod = settingsManager.manualSearchMethod.first(),
-                    embeddingModels = settingsManager.embeddingModels.first(),
-                    activeEmbeddingModelId = settingsManager.activeEmbeddingModelId.first(),
+                    embeddingModels = settingsManager.embeddingModels.first().map { it.copy(localFilePath = "") },
+                    activeEmbeddingModelId = "", // cleared — models don't exist on target device
                     appLanguage = settingsManager.appLanguage.first(),
                     webSearchEnabled = settingsManager.webSearchEnabled.first(),
                     webSearchProvider = settingsManager.webSearchProvider.first(),
                     webSearchBaseUrl = settingsManager.webSearchBaseUrl.first(),
                     ragThreshold = settingsManager.ragThreshold.first(),
-                    localChatModels = settingsManager.localChatModels.first(),
-                    activeLocalChatModelId = settingsManager.activeLocalChatModelId.first(),
+                    localChatModels = settingsManager.localChatModels.first().map { it.copy(localFilePath = "") },
+                    activeLocalChatModelId = "", // cleared — models don't exist on target device
                     activeSystemPromptId = settingsManager.activeSystemPromptId.first()
                 )
                 zip.putNextEntry(ZipEntry("settings.json"))

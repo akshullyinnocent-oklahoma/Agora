@@ -287,19 +287,13 @@ class DataImporter(
                         settingsManager.saveRagSearchEnabled(s.ragSearchEnabled)
                         settingsManager.saveModelSearchMethod(s.modelSearchMethod)
                         settingsManager.saveManualSearchMethod(s.manualSearchMethod)
-                        settingsManager.saveEmbeddingModels(s.embeddingModels)
-                        if (s.activeEmbeddingModelId.isNotEmpty()) {
-                            settingsManager.setActiveEmbeddingModelId(s.activeEmbeddingModelId)
-                        }
+                        // Skip embedding models — GGUF files don't exist on this device
                         settingsManager.saveAppLanguage(s.appLanguage)
                         settingsManager.saveWebSearchEnabled(s.webSearchEnabled)
                         settingsManager.saveWebSearchProvider(s.webSearchProvider)
                         settingsManager.saveWebSearchBaseUrl(s.webSearchBaseUrl)
                         settingsManager.saveRagThreshold(s.ragThreshold)
-                        settingsManager.saveLocalChatModels(s.localChatModels)
-                        if (s.activeLocalChatModelId.isNotEmpty()) {
-                            settingsManager.setActiveLocalChatModelId(s.activeLocalChatModelId)
-                        }
+                        // Skip local chat models — GGUF files don't exist on this device
                         s.activeSystemPromptId?.let { settingsManager.setActiveSystemPromptId(it) }
                         settingsImported = true
                     }
