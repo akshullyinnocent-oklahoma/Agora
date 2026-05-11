@@ -1177,26 +1177,20 @@ private fun RecomposeSafeMarkdown(
     render: @Composable (text: String) -> Unit
 ) {
     var stableText by remember { mutableStateOf(content) }
-    var showNewLayer by remember { mutableStateOf(false) }
     var transitionAlpha by remember { mutableFloatStateOf(1f) }
+    val crossfading = stableText.isNotEmpty() && stableText != content && isStreaming
 
     if (!isStreaming) {
         stableText = content
-        showNewLayer = false
         transitionAlpha = 1f
-    } else if (stableText != content && content.isNotEmpty()) {
-        // Only crossfade if there's previous content to show behind
-        if (stableText.isNotEmpty()) {
-            showNewLayer = true
-            transitionAlpha = 0f
-        } else {
-            // First appearance — show immediately, no crossfade
-            stableText = content
-        }
+    }
+
+    if (crossfading) {
+        transitionAlpha = 0f
     }
 
     LaunchedEffect(content) {
-        if (isStreaming && content.isNotEmpty() && showNewLayer) {
+        if (crossfading) {
             withFrameNanos { }
             val startNs = withFrameNanos { it }
             val durationNs = 400_000_000L
@@ -1206,29 +1200,24 @@ private fun RecomposeSafeMarkdown(
                 transitionAlpha = progress
                 if (progress >= 1f) break
             }
-            stableText = content
-            showNewLayer = false
             transitionAlpha = 1f
+            stableText = content
         }
     }
 
-    Box(modifier = modifier) {
-        // Stable layer: always at full opacity behind (never fades).
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .alpha(if (showNewLayer && stableText.isNotEmpty()) 1f else 0f)
-        ) {
-            if (stableText.isNotEmpty()) {
+    if (crossfading) {
+        Box(modifier = modifier) {
+            // Stable layer: always at full opacity behind
+            Box(modifier = Modifier.fillMaxWidth().alpha(1f)) {
                 render(stableText)
             }
+            // Live layer: fades in on top
+            Box(modifier = Modifier.fillMaxWidth().alpha(transitionAlpha)) {
+                render(content)
+            }
         }
-        // Live layer: fades in from 0 to 1 over stable layer during transition.
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .alpha(if (showNewLayer) transitionAlpha else 1f)
-        ) {
+    } else {
+        Box(modifier = modifier) {
             render(content)
         }
     }
