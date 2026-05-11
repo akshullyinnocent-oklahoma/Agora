@@ -1498,17 +1498,11 @@ class ChatViewModel(
         }
     }
 
-    fun exportData(uri: Uri) {
+    fun exportData(uri: Uri, categories: Set<DataExporter.ExportCategory>, includeApiKeys: Boolean) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 val exporter = DataExporter(getApplication(), chatDao, settingsManager, memoryManager)
-                val categories = setOf(
-                    DataExporter.ExportCategory.CONVERSATIONS,
-                    DataExporter.ExportCategory.MEMORIES,
-                    DataExporter.ExportCategory.SYSTEM_PROMPTS,
-                    DataExporter.ExportCategory.SETTINGS
-                )
-                exporter.export(uri, categories, false) { progress ->
+                exporter.export(uri, categories, includeApiKeys) { progress ->
                     _exportProgress.value = progress
                 }
                 _exportProgress.value = null

@@ -48,12 +48,18 @@ fun SettingsDataControlPage(viewModel: ChatViewModel, onBack: () -> Unit) {
     val isExporting = exportProgress != null
     val isImporting = importProgress != null
 
+    // Capture export selections so they survive the SAF picker flow
+    var pendingExportCategories by remember { mutableStateOf<Set<DataExporter.ExportCategory>>(emptySet()) }
+    var pendingExportIncludeApiKeys by remember { mutableStateOf(false) }
+
     // SAF launchers
     val exportLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("application/zip")
     ) { uri ->
-        uri?.let {
-            viewModel.exportData(it)
+        if (uri != null && pendingExportCategories.isNotEmpty()) {
+            viewModel.exportData(uri, pendingExportCategories, pendingExportIncludeApiKeys)
+            pendingExportCategories = emptySet()
+            pendingExportIncludeApiKeys = false
         }
     }
 
@@ -126,8 +132,10 @@ fun SettingsDataControlPage(viewModel: ChatViewModel, onBack: () -> Unit) {
             memoryCount = memoryCount,
             promptCount = promptCount,
             onDismiss = { showExportDialog = false },
-            onExport = { includeApiKeys ->
+            onExport = { categories, includeApiKeys ->
                 showExportDialog = false
+                pendingExportCategories = categories
+                pendingExportIncludeApiKeys = includeApiKeys
                 val filename = "Agora_export_${java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(java.util.Date())}.agora"
                 exportLauncher.launch(filename)
             }
@@ -206,7 +214,7 @@ private fun ExportDataDialog(
     memoryCount: Int,
     promptCount: Int,
     onDismiss: () -> Unit,
-    onExport: (includeApiKeys: Boolean) -> Unit
+    onExport: (categories: Set<DataExporter.ExportCategory>, includeApiKeys: Boolean) -> Unit
 ) {
     var exportConversations by remember { mutableStateOf(true) }
     var exportMemories by remember { mutableStateOf(true) }
@@ -247,7 +255,15 @@ private fun ExportDataDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = { onExport(exportApiKeys) }, enabled = anyChecked) {
+            TextButton(onClick = {
+                    val cats = mutableSetOf<DataExporter.ExportCategory>()
+                    if (exportConversations) cats.add(DataExporter.ExportCategory.CONVERSATIONS)
+                    if (exportMemories) cats.add(DataExporter.ExportCategory.MEMORIES)
+                    if (exportPrompts) cats.add(DataExporter.ExportCategory.SYSTEM_PROMPTS)
+                    if (exportSettings) cats.add(DataExporter.ExportCategory.SETTINGS)
+                    if (exportApiKeys) cats.add(DataExporter.ExportCategory.API_KEYS)
+                    onExport(cats, exportApiKeys)
+                }, enabled = anyChecked) {
                 Text(stringResource(R.string.export_button))
             }
         },
