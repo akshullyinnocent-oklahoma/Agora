@@ -1020,7 +1020,7 @@ class GenerationManager(
                             val finalSegments = buildLiveSegments(segments, currentThoughtBuf, currentThoughtSignature)
                                 ?: segments.toList().ifEmpty { null }
                             val segmentsJson = finalSegments?.let { Json.encodeToString(it) }
-                            val effectiveParentId = if (isRegenerate) parentId else (toolPath.lastOrNull()?.id ?: parentId)
+                            val effectiveParentId = parentId
                             chatDao.upsertMessage(MessageEntity(
                                 id = modelMessageId, conversationId = conversationId, parentId = effectiveParentId,
                                 text = totalText, thoughts = totalThoughts.ifBlank { null },
