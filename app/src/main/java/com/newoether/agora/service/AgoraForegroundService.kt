@@ -36,9 +36,9 @@ class AgoraForegroundService : Service() {
             val channel = NotificationChannel(
                 CHANNEL_ID,
                 "Generation",
-                NotificationManager.IMPORTANCE_LOW
+                NotificationManager.IMPORTANCE_MIN
             ).apply {
-                description = "Shown while Agora is generating a response"
+                description = "Hidden ongoing notification while Agora is generating"
                 setShowBadge(false)
                 setSound(null, null)
             }
@@ -70,7 +70,7 @@ class AgoraForegroundService : Service() {
             val notification = Notification.Builder(context, "agora_completed")
                 .setContentTitle(context.getString(R.string.agora_responded))
                 .setContentText(preview)
-                .setSmallIcon(R.mipmap.ic_launcher)
+                .setSmallIcon(R.drawable.ic_launcher_foreground)
                 .setContentIntent(pendingIntent)
                 .setAutoCancel(true)
                 .setStyle(Notification.BigTextStyle().bigText(preview))
@@ -93,7 +93,7 @@ class AgoraForegroundService : Service() {
         val notification = Notification.Builder(this, CHANNEL_ID)
             .setContentTitle(getString(R.string.app_name))
             .setContentText("Generating response…")
-            .setSmallIcon(R.mipmap.ic_launcher)
+            .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setOngoing(true)
             .setContentIntent(pendingIntent)
             .build()
