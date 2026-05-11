@@ -620,17 +620,20 @@ class GenerationManager(
                 currId = msg.parentId
             }
             // Inject tool call chains that are children of messages in the ancestor path.
-            // Tool messages are children of model messages; walk the tool→result→tool chain
-            // so that subsequent turns include previous rounds' tool calls.
+            // Tool messages are children of model messages; reorder so the API sees
+            // assistant(tool_use) → user(tool_result) → assistant(text) instead of
+            // invalid consecutive assistant messages.
             val expanded = mutableListOf<MessageEntity>()
             for (entity in pathEntities) {
-                expanded.add(entity)
-                dbMessages
+                val toolChildren = dbMessages
                     .filter { it.parentId == entity.id && it.id.startsWith(Constants.TOOL_MSG_PREFIX) }
                     .sortedBy { it.timestamp }
-                    .forEach { toolMsg ->
+                if (toolChildren.isEmpty()) {
+                    expanded.add(entity)
+                } else {
+                    for (toolMsg in toolChildren) {
                         expanded.add(toolMsg)
-                        var current = toolMsg
+                        var current: MessageEntity = toolMsg
                         var safety = 0
                         while (safety < 100) {
                             val next = dbMessages
@@ -643,6 +646,10 @@ class GenerationManager(
                             } else break
                         }
                     }
+                    // Add entity without tool data so it serializes as plain text,
+                    // avoiding a second assistant message with tool_use.
+                    expanded.add(entity.copy(toolCallJson = null))
+                }
             }
             val currentPath = expanded.map {
                 val segs = it.toolCallJson?.let { json -> try { Json.decodeFromString<List<MessageSegment>>(json) } catch (_: Exception) { null } }
