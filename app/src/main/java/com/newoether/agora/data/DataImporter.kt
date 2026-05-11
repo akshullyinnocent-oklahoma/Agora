@@ -173,17 +173,40 @@ class DataImporter(
                                 try { Participant.valueOf(m.participant) } catch (_: Exception) { Participant.MODEL },
                                 m.timestamp, m.thoughtTimeMs, m.modelName, m.toolCallJson)
                         }
+                        // Restore image files from ZIP to app storage
+                        val imagesDir = java.io.File(context.filesDir, "images")
+                        imagesDir.mkdirs()
+                        val imageEntries = entries.filter { it.key.startsWith("images/") }
+                        val restoredImages = mutableMapOf<String, MutableList<String>>() // messageId -> new URIs
+                        for ((path, bytes) in imageEntries) {
+                            // path format: images/<messageId>/<index>
+                            val parts = path.removePrefix("images/").split("/")
+                            if (parts.size == 2) {
+                                val msgId = parts[0]
+                                val imgFile = java.io.File(imagesDir, "${msgId}_${parts[1]}")
+                                imgFile.writeBytes(bytes)
+                                val newUri = Uri.fromFile(imgFile).toString()
+                                restoredImages.getOrPut(msgId) { mutableListOf() }.add(newUri)
+                            }
+                        }
+
+                        // Update message entities with restored image URIs
+                        val finalMsgEntities = msgEntities.map { msg ->
+                            val imgs = restoredImages[msg.id]
+                            if (imgs != null) msg.copy(images = imgs) else msg
+                        }
+
                         if (convDecision == ImportStrategy.REPLACE) {
                             chatDao.deleteAllConversations()
                             convEntities.forEach { chatDao.upsertConversation(it) }
-                            msgEntities.forEach { chatDao.upsertMessage(it) }
+                            finalMsgEntities.forEach { chatDao.upsertMessage(it) }
                             conversationsImported = data.conversations.size
                         } else {
                             // MERGE: upsert conversations, skip existing messages
                             convEntities.forEach { chatDao.upsertConversation(it) }
-                            val existingIds = chatDao.findExistingMessageIds(msgEntities.map { it.id })
+                            val existingIds = chatDao.findExistingMessageIds(finalMsgEntities.map { it.id })
                             val existingSet = existingIds.toSet()
-                            msgEntities.filter { it.id !in existingSet }.forEach { chatDao.upsertMessage(it) }
+                            finalMsgEntities.filter { it.id !in existingSet }.forEach { chatDao.upsertMessage(it) }
                             conversationsImported = data.conversations.size
                         }
                     }

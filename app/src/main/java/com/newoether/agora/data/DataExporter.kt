@@ -143,11 +143,40 @@ class DataExporter(
 
             // Conversations
             if (ExportCategory.CONVERSATIONS in categories) {
+                val allMessages = chatDao.getAllMessagesList()
+                val imageMap = mutableMapOf<String, List<String>>() // messageId -> list of image URIs to keep
+
+                // Export image files alongside the JSON
+                for (msg in allMessages) {
+                    if (msg.images.isEmpty()) continue
+                    val surviving = mutableListOf<String>()
+                    for ((idx, imgUri) in msg.images.withIndex()) {
+                        try {
+                            val inStream = context.contentResolver.openInputStream(Uri.parse(imgUri))
+                            val bytes = inStream?.readBytes()
+                            inStream?.close()
+                            if (bytes != null && bytes.isNotEmpty()) {
+                                zip.putNextEntry(ZipEntry("images/${msg.id}/$idx"))
+                                zip.write(bytes)
+                                zip.closeEntry()
+                                surviving.add(imgUri)
+                            }
+                        } catch (_: Exception) {
+                            // File not accessible — drop from export
+                        }
+                    }
+                    if (surviving.isNotEmpty()) {
+                        imageMap[msg.id] = surviving
+                    }
+                }
+
                 val conversations = chatDao.getAllConversationsList().map { c ->
                     ExportChatEntity(c.id, c.title, c.lastUpdated, c.selectedBranchesJson, c.systemPromptId, c.modelId)
                 }
-                val messages = chatDao.getAllMessagesList().map { m ->
-                    ExportMessageEntity(m.id, m.conversationId, m.parentId, m.text, m.images,
+                val messages = allMessages.map { m ->
+                    // Only include images that were successfully exported
+                    val exportedImages = imageMap[m.id] ?: emptyList()
+                    ExportMessageEntity(m.id, m.conversationId, m.parentId, m.text, exportedImages,
                         m.thoughts, m.thoughtTitle, m.tokenCount, m.status.name, m.participant.name,
                         m.timestamp, m.thoughtTimeMs, m.modelName, m.toolCallJson)
                 }
