@@ -707,7 +707,7 @@ fun MessageItem(
                                                 if (isStreaming) {
                                                         RecomposeSafeMarkdown(
                                                             content = seg.content,
-                                                            isStreaming = isStreaming
+                                                            isStreaming = true
                                                         ) { text ->
                                                             Markdown(
                                                                 content = text.escapeThinkTags(),
@@ -720,14 +720,19 @@ fun MessageItem(
                                                         }
                                                     } else {
                                                         SelectionContainer {
-                                                            Markdown(
-                                                                content = seg.content.escapeThinkTags(),
-                                                                modifier = Modifier.fillMaxWidth(),
-                                                                typography = thoughtTypography,
-                                                                padding = thoughtMarkdownPadding,
-                                                                components = customMarkdownComponents,
-                                                                imageTransformer = latexImageTransformer
-                                                            )
+                                                            RecomposeSafeMarkdown(
+                                                                content = seg.content,
+                                                                isStreaming = false
+                                                            ) { text ->
+                                                                Markdown(
+                                                                    content = text.escapeThinkTags(),
+                                                                    modifier = Modifier.fillMaxWidth(),
+                                                                    typography = thoughtTypography,
+                                                                    padding = thoughtMarkdownPadding,
+                                                                    components = customMarkdownComponents,
+                                                                    imageTransformer = latexImageTransformer
+                                                                )
+                                                            }
                                                         }
                                                     }
                                             } else if (seg.type == "tool") {
@@ -873,7 +878,7 @@ fun MessageItem(
                                         if (isStreaming) {
                                             RecomposeSafeMarkdown(
                                                 content = debouncedThoughts,
-                                                isStreaming = isStreaming
+                                                isStreaming = true
                                             ) { text ->
                                                 Markdown(
                                                     content = text.escapeThinkTags(),
@@ -886,14 +891,19 @@ fun MessageItem(
                                             }
                                         } else {
                                             SelectionContainer {
-                                                Markdown(
-                                                    content = debouncedThoughts.escapeThinkTags(),
-                                                    modifier = Modifier.fillMaxWidth(),
-                                                    typography = thoughtTypography,
-                                                    padding = thoughtMarkdownPadding,
-                                                    components = customMarkdownComponents,
-                                                    imageTransformer = latexImageTransformer
-                                                )
+                                                RecomposeSafeMarkdown(
+                                                    content = debouncedThoughts,
+                                                    isStreaming = false
+                                                ) { text ->
+                                                    Markdown(
+                                                        content = text.escapeThinkTags(),
+                                                        modifier = Modifier.fillMaxWidth(),
+                                                        typography = thoughtTypography,
+                                                        padding = thoughtMarkdownPadding,
+                                                        components = customMarkdownComponents,
+                                                        imageTransformer = latexImageTransformer
+                                                    )
+                                                }
                                             }
                                         }
                                     }
@@ -1016,12 +1026,12 @@ fun MessageItem(
                             } else if (debouncedText.isNotEmpty()) {
                                 val spans = remember(debouncedText) { parseLatexSpans(debouncedText) }
                                 if (spans.all { !it.isLatex }) {
-                                    // SelectionContainer during streaming crashes with
-                                    // the double-buffer (duplicate selectable content)
+                                    // No SelectionContainer during streaming — double-buffer
+                                    // layers would duplicate selectable content and crash.
                                     if (isStreaming) {
                                         RecomposeSafeMarkdown(
                                             content = debouncedText,
-                                            isStreaming = isStreaming
+                                            isStreaming = true
                                         ) { text ->
                                             Markdown(
                                                 content = text.escapeThinkTags(),
@@ -1033,15 +1043,23 @@ fun MessageItem(
                                             )
                                         }
                                     } else {
+                                        // Post-generation: RecomposeSafeMarkdown handles the
+                                        // !isStreaming reset internally — stable layer at
+                                        // alpha 0, live at alpha 1. Same tree, no switch.
                                         SelectionContainer {
-                                            Markdown(
-                                                content = debouncedText.escapeThinkTags(),
-                                                modifier = Modifier.fillMaxWidth(),
-                                                typography = customTypography,
-                                                padding = customMarkdownPadding,
-                                                components = customMarkdownComponents,
-                                                imageTransformer = latexImageTransformer
-                                            )
+                                            RecomposeSafeMarkdown(
+                                                content = debouncedText,
+                                                isStreaming = false
+                                            ) { text ->
+                                                Markdown(
+                                                    content = text.escapeThinkTags(),
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    typography = customTypography,
+                                                    padding = customMarkdownPadding,
+                                                    components = customMarkdownComponents,
+                                                    imageTransformer = latexImageTransformer
+                                                )
+                                            }
                                         }
                                     }
                                 } else {
