@@ -18,6 +18,7 @@ import com.newoether.agora.model.MessageStatus
 import com.newoether.agora.model.Participant
 import com.newoether.agora.model.ToolCallData
 import com.newoether.agora.service.AgoraForegroundService
+import com.newoether.agora.service.AppForegroundTracker
 import com.newoether.agora.api.EmbeddingClient
 import com.newoether.agora.api.LlamaEngine
 import com.newoether.agora.data.EmbeddingIndexer
@@ -1045,6 +1046,9 @@ class GenerationManager(
                     onGeneratingIdChange(null)
                 }
                 AgoraForegroundService.stop(app)
+                if (!AppForegroundTracker.isInForeground && currentStatus == MessageStatus.SUCCESS && totalText.isNotBlank()) {
+                    AgoraForegroundService.showCompletionNotification(app, totalText)
+                }
             }
         }
     }

@@ -70,6 +70,7 @@ import androidx.room.RoomDatabase
 import com.newoether.agora.data.MemoryManager
 import com.newoether.agora.data.SettingsManager
 import com.newoether.agora.service.AgoraForegroundService
+import com.newoether.agora.service.AppForegroundTracker
 import com.newoether.agora.data.local.ChatDatabase
 import com.newoether.agora.model.Participant
 import com.newoether.agora.ui.chat.ChatBottomBar
@@ -153,6 +154,16 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        AppForegroundTracker.isInForeground = true
+    }
+
+    override fun onPause() {
+        super.onPause()
+        AppForegroundTracker.isInForeground = false
     }
 }
 

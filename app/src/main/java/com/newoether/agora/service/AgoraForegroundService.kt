@@ -40,9 +40,43 @@ class AgoraForegroundService : Service() {
             ).apply {
                 description = "Shown while Agora is generating a response"
                 setShowBadge(false)
+                setSound(null, null)
             }
             val manager = context.getSystemService(NotificationManager::class.java)
             manager.createNotificationChannel(channel)
+        }
+
+        fun showCompletionNotification(context: Context, responseText: String) {
+            val channel = NotificationChannel(
+                "agora_completed",
+                "Response Ready",
+                NotificationManager.IMPORTANCE_HIGH
+            ).apply {
+                description = "Shown when a response finishes generating"
+                setShowBadge(true)
+            }
+            val manager = context.getSystemService(NotificationManager::class.java)
+            manager.createNotificationChannel(channel)
+
+            val pendingIntent = PendingIntent.getActivity(
+                context, 1,
+                Intent(context, MainActivity::class.java).apply {
+                    flags = Intent.FLAG_ACTIVITY_SINGLE_TOP
+                },
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+
+            val preview = if (responseText.length > 200) responseText.take(200) + "…" else responseText
+            val notification = Notification.Builder(context, "agora_completed")
+                .setContentTitle(context.getString(R.string.agora_responded))
+                .setContentText(preview)
+                .setSmallIcon(R.mipmap.ic_launcher)
+                .setContentIntent(pendingIntent)
+                .setAutoCancel(true)
+                .setStyle(Notification.BigTextStyle().bigText(preview))
+                .build()
+
+            manager.notify(2, notification)
         }
     }
 
@@ -59,7 +93,7 @@ class AgoraForegroundService : Service() {
         val notification = Notification.Builder(this, CHANNEL_ID)
             .setContentTitle(getString(R.string.app_name))
             .setContentText("Generating response…")
-            .setSmallIcon(R.drawable.neurology_24)
+            .setSmallIcon(R.mipmap.ic_launcher)
             .setOngoing(true)
             .setContentIntent(pendingIntent)
             .build()

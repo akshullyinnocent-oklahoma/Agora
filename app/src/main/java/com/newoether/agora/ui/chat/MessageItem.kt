@@ -80,7 +80,7 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
-import androidx.compose.animation.core.Animatable
+
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.text.font.FontWeight
@@ -248,7 +248,6 @@ fun MessageItem(
 
     var isThoughtExpanded by rememberSaveable { mutableStateOf(false) }
     var currentThoughtBlockHeight by remember { mutableIntStateOf(0) }
-    var currentSegmentBlockHeight by remember { mutableIntStateOf(0) }
     var stableCollapsedThoughtHeight by remember { mutableIntStateOf(0) }
     var showInfoDialog by remember { mutableStateOf(false) }
     
@@ -282,14 +281,6 @@ fun MessageItem(
     }
 
     var currentTotalHeight by remember { mutableIntStateOf(0) }
-    var colMaxHeightPx by remember { mutableIntStateOf(0) }
-    var textContentAlpha by remember { mutableFloatStateOf(1f) }
-
-    if (!isStreaming) {
-        colMaxHeightPx = 0
-        textContentAlpha = 1f
-    }
-
     // Create a responder that ignores bring-into-view requests to prevent auto-scrolling on focus/selection
     val noOpResponder = remember {
         object : BringIntoViewResponder {
@@ -423,17 +414,8 @@ fun MessageItem(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .then(
-                if (isStreaming && colMaxHeightPx > 0)
-                    Modifier.heightIn(min = with(LocalDensity.current) { (colMaxHeightPx + currentThoughtBlockHeight + currentSegmentBlockHeight).toDp() })
-                else Modifier
-            )
             .onSizeChanged {
                 currentTotalHeight = it.height
-                if (isStreaming) {
-                    val nonThoughtH = (it.height - currentThoughtBlockHeight - currentSegmentBlockHeight).coerceAtLeast(0)
-                    colMaxHeightPx = maxOf(colMaxHeightPx, nonThoughtH)
-                }
                 onHeightChanged(calculateReportedHeight(it.height, currentThoughtBlockHeight))
             }
             .padding(vertical = 8.dp),
@@ -629,42 +611,18 @@ fun MessageItem(
                         debouncedText = message.text
                     }
 
-                    // Level 1: anti-shrink for the text Box height
+                    // Level 1: anti-shrink for text and thinking content
                     var streamingMaxHeightPx by remember { mutableIntStateOf(0) }
+                    var thinkingContentMaxHeightPx by remember { mutableIntStateOf(0) }
                     if (!isStreaming) {
                         streamingMaxHeightPx = 0
-                    }
-
-                    // Level 2: immediate alpha dip (no suspend), then frame-based recovery.
-                    // Using direct MutableFloatState avoids the one-frame delay of LaunchedEffect.
-                    var lastStableText by remember { mutableStateOf(debouncedText) }
-                    if (lastStableText != debouncedText && isStreaming && debouncedText.isNotEmpty()) {
-                        lastStableText = debouncedText
-                        textContentAlpha = 0.45f
-                    }
-                    LaunchedEffect(lastStableText) {
-                        if (isStreaming && debouncedText.isNotEmpty()) {
-                            val startNs = withFrameNanos { it }
-                            val durationNs = 100_000_000L
-                            while (true) {
-                                val nowNs = withFrameNanos { it }
-                                val progress = ((nowNs - startNs).toFloat() / durationNs).coerceAtMost(1f)
-                                textContentAlpha = 0.45f + 0.55f * progress
-                                if (progress >= 1f) break
-                            }
-                            textContentAlpha = 1f
-                        }
+                        thinkingContentMaxHeightPx = 0
                     }
 
                     Column {
                         val isError = message.status == MessageStatus.ERROR || message.participant == Participant.ERROR
 
-                        // Only zero out heights when their blocks are not in the tree.
-                        // If we reset every composition, a skipped layout pass leaves stale
-                        // zeros, and colMaxHeightPx absorbs collapsible height permanently.
-                        if (message.segments == null || message.segments?.isEmpty() == true) {
-                            currentSegmentBlockHeight = 0
-                        }
+                        // Only zero out thought height when legacy thought block is not shown
                         if (message.segments != null || message.thoughts.isNullOrBlank()) {
                             currentThoughtBlockHeight = 0
                         }
@@ -687,19 +645,17 @@ fun MessageItem(
                                     } else stringResource(R.string.thinking_complete)
                                 } else stringResource(R.string.thinking_ellipsis)
                             }
-                            var isMergedExpanded by remember { mutableStateOf(false) }
                             val mergedBottomPadding by animateDpAsState(
-                                targetValue = if (isMergedExpanded) 12.dp else 4.dp,
+                                targetValue = if (isThoughtExpanded) 12.dp else 4.dp,
                                 animationSpec = tween(500), label = "mergedPad"
                             )
                             Column(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .onSizeChanged { currentSegmentBlockHeight = it.height }
                                     .padding(top = 8.dp, bottom = mergedBottomPadding + 6.dp)
                                     .clip(RoundedCornerShape(12.dp))
                                     .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
-                                    .clickable { isMergedExpanded = !isMergedExpanded }
+                                    .clickable { isThoughtExpanded = !isThoughtExpanded }
                                     .bringIntoViewResponder(noOpResponder)
                                     .padding(10.dp)
                             ) {
@@ -717,17 +673,29 @@ fun MessageItem(
                                         overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f)
                                     )
                                     Icon(
-                                        if (isMergedExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                                        if (isThoughtExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
                                         null, modifier = Modifier.size(16.dp),
                                         tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                                     )
                                 }
                                 AnimatedVisibility(
-                                    visible = isMergedExpanded,
+                                    visible = isThoughtExpanded,
                                     enter = fadeIn(tween(500)) + expandVertically(tween(500)),
                                     exit = fadeOut(tween(500)) + shrinkVertically(tween(500))
                                 ) {
-                                    Column {
+                                    Column(
+                                        modifier = Modifier
+                                            .then(
+                                                if (isStreaming && thinkingContentMaxHeightPx > 0)
+                                                    Modifier.heightIn(min = with(LocalDensity.current) { thinkingContentMaxHeightPx.toDp() })
+                                                else Modifier
+                                            )
+                                            .onSizeChanged { size ->
+                                                if (isStreaming) {
+                                                    thinkingContentMaxHeightPx = maxOf(thinkingContentMaxHeightPx, size.height)
+                                                }
+                                            }
+                                    ) {
                                         Spacer(modifier = Modifier.height(12.dp))
                                         segs.forEachIndexed { idx, seg ->
                                             if (seg.type == "thought" && seg.content.isNotBlank()) {
@@ -738,7 +706,7 @@ fun MessageItem(
                                                 )
                                                 SelectionContainer {
                                                         Markdown(
-                                                            seg.content.escapeThinkTags(), modifier = Modifier.fillMaxWidth().alpha(if (isStreaming) textContentAlpha else 1f).bringIntoViewResponder(noOpResponder),
+                                                            seg.content.escapeThinkTags(), modifier = Modifier.fillMaxWidth().bringIntoViewResponder(noOpResponder),
                                                             typography = thoughtTypography, padding = thoughtMarkdownPadding,
                                                             components = customMarkdownComponents,
                                                             imageTransformer = latexImageTransformer
@@ -865,7 +833,19 @@ fun MessageItem(
                                     enter = androidx.compose.animation.fadeIn(animationSpec = tween(500)) + androidx.compose.animation.expandVertically(animationSpec = tween(500)),
                                     exit = androidx.compose.animation.fadeOut(animationSpec = tween(500)) + androidx.compose.animation.shrinkVertically(animationSpec = tween(500))
                                 ) {
-                                    Column {
+                                    Column(
+                                        modifier = Modifier
+                                            .then(
+                                                if (isStreaming && thinkingContentMaxHeightPx > 0)
+                                                    Modifier.heightIn(min = with(LocalDensity.current) { thinkingContentMaxHeightPx.toDp() })
+                                                else Modifier
+                                            )
+                                            .onSizeChanged { size ->
+                                                if (isStreaming) {
+                                                    thinkingContentMaxHeightPx = maxOf(thinkingContentMaxHeightPx, size.height)
+                                                }
+                                            }
+                                    ) {
                                         Spacer(modifier = Modifier.height(20.dp))
                                         Text(
                                             stringResource(R.string.tool_thinking), style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
@@ -877,7 +857,6 @@ fun MessageItem(
                                                 content = debouncedThoughts.escapeThinkTags(),
                                                 modifier = Modifier
                                                     .fillMaxWidth()
-                                                    .alpha(if (isStreaming) textContentAlpha else 1f)
                                                     .bringIntoViewResponder(noOpResponder),
                                                 typography = thoughtTypography,
                                                 padding = thoughtMarkdownPadding, // Use tighter padding for thoughts
@@ -981,7 +960,6 @@ fun MessageItem(
                                     else Modifier
                                 )
                                 .then(if (shouldAnimate) Modifier.animateContentSize(animationSpec = tween(if (isStreaming) 300 else 500)) else Modifier)
-                                .alpha(if (isStreaming) textContentAlpha else 1f)
                                 .onSizeChanged { size ->
                                     if (isStreaming) {
                                         streamingMaxHeightPx = maxOf(streamingMaxHeightPx, size.height)
