@@ -363,4 +363,20 @@
     <string name="local_chat_delete_text">确定要删除 \'%1$s\' 吗？这将同时删除模型文件。</string>
     <string name="model_id_label">ID</string>
     <string name="model_alias_label">别名</string>
+
+    <!-- Video Slicing -->
+    <string name="video_slice_title">视频帧提取</string>
+    <string name="video_duration">时长: %1$s</string>
+    <string name="by_frame_count">按帧数</string>
+    <string name="by_interval">按间隔</string>
+    <string name="frames_count">帧数: %1$d</string>
+    <string name="interval_seconds">间隔: %1$ds</string>
+    <string name="extract_frames">提取 %1$d 帧</string>
+
+    <!-- File Validation -->
+    <string name="file_unknown_type">未知文件类型</string>
+    <string name="file_unsupported_type">不支持的文件类型: %1$s</string>
+    <string name="file_too_large">文件过大 (最大 20 MB)</string>
+    <string name="pdf_copy_failed">PDF 复制失败</string>
+    <string name="pdf_render_failed">PDF 渲染失败</string>
 </resources>

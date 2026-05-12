@@ -386,4 +386,20 @@
     <string name="import_failed">Import failed: %1$s</string>
     <string name="import_invalid_file">Invalid .agora file. Please select a valid export.</string>
     <string name="import_no_data">This export file contains no importable data.</string>
+
+    <!-- Video Slicing -->
+    <string name="video_slice_title">Video Frame Extraction</string>
+    <string name="video_duration">Duration: %1$s</string>
+    <string name="by_frame_count">By Frame Count</string>
+    <string name="by_interval">By Interval</string>
+    <string name="frames_count">Frames: %1$d</string>
+    <string name="interval_seconds">Interval: %1$ds</string>
+    <string name="extract_frames">Extract %1$d frames</string>
+
+    <!-- File Validation -->
+    <string name="file_unknown_type">Unknown file type</string>
+    <string name="file_unsupported_type">Unsupported file type: %1$s</string>
+    <string name="file_too_large">File too large (max 20 MB)</string>
+    <string name="pdf_copy_failed">Failed to copy PDF</string>
+    <string name="pdf_render_failed">Failed to render PDF</string>
 </resources>

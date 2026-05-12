@@ -3,7 +3,6 @@ package com.newoether.agora.ui.chat
 import android.graphics.Bitmap
 import android.media.MediaMetadataRetriever
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -15,10 +14,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import com.newoether.agora.R
 import kotlin.math.roundToInt
 
 data class VideoSliceResult(
@@ -56,7 +55,6 @@ fun VideoSliceDialog(
         mutableIntStateOf(maxOf(1, (seconds / defaultFrames).toInt()))
     }
 
-    // Keep the two in sync
     val effectiveFrameCount = if (useFrameCountMode) frameCount else maxOf(2, (seconds / intervalSec).toInt())
     val effectiveIntervalMs = if (useFrameCountMode) {
         if (frameCount > 1) durationMs / frameCount else 0L
@@ -64,7 +62,6 @@ fun VideoSliceDialog(
         intervalSec * 1000L
     }
 
-    // First frame thumbnail
     val thumbnail = remember(videoUri) {
         try {
             val retriever = MediaMetadataRetriever()
@@ -90,22 +87,19 @@ fun VideoSliceDialog(
             modifier = Modifier.fillMaxWidth()
         ) {
             Column(modifier = Modifier.padding(20.dp)) {
-                // Title
                 Text(
-                    "Video Frame Extraction",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold
+                    stringResource(R.string.video_slice_title),
+                    style = MaterialTheme.typography.titleLarge
                 )
                 Spacer(Modifier.height(4.dp))
                 Text(
-                    "Duration: $durationFormatted",
+                    stringResource(R.string.video_duration, durationFormatted),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
                 Spacer(Modifier.height(12.dp))
 
-                // Thumbnail preview
                 if (thumbnail != null) {
                     Box(
                         modifier = Modifier
@@ -116,7 +110,7 @@ fun VideoSliceDialog(
                     ) {
                         Image(
                             bitmap = thumbnail.asImageBitmap(),
-                            contentDescription = "Preview",
+                            contentDescription = stringResource(R.string.video_preview),
                             modifier = Modifier.fillMaxSize(),
                             contentScale = ContentScale.Crop
                         )
@@ -124,31 +118,31 @@ fun VideoSliceDialog(
                     Spacer(Modifier.height(12.dp))
                 }
 
-                // Mode toggle
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally)
                 ) {
                     FilterChip(
                         selected = useFrameCountMode,
                         onClick = { useFrameCountMode = true },
-                        label = { Text("By Frame Count") },
+                        label = { Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) { Text(stringResource(R.string.by_frame_count)) } },
+                        shape = RoundedCornerShape(50),
                         modifier = Modifier.weight(1f)
                     )
                     FilterChip(
                         selected = !useFrameCountMode,
                         onClick = { useFrameCountMode = false },
-                        label = { Text("By Interval") },
+                        label = { Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) { Text(stringResource(R.string.by_interval)) } },
+                        shape = RoundedCornerShape(50),
                         modifier = Modifier.weight(1f)
                     )
                 }
 
                 Spacer(Modifier.height(12.dp))
 
-                // Slider
                 if (useFrameCountMode) {
                     Text(
-                        "Frames: $effectiveFrameCount",
+                        stringResource(R.string.frames_count, effectiveFrameCount),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.primary
                     )
@@ -165,7 +159,7 @@ fun VideoSliceDialog(
                     )
                 } else {
                     Text(
-                        "Interval: ${effectiveIntervalMs / 1000}s",
+                        stringResource(R.string.interval_seconds, effectiveIntervalMs / 1000),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.primary
                     )
@@ -176,7 +170,7 @@ fun VideoSliceDialog(
                         steps = minOf(29, seconds.toInt() - 1)
                     )
                     Text(
-                        "${effectiveFrameCount} frames",
+                        stringResource(R.string.frames_count, effectiveFrameCount),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -184,20 +178,19 @@ fun VideoSliceDialog(
 
                 Spacer(Modifier.height(16.dp))
 
-                // Buttons
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.End,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    TextButton(onClick = onDismiss) {
-                        Text("Cancel")
+                    TextButton(onClick = onDismiss, shape = RoundedCornerShape(50)) {
+                        Text(stringResource(R.string.cancel))
                     }
                     Spacer(Modifier.width(8.dp))
                     Button(onClick = {
                         onConfirm(VideoSliceResult(videoUri, effectiveFrameCount, effectiveIntervalMs))
-                    }) {
-                        Text("Extract $effectiveFrameCount frames")
+                    }, shape = RoundedCornerShape(50)) {
+                        Text(stringResource(R.string.extract_frames, effectiveFrameCount))
                     }
                 }
             }

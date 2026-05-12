@@ -1406,7 +1406,7 @@ class ChatViewModel(
                     "file" -> {
                         val validation = com.newoether.agora.util.FileValidator.validate(app, android.net.Uri.parse(att.uri))
                         if (!validation.valid) {
-                            _snackbarMessage.emit(SnackbarEvent(validation.error!!))
+                            _snackbarMessage.emit(SnackbarEvent(com.newoether.agora.util.FileValidator.errorMessage(app, validation.error!!, validation.mimeType)))
                             continue
                         }
                         try {
@@ -1426,7 +1426,7 @@ class ChatViewModel(
                     "pdf" -> {
                         val validation = com.newoether.agora.util.FileValidator.validate(app, android.net.Uri.parse(att.uri))
                         if (!validation.valid) {
-                            _snackbarMessage.emit(SnackbarEvent(validation.error!!))
+                            _snackbarMessage.emit(SnackbarEvent(com.newoether.agora.util.FileValidator.errorMessage(app, validation.error!!, validation.mimeType)))
                             continue
                         }
                         if (supportsNativePdf(providerName)) {
@@ -1443,12 +1443,12 @@ class ChatViewModel(
                                 directPaths.add(pdfFile.absolutePath)
                                 nextImageIndex++
                             } catch (_: Exception) {
-                                _snackbarMessage.emit(SnackbarEvent("Failed to copy PDF"))
+                                _snackbarMessage.emit(SnackbarEvent(app.getString(R.string.pdf_copy_failed)))
                             }
                         } else {
                             val pagePaths = com.newoether.agora.util.PdfPageRenderer.renderAsImages(app, android.net.Uri.parse(att.uri))
                             if (pagePaths.isEmpty()) {
-                                _snackbarMessage.emit(SnackbarEvent("Failed to render PDF"))
+                                _snackbarMessage.emit(SnackbarEvent(app.getString(R.string.pdf_render_failed)))
                                 continue
                             }
                             metaItems.add(com.newoether.agora.model.AttachmentItem(

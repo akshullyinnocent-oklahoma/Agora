@@ -5,6 +5,12 @@ import android.net.Uri
 import android.provider.OpenableColumns
 
 object FileValidator {
+    enum class Error {
+        UNKNOWN_TYPE,
+        UNSUPPORTED_TYPE,
+        TOO_LARGE
+    }
+
     private val MIME_WHITELIST = setOf(
         "text/",
         "application/json",
@@ -14,7 +20,7 @@ object FileValidator {
     )
     private const val MAX_SIZE = 20L * 1024 * 1024
 
-    data class Result(val valid: Boolean, val error: String? = null)
+    data class Result(val valid: Boolean, val error: Error? = null, val mimeType: String? = null)
 
     fun validate(context: Context, uri: Uri): Result {
         val mimeType = try {
@@ -22,12 +28,12 @@ object FileValidator {
         } catch (_: Exception) { null }
 
         if (mimeType == null)
-            return Result(false, "Unknown file type")
+            return Result(false, Error.UNKNOWN_TYPE, null)
 
         val allowed = MIME_WHITELIST.any { mimeType.startsWith(it) } ||
                       mimeType in MIME_WHITELIST
         if (!allowed)
-            return Result(false, "Unsupported file type: $mimeType")
+            return Result(false, Error.UNSUPPORTED_TYPE, mimeType)
 
         val fileSize = try {
             val cursor = context.contentResolver.query(
@@ -42,9 +48,9 @@ object FileValidator {
         } catch (_: Exception) { null }
 
         if (fileSize != null && fileSize > MAX_SIZE)
-            return Result(false, "File too large (max 20 MB)")
+            return Result(false, Error.TOO_LARGE, mimeType)
 
-        return Result(true)
+        return Result(true, mimeType = mimeType)
     }
 
     fun resolveMimeType(context: Context, uriString: String): String? {
@@ -79,5 +85,13 @@ object FileValidator {
                 } else null
             }
         } catch (_: Exception) { null }
+    }
+
+    fun errorMessage(context: Context, error: Error, mimeType: String? = null): String {
+        return when (error) {
+            Error.UNKNOWN_TYPE -> context.getString(com.newoether.agora.R.string.file_unknown_type)
+            Error.UNSUPPORTED_TYPE -> context.getString(com.newoether.agora.R.string.file_unsupported_type, mimeType ?: "?")
+            Error.TOO_LARGE -> context.getString(com.newoether.agora.R.string.file_too_large)
+        }
     }
 }
