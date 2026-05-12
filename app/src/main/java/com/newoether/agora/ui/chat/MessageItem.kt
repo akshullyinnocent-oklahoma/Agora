@@ -242,6 +242,8 @@ fun MessageItem(
     onSwitchBranch: (Int) -> Unit = {},
     onRegenerate: (String) -> Unit = {},
     onImageClick: (String) -> Unit = {},
+    onFileContentClick: ((fileName: String, content: String) -> Unit)? = null,
+    onPdfPagesClick: ((pages: List<String>, startIndex: Int) -> Unit)? = null,
     onHeightChanged: (Int) -> Unit = {}
 ) {
     var isFirstComposition by remember { mutableStateOf(true) }
@@ -484,7 +486,7 @@ fun MessageItem(
                                     val imageItems = message.images.mapIndexedNotNull { index, path ->
                                         if (index in skipIndices) null
                                         else {
-                                            val item = meta?.items?.firstOrNull { it.imageIndex == index }
+                                            val item = findMetaForIndex(meta, index)
                                             Triple(index, path, item)
                                         }
                                     }
@@ -501,63 +503,38 @@ fun MessageItem(
                                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
                                     items(displayItems) { (index, imagePath, metaItem) ->
-                                        val isVideo = metaItem?.type == "video"
-                                        val isPdf = metaItem?.type == "pdf"
-                                        val isFileType = metaItem?.type == "file" || (!isVideo && !isPdf && remember(imagePath) {
-                                            try {
-                                                val mt = ctx.contentResolver.getType(android.net.Uri.parse(imagePath))
-                                                mt != null && !mt.startsWith("image/") && !mt.startsWith("video/")
-                                            } catch (_: Exception) { false }
-                                        })
+                                        val type = remember(imagePath, metaItem?.type) {
+                                            resolveAttachmentType(imagePath, metaItem, ctx)
+                                        }
+                                        val isVideo = type == "video"
+                                        val isPdf = type == "pdf"
+                                        val isFileType = type == "file"
 
-                                        val clickUri = if (isVideo && metaItem?.originalUri != null) metaItem.originalUri else imagePath
-                                        val thumbModifier = Modifier
-                                            .sizeIn(maxWidth = 200.dp, maxHeight = 200.dp)
-                                            .clip(RoundedCornerShape(8.dp))
-                                            .then(if (!isFileType) Modifier.clickable { onImageClick(clickUri) } else Modifier)
+                                        val fileName = metaItem?.fileName ?: imagePath.substringAfterLast("/")
+                                        val pdfPages = if (type == "pdf") {
+                                            metaItem?.imageIndex?.let { start ->
+                                                val count = metaItem.pageCount ?: 1
+                                                val end = (start + count).coerceAtMost(message.images.size)
+                                                if (start in 0 until message.images.size) message.images.subList(start, end) else emptyList()
+                                            } ?: emptyList()
+                                        } else emptyList()
 
-                                        if (isFileType) {
-                                            val fileName = metaItem?.fileName ?: imagePath.substringAfterLast("/")
-                                            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(72.dp)) {
-                                                FileThumbnail(fileName = fileName, isPdf = false, modifier = Modifier.size(64.dp))
-                                                Text(fileName, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp))
-                                            }
-                                        } else if (isPdf) {
-                                            val fileName = metaItem?.fileName ?: imagePath.substringAfterLast("/")
-                                            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(72.dp)) {
-                                                FileThumbnail(fileName = null, isPdf = true, modifier = Modifier.size(64.dp))
-                                                Text(fileName, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp))
-                                                if (metaItem?.warning != null) {
-                                                    Text(metaItem.warning!!, style = MaterialTheme.typography.labelSmall, color = Color(0xFFE53935), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                                }
-                                            }
-                                        } else if (isVideo) {
-                                            // Show first frame with PlayArrow overlay
-                                            Box {
-                                                coil.compose.AsyncImage(
-                                                    model = imagePath,
-                                                    contentDescription = null,
-                                                    modifier = thumbModifier,
-                                                    contentScale = androidx.compose.ui.layout.ContentScale.Fit
-                                                )
-                                                Icon(
-                                                    Icons.Default.PlayArrow,
-                                                    contentDescription = stringResource(R.string.play),
-                                                    tint = Color.White,
-                                                    modifier = Modifier
-                                                        .align(Alignment.Center)
-                                                        .size(28.dp)
-                                                        .background(Color.Black.copy(alpha = 0.5f), CircleShape)
-                                                        .padding(4.dp)
-                                                )
-                                            }
-                                        } else {
-                                            coil.compose.AsyncImage(
-                                                model = imagePath,
-                                                contentDescription = null,
-                                                modifier = thumbModifier,
-                                                contentScale = androidx.compose.ui.layout.ContentScale.Fit
+                                        AttachmentThumbnailItem(
+                                            type = type,
+                                            imagePath = imagePath,
+                                            fileName = fileName,
+                                            originalUri = metaItem?.originalUri,
+                                            textContent = metaItem?.textContent,
+                                            pdfPages = pdfPages,
+                                            handlers = ThumbnailClickHandlers(
+                                                onImageClick = onImageClick,
+                                                onVideoClick = { onImageClick(it) },
+                                                onFileClick = onFileContentClick,
+                                                onPdfClick = onPdfPagesClick
                                             )
+                                        )
+                                        if (type == "pdf" && metaItem?.warning != null) {
+                                            Text(metaItem.warning!!, style = MaterialTheme.typography.labelSmall, color = Color(0xFFE53935), maxLines = 1, overflow = TextOverflow.Ellipsis)
                                         }
                                     }
                                 }

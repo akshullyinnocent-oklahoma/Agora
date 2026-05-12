@@ -13,15 +13,17 @@ object PdfPageRenderer {
     private const val MAX_PAGES = 5
     private const val TARGET_LONG_EDGE = 1536
 
-    fun renderAsImages(context: Context, uri: Uri): List<String> {
+    fun renderAsImages(context: Context, uri: Uri, pages: Set<Int>? = null): List<String> {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP) return emptyList()
 
         val fd = context.contentResolver.openFileDescriptor(uri, "r") ?: return emptyList()
         val renderer = PdfRenderer(ParcelFileDescriptor(fd))
         val paths = mutableListOf<String>()
 
-        val pageCount = minOf(renderer.pageCount, MAX_PAGES)
-        for (i in 0 until pageCount) {
+        val totalPages = renderer.pageCount
+        val selectedPages = pages?.filter { it in 0 until totalPages }?.toSet()
+            ?: (0 until minOf(totalPages, MAX_PAGES)).toSet()
+        for (i in selectedPages.sorted()) {
             val page = renderer.openPage(i)
             val scale = TARGET_LONG_EDGE.toFloat() / maxOf(page.width, page.height)
             val scaledWidth = (page.width * scale).toInt().coerceAtLeast(1)

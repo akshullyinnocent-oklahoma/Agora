@@ -202,6 +202,14 @@ fun MainNavigation(viewModel: ChatViewModel) {
                 onImageClick = { url ->
                     focusManager.clearFocus()
                     fullScreenImageUrl = url
+                },
+                onFileContentClick = { name, content ->
+                    focusManager.clearFocus()
+                    viewModel.showFilePreview(name, content)
+                },
+                onPdfPagesClick = { pages, idx ->
+                    focusManager.clearFocus()
+                    viewModel.showPdfPreview(pages, idx)
                 }
             )
 
@@ -257,7 +265,10 @@ fun MainNavigation(viewModel: ChatViewModel) {
                 val mimeType = remember(url) {
                     try { context.contentResolver.getType(android.net.Uri.parse(url)) } catch (_: Exception) { null }
                 }
-                val isVideo = mimeType?.startsWith("video/") == true
+                val isVideo = mimeType?.startsWith("video/") == true ||
+                    url.endsWith(".mp4", true) || url.endsWith(".webm", true) ||
+                    url.endsWith(".mov", true) || url.endsWith(".avi", true) ||
+                    url.contains("vid_original_")
 
                 if (isVideo) {
                     com.newoether.agora.ui.chat.VideoPlayer(
@@ -597,6 +608,32 @@ fun MainNavigation(viewModel: ChatViewModel) {
                 }
             }
 
+            // PDF page viewer
+            val pdfPages by viewModel.previewPdfPages.collectAsState()
+            val pdfIndex by viewModel.previewPdfIndex.collectAsState()
+            if (pdfPages.isNotEmpty()) {
+                var currentPage by remember { mutableIntStateOf(pdfIndex) }
+                Box(modifier = Modifier.fillMaxSize().background(Color.Black).statusBarsPadding().navigationBarsPadding()) {
+                    com.newoether.agora.ui.chat.ZoomableImage(model = pdfPages[currentPage], modifier = Modifier.fillMaxSize())
+                    Surface(shape = RoundedCornerShape(50), color = Color.Black.copy(alpha = 0.6f), modifier = Modifier.align(Alignment.TopStart).padding(12.dp)) {
+                        Text("${currentPage + 1} / ${pdfPages.size}", color = Color.White, style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp))
+                    }
+                    IconButton(onClick = { viewModel.clearPreviews() }, modifier = Modifier.align(Alignment.TopEnd).padding(12.dp).background(Color.Black.copy(alpha = 0.4f), CircleShape)) {
+                        Icon(Icons.Default.Close, "Close", tint = Color.White)
+                    }
+                    BackHandler(enabled = true) { viewModel.clearPreviews() }
+                    if (currentPage > 0) Box(Modifier.fillMaxHeight().fillMaxWidth(0.15f).align(Alignment.CenterStart).clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) { currentPage-- })
+                    if (currentPage < pdfPages.size - 1) Box(Modifier.fillMaxHeight().fillMaxWidth(0.15f).align(Alignment.CenterEnd).clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) { currentPage++ })
+                }
+            }
+
+            // Text file viewer
+            val fileContent by viewModel.previewFileContent.collectAsState()
+            val fileName by viewModel.previewFileName.collectAsState()
+            if (fileContent != null && fileName != null) {
+                com.newoether.agora.ui.chat.TextFileViewer(content = fileContent!!, fileName = fileName!!, onClose = { viewModel.clearPreviews() })
+            }
+
             SnackbarHost(
                 hostState = snackbarHostState,
                 modifier = Modifier
@@ -612,7 +649,9 @@ fun MainNavigation(viewModel: ChatViewModel) {
 fun ChatApp(
     viewModel: ChatViewModel,
     onOpenSettings: () -> Unit,
-    onImageClick: (String) -> Unit
+    onImageClick: (String) -> Unit,
+    onFileContentClick: ((String, String) -> Unit)? = null,
+    onPdfPagesClick: ((List<String>, Int) -> Unit)? = null
 ) {
     val scope = rememberCoroutineScope()
     val density = LocalDensity.current
@@ -1185,6 +1224,8 @@ fun ChatApp(
                                     }
                                 },
                                 onImageClick = onImageClick,
+                                onFileContentClick = onFileContentClick,
+                                onPdfPagesClick = onPdfPagesClick,
                                 contentPadding = PaddingValues(
                                     start = 8.dp, 
                                     end = 8.dp, 
@@ -1288,6 +1329,7 @@ fun ChatApp(
                         onWebSearchToggle = { viewModel.setWebSearchEnabled(it) },
                         onModelSelect = { viewModel.setActiveModel(it) },
                         onImageClick = onImageClick,
+                        onFileContentClick = { name, content -> viewModel.showFilePreview(name, content) },
                         modifier = Modifier,
                         textFieldState = textFieldState,
                         isExpanded = isExpanded,

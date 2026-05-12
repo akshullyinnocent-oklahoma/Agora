@@ -27,6 +27,7 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.ui.draw.rotate
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.text.input.*
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
@@ -130,6 +131,8 @@ fun ChatBottomBar(
     onWebSearchToggle: (Boolean) -> Unit = {},
     onModelSelect: (String) -> Unit,
     onImageClick: (String) -> Unit = {},
+    onFileContentClick: ((fileName: String, content: String) -> Unit)? = null,
+    onPdfPagesClick: ((pages: List<String>, startIndex: Int) -> Unit)? = null,
     modifier: Modifier = Modifier,
     textFieldState: TextFieldState = rememberSaveable(saver = TextFieldState.Saver) { TextFieldState() },
     isExpanded: Boolean = false,
@@ -152,6 +155,13 @@ fun ChatBottomBar(
     var selectedAttachments by remember { mutableStateOf<List<com.newoether.agora.model.SelectedAttachment>>(emptyList()) }
     var processingStates by remember { mutableStateOf<Map<String, Float>>(emptyMap()) }
     var pendingSend by remember { mutableStateOf(false) }
+
+    // PDF page selection dialog state
+    var showPdfPageDialog by remember { mutableStateOf(false) }
+    var pendingPdfUri by remember { mutableStateOf<String?>(null) }
+    var pendingPdfPages by remember { mutableIntStateOf(0) }
+    var pendingPdfFileName by remember { mutableStateOf<String?>(null) }
+    var pendingPdfMimeType by remember { mutableStateOf<String?>(null) }
 
     // Video slicing dialog state
     var showVideoSliceDialog by remember { mutableStateOf(false) }
@@ -228,7 +238,7 @@ fun ChatBottomBar(
         if (!showVideoSliceDialog) processNextVideo()
     }
     // File validation rejection dialog
-    var rejectedFileMessage by remember { mutableStateOf<String?>(null) }
+    var rejectedMessage by remember { mutableStateOf<String?>(null) }
 
     val fileLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.GetMultipleContents()
@@ -258,13 +268,25 @@ fun ChatBottomBar(
                     } else null
                 }
             } catch (_: Exception) { null }
+            if (type == "pdf" && !showPdfPageDialog) {
+                // Queue first PDF for page selection dialog
+                val pageCount = com.newoether.agora.util.PdfPageRenderer.getPageCount(context, uri)
+                if (pageCount > 0) {
+                    pendingPdfUri = uri.toString()
+                    pendingPdfPages = pageCount
+                    pendingPdfFileName = fileName
+                    pendingPdfMimeType = mimeType
+                    showPdfPageDialog = true
+                    continue
+                }
+            }
             validAttachments.add(com.newoether.agora.model.SelectedAttachment(
                 uri = uri.toString(), type = type,
                 mimeType = mimeType, fileName = fileName
             ))
         }
         if (rejectedMessages.isNotEmpty()) {
-            rejectedFileMessage = rejectedMessages.joinToString("\n")
+            rejectedMessage = rejectedMessages.joinToString("\n")
         }
         selectedAttachments = selectedAttachments + validAttachments
     }
@@ -309,7 +331,21 @@ fun ChatBottomBar(
                         modifier = Modifier.width(64.dp).padding(top = 5.dp)
                     ) {
                         Box {
-                            val clickableMod = if (!isFile || isVideo) Modifier.clickable { onImageClick(uriStr) } else Modifier
+                            val clickableMod = when {
+                                isFile -> {
+                                    if (onFileContentClick != null) Modifier.clickable {
+                                        val content = readFileContent(context, uriStr)
+                                        onFileContentClick(attachment.fileName ?: uriStr, content)
+                                    } else Modifier
+                                }
+                                isPdf -> {
+                                    if (onPdfPagesClick != null) Modifier.clickable {
+                                        onPdfPagesClick(emptyList(), 0) // pages rendered on send, preview with placeholder
+                                    } else Modifier
+                                }
+                                isVideo -> Modifier.clickable { onImageClick(uriStr) }
+                                else -> Modifier.clickable { onImageClick(uriStr) }
+                            }
                             val thumbModifier = Modifier
                                 .size(64.dp)
                                 .clip(RoundedCornerShape(8.dp))
@@ -749,15 +785,36 @@ fun ChatBottomBar(
     }
 
     // File rejection dialog
-    if (rejectedFileMessage != null) {
+    if (rejectedMessage != null) {
         AlertDialog(
-            onDismissRequest = { rejectedFileMessage = null },
+            onDismissRequest = { rejectedMessage = null },
             title = { Text(stringResource(R.string.file_unsupported_title)) },
-            text = { Text(rejectedFileMessage!!) },
+            text = { Text(rejectedMessage!!) },
             confirmButton = {
-                TextButton(onClick = { rejectedFileMessage = null }) {
+                TextButton(onClick = { rejectedMessage = null }) {
                     Text(stringResource(R.string.provider_close))
                 }
+            }
+        )
+    }
+
+    // PDF page selection dialog
+    if (showPdfPageDialog && pendingPdfUri != null) {
+        PdfPageSelectDialog(
+            totalPages = pendingPdfPages,
+            onConfirm = { selection ->
+                showPdfPageDialog = false
+                selectedAttachments = selectedAttachments + com.newoether.agora.model.SelectedAttachment(
+                    uri = pendingPdfUri!!, type = "pdf",
+                    mimeType = pendingPdfMimeType,
+                    fileName = pendingPdfFileName,
+                    selectedPages = selection.selectedPages
+                )
+                pendingPdfUri = null
+            },
+            onDismiss = {
+                showPdfPageDialog = false
+                pendingPdfUri = null
             }
         )
     }

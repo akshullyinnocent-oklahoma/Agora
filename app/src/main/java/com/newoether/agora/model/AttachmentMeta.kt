@@ -27,5 +27,6 @@ data class SelectedAttachment(
     val fileName: String? = null,
     val mimeType: String? = null,
     val fileSize: Long? = null,
-    val processedFrames: List<String>? = null
+    val processedFrames: List<String>? = null,
+    val selectedPages: Set<Int>? = null
 )

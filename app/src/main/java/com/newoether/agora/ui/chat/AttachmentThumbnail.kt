@@ -1,9 +1,20 @@
 package com.newoether.agora.ui.chat
 
+import android.content.Context
+import android.net.Uri
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.sizeIn
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -11,8 +22,46 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.newoether.agora.model.AttachmentItem
+import com.newoether.agora.model.AttachmentMeta
+
+fun resolveAttachmentType(
+    path: String,
+    metaItem: AttachmentItem?,
+    context: Context? = null
+): String {
+    if (metaItem != null) return metaItem.type
+    if (context == null) return "image"
+    val mimeType = try {
+        context.contentResolver.getType(Uri.parse(path))
+    } catch (_: Exception) { null }
+    return when {
+        mimeType == "application/pdf" -> "pdf"
+        mimeType?.startsWith("video/") == true -> "video"
+        mimeType != null && !mimeType.startsWith("image/") -> "file"
+        else -> "image"
+    }
+}
+
+fun findMetaForIndex(meta: AttachmentMeta?, index: Int): AttachmentItem? {
+    if (meta == null) return null
+    meta.items.firstOrNull { it.imageIndex == index }?.let { return it }
+    return meta.items.firstOrNull { m ->
+        m.imageIndex != null && (m.pageCount ?: 1) > 0 &&
+        index in m.imageIndex until m.imageIndex + (m.pageCount ?: 1)
+    }
+}
+
+fun readFileContent(context: Context, uriString: String, maxChars: Int = 10_000): String {
+    return try {
+        val stream = context.contentResolver.openInputStream(Uri.parse(uriString))
+        stream?.bufferedReader()?.use { it.readText().take(maxChars) } ?: ""
+    } catch (_: Exception) { "" }
+}
 
 @Composable
 fun FileThumbnail(
@@ -24,7 +73,7 @@ fun FileThumbnail(
         Box(
             modifier = modifier
                 .clip(RoundedCornerShape(8.dp))
-                .background(Color(0xFFE53935).copy(alpha = 0.1f)),
+                .background(Color(0xFFE53935).copy(alpha = 0.15f)),
             contentAlignment = Alignment.Center
         ) {
             Text("PDF", style = MaterialTheme.typography.labelMedium, color = Color(0xFFE53935), fontWeight = FontWeight.SemiBold)
@@ -41,3 +90,84 @@ fun FileThumbnail(
         }
     }
 }
+
+data class ThumbnailClickHandlers(
+    val onImageClick: ((String) -> Unit)? = null,
+    val onVideoClick: ((String) -> Unit)? = null,
+    val onFileClick: ((fileName: String, content: String) -> Unit)? = null,
+    val onPdfClick: ((pages: List<String>, startIndex: Int) -> Unit)? = null
+)
+
+@Composable
+fun AttachmentThumbnailItem(
+    type: String,
+    imagePath: String,
+    fileName: String?,
+    originalUri: String? = null,
+    textContent: String? = null,
+    pdfPages: List<String> = emptyList(),
+    showFileName: Boolean = true,
+    handlers: ThumbnailClickHandlers = ThumbnailClickHandlers(),
+    modifier: Modifier = Modifier
+) {
+    val thumbModifier = modifier
+        .sizeIn(maxWidth = 200.dp, maxHeight = 200.dp)
+        .clip(RoundedCornerShape(8.dp))
+
+    when (type) {
+        "file" -> {
+            val clickMod = if (textContent?.isNotEmpty() == true && handlers.onFileClick != null)
+                Modifier.clickable { handlers.onFileClick(fileName ?: "", textContent) } else Modifier
+            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(72.dp)) {
+                FileThumbnail(fileName = fileName, isPdf = false, modifier = Modifier.size(64.dp).then(clickMod))
+                if (showFileName && fileName != null) {
+                    Text(fileName, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp))
+                }
+            }
+        }
+        "pdf" -> {
+            val hasPages = pdfPages.isNotEmpty()
+            val clickMod = if (hasPages && handlers.onPdfClick != null)
+                Modifier.clickable { handlers.onPdfClick(pdfPages, 0) } else Modifier
+            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(72.dp)) {
+                FileThumbnail(fileName = null, isPdf = true, modifier = Modifier.size(64.dp).then(clickMod))
+                if (showFileName && fileName != null) {
+                    Text(fileName, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp))
+                }
+            }
+        }
+        "video" -> {
+            val clickMod = if (originalUri != null && handlers.onVideoClick != null)
+                Modifier.clickable { handlers.onVideoClick(originalUri) } else Modifier
+            Box(modifier = clickMod) {
+                coil.compose.AsyncImage(
+                    model = imagePath,
+                    contentDescription = null,
+                    modifier = thumbModifier,
+                    contentScale = ContentScale.Fit
+                )
+                Icon(
+                    Icons.Default.PlayArrow,
+                    contentDescription = "Play",
+                    tint = Color.White,
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .size(28.dp)
+                        .background(Color.Black.copy(alpha = 0.5f), CircleShape)
+                        .padding(4.dp)
+                )
+            }
+        }
+        else -> { // image
+            Box(modifier = Modifier.clickable { handlers.onImageClick?.invoke(imagePath) }) {
+                coil.compose.AsyncImage(
+                    model = imagePath,
+                    contentDescription = null,
+                    modifier = thumbModifier,
+                    contentScale = ContentScale.Fit
+                )
+            }
+        }
+    }
+}
+

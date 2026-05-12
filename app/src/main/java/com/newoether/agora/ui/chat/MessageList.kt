@@ -41,7 +41,9 @@ fun MessageList(
     onEditMessage: (String, String) -> Unit = { _, _ -> },
     onSwitchBranch: (String?, Int) -> Unit = { _, _ -> },
     onRegenerate: (String) -> Unit = {},
-    onImageClick: (String) -> Unit = {}
+    onImageClick: (String) -> Unit = {},
+    onFileContentClick: ((fileName: String, content: String) -> Unit)? = null,
+    onPdfPagesClick: ((pages: List<String>, startIndex: Int) -> Unit)? = null
 ) {
     var editingMessageId by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(isLoading) { if (isLoading) editingMessageId = null }
@@ -104,6 +106,8 @@ fun MessageList(
                     onSwitchBranch = { direction -> onSwitchBranch(message.parentId, direction) },
                     onRegenerate = onRegenerate,
                     onImageClick = onImageClick,
+                    onFileContentClick = onFileContentClick,
+                    onPdfPagesClick = onPdfPagesClick,
                     onHeightChanged = { height -> messageHeights[message.id] = height }
                 )
             }

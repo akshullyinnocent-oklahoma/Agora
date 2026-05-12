@@ -693,7 +693,13 @@ class GenerationManager(
                 }
                 val meta = it.attachmentMeta?.let { json -> try { Json.decodeFromString<com.newoether.agora.model.AttachmentMeta>(json) } catch (_: Exception) { null } }
                 val combinedText = if (meta != null && it.participant == Participant.USER) {
-                    val fileContent = meta.items.mapNotNull { it.textContent }.joinToString("")
+                    val fileContent = meta.items.mapNotNull { item ->
+                        val content = item.textContent
+                        if (content != null) {
+                            val label = item.fileName ?: "file"
+                            "\n\n--- File: $label ---\n$content"
+                        } else null
+                    }.joinToString("")
                     it.text + fileContent
                 } else it.text
                 ChatMessage(id = it.id, parentId = it.parentId, text = combinedText, images = it.images, thoughts = it.thoughts, thoughtTitle = it.thoughtTitle, tokenCount = it.tokenCount, status = it.status, participant = it.participant, timestamp = it.timestamp, thoughtTimeMs = it.thoughtTimeMs, segments = segs, toolCall = toolCall)

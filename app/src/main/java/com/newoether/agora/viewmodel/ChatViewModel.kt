@@ -253,6 +253,31 @@ class ChatViewModel(
         viewModelScope.launch { _snackbarMessage.emit(SnackbarEvent(message, actionLabel, onAction)) }
     }
 
+    private val _previewPdfPages = MutableStateFlow<List<String>>(emptyList())
+    val previewPdfPages: StateFlow<List<String>> = _previewPdfPages.asStateFlow()
+    private val _previewPdfIndex = MutableStateFlow(0)
+    val previewPdfIndex: StateFlow<Int> = _previewPdfIndex.asStateFlow()
+
+    private val _previewFileContent = MutableStateFlow<String?>(null)
+    val previewFileContent: StateFlow<String?> = _previewFileContent.asStateFlow()
+    private val _previewFileName = MutableStateFlow<String?>(null)
+    val previewFileName: StateFlow<String?> = _previewFileName.asStateFlow()
+
+    fun showPdfPreview(pages: List<String>, startIndex: Int) {
+        _previewPdfPages.value = pages
+        _previewPdfIndex.value = startIndex
+    }
+
+    fun showFilePreview(fileName: String, content: String) {
+        _previewFileName.value = fileName
+        _previewFileContent.value = content
+    }
+
+    fun clearPreviews() {
+        _previewPdfPages.value = emptyList()
+        _previewFileContent.value = null
+    }
+
     private val _streamingMessage = MutableStateFlow<ChatMessage?>(null)
     private val _selectedChildren = MutableStateFlow<Map<String?, String>>(emptyMap())
 
@@ -1437,7 +1462,7 @@ class ChatViewModel(
                                 val content = stream.bufferedReader().readText().take(500_000)
                                 if (content.isNotBlank()) {
                                     val fileName = att.fileName ?: getFileName(app, android.net.Uri.parse(att.uri))
-                                    textContent = "\n\n--- File: $fileName ---\n$content"
+                                    textContent = content
                                 }
                             }
                         } catch (_: Exception) {}
@@ -1448,7 +1473,7 @@ class ChatViewModel(
                         ))
                     }
                     "pdf" -> {
-                        val pagePaths = com.newoether.agora.util.PdfPageRenderer.renderAsImages(app, android.net.Uri.parse(att.uri))
+                        val pagePaths = com.newoether.agora.util.PdfPageRenderer.renderAsImages(app, android.net.Uri.parse(att.uri), att.selectedPages)
                         if (pagePaths.isEmpty()) {
                             _snackbarMessage.emit(SnackbarEvent(app.getString(R.string.pdf_render_failed)))
                             continue
