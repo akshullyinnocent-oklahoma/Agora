@@ -243,7 +243,7 @@ fun VideoPlayer(
                     .fillMaxWidth()
                     .navigationBarsPadding()
                     .background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.7f))))
-                    .padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 24.dp)
+                    .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 24.dp)
             ) {
                 // Time label
                 Text(
@@ -254,7 +254,7 @@ fun VideoPlayer(
                     textAlign = androidx.compose.ui.text.style.TextAlign.Center
                 )
 
-                Spacer(Modifier.height(4.dp))
+                Spacer(Modifier.height(12.dp))
 
                 // Seekbar
                 Slider(

@@ -467,12 +467,32 @@ fun MessageItem(
                                 val meta = remember(message.attachmentMeta) {
                                     message.attachmentMeta
                                 }
+                                // Build display items: skip non-first video frames, use meta for type info
+                                val displayItems = remember(message.images, meta) {
+                                    val skipIndices = mutableSetOf<Int>()
+                                    if (meta != null) {
+                                        for (item in meta.items) {
+                                            if (item.type == "video" && item.imageIndex != null && (item.pageCount ?: 1) > 1) {
+                                                for (i in item.imageIndex + 1 until item.imageIndex + (item.pageCount ?: 1)) {
+                                                    skipIndices.add(i)
+                                                }
+                                            }
+                                        }
+                                    }
+                                    message.images.mapIndexedNotNull { index, path ->
+                                        if (index in skipIndices) null
+                                        else {
+                                            val item = meta?.items?.firstOrNull { it.imageIndex == index }
+                                            Triple(index, path, item)
+                                        }
+                                    }
+                                }
+
                                 androidx.compose.foundation.lazy.LazyRow(
                                     modifier = Modifier.padding(bottom = if (message.text.isNotEmpty()) 8.dp else 0.dp),
                                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
-                                    items(message.images.withIndex().toList()) { (index, imagePath) ->
-                                        val metaItem = meta?.items?.getOrNull(index)
+                                    items(displayItems) { (index, imagePath, metaItem) ->
                                         val isVideo = metaItem?.type == "video"
                                         val isPdf = metaItem?.type == "pdf"
                                         val isFileType = metaItem?.type == "file" || (!isVideo && !isPdf && remember(imagePath) {
