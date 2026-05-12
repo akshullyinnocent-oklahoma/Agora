@@ -30,12 +30,12 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.input.*
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CloseFullscreen
+
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AddPhotoAlternate
-import androidx.compose.material.icons.filled.OpenInFull
+
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.KeyboardArrowDown
@@ -258,7 +258,7 @@ fun ChatBottomBar(
     Column(modifier = modifier.fillMaxWidth().then(if (isExpanded) Modifier.fillMaxHeight().statusBarsPadding() else Modifier).padding(8.dp)) {
         if (isExpanded) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                IconButton(onClick = onCollapse) { Icon(Icons.Default.CloseFullscreen, stringResource(R.string.collapse), tint = MaterialTheme.colorScheme.primary) }
+                IconButton(onClick = onCollapse) { Icon(painter = androidx.compose.ui.res.painterResource(id = R.drawable.collapse_all_24px), contentDescription = stringResource(R.string.collapse), modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)) }
             }
         }
 
@@ -436,7 +436,7 @@ fun ChatBottomBar(
             TextField(state = textFieldState, scrollState = scrollState, modifier = Modifier.fillMaxWidth().then(if (isExpanded) Modifier.fillMaxHeight() else Modifier).verticalScrollbar(scrollState, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)), placeholder = { Text(stringResource(R.string.ask_agora), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)) }, enabled = true, lineLimits = TextFieldLineLimits.MultiLine(1, if (isExpanded) Int.MAX_VALUE else 6), colors = TextFieldDefaults.colors(focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent, disabledIndicatorColor = Color.Transparent, focusedContainerColor = Color.Transparent, unfocusedContainerColor = Color.Transparent, disabledContainerColor = Color.Transparent, cursorColor = MaterialTheme.colorScheme.primary), textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface))
             if (!isExpanded) {
                 val elevatedSurface = MaterialTheme.colorScheme.surfaceColorAtElevation(2.dp)
-                IconButton(onClick = onExpand, modifier = Modifier.align(Alignment.TopEnd).padding(end = 4.dp, top = 4.dp).size(32.dp).background(Brush.radialGradient(listOf(elevatedSurface, elevatedSurface.copy(alpha = 0.5f), Color.Transparent)), CircleShape)) { Icon(Icons.Default.OpenInFull, stringResource(R.string.expand), modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)) }
+                IconButton(onClick = onExpand, modifier = Modifier.align(Alignment.TopEnd).padding(end = 4.dp, top = 4.dp).size(40.dp).background(Brush.radialGradient(listOf(elevatedSurface, elevatedSurface.copy(alpha = 0.5f), Color.Transparent)), CircleShape)) { Icon(painter = androidx.compose.ui.res.painterResource(id = R.drawable.expand_all_24px), contentDescription = stringResource(R.string.expand), modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)) }
             }
         }
         }
