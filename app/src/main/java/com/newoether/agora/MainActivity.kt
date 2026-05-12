@@ -575,6 +575,9 @@ fun MainNavigation(viewModel: ChatViewModel) {
                             ),
                         contentScale = ContentScale.Fit
                     )
+                    if (imageSize == Size.Zero) {
+                        CircularProgressIndicator(modifier = Modifier.align(Alignment.Center), color = Color.White, strokeWidth = 2.dp)
+                    }
                     // PDF page counter and navigation
                     val pdfPageIndex = pdfPages.indexOf(url)
                     if (pdfPageIndex >= 0) {
@@ -633,8 +636,17 @@ fun MainNavigation(viewModel: ChatViewModel) {
             // Text file viewer
             val fileContent by viewModel.previewFileContent.collectAsState()
             val fileName by viewModel.previewFileName.collectAsState()
-            if (fileContent != null && fileName != null) {
-                com.newoether.agora.ui.chat.TextFileViewer(content = fileContent!!, fileName = fileName!!, onClose = { viewModel.clearPreviews() })
+            var savedContent by remember { mutableStateOf(fileContent) }
+            var savedName by remember { mutableStateOf(fileName) }
+            if (fileContent != null) { savedContent = fileContent; savedName = fileName }
+            AnimatedVisibility(
+                visible = fileContent != null,
+                enter = fadeIn(),
+                exit = fadeOut()
+            ) {
+                if (savedContent != null && savedName != null) {
+                    com.newoether.agora.ui.chat.TextFileViewer(content = savedContent!!, fileName = savedName!!, onClose = { viewModel.clearPreviews() })
+                }
             }
 
             SnackbarHost(

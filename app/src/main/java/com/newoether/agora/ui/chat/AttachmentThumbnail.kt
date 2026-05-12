@@ -117,7 +117,7 @@ fun AttachmentThumbnailItem(
     when (type) {
         "file" -> {
             val clickMod = if (textContent?.isNotEmpty() == true && handlers.onFileClick != null)
-                Modifier.clickable { handlers.onFileClick(fileName ?: "", textContent) } else Modifier
+                Modifier.clip(RoundedCornerShape(8.dp)).clickable { handlers.onFileClick(fileName ?: "", textContent) } else Modifier
             Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(72.dp)) {
                 FileThumbnail(fileName = fileName, isPdf = false, modifier = Modifier.size(64.dp).then(clickMod))
                 if (showFileName && fileName != null) {
@@ -128,7 +128,7 @@ fun AttachmentThumbnailItem(
         "pdf" -> {
             val hasPages = pdfPages.isNotEmpty()
             val clickMod = if (hasPages && handlers.onPdfClick != null)
-                Modifier.clickable { handlers.onPdfClick(pdfPages, 0) } else Modifier
+                Modifier.clip(RoundedCornerShape(8.dp)).clickable { handlers.onPdfClick(pdfPages, 0) } else Modifier
             Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(72.dp)) {
                 FileThumbnail(fileName = null, isPdf = true, modifier = Modifier.size(64.dp).then(clickMod))
                 if (showFileName && fileName != null) {
@@ -138,7 +138,7 @@ fun AttachmentThumbnailItem(
         }
         "video" -> {
             val clickMod = if (originalUri != null && handlers.onVideoClick != null)
-                Modifier.clickable { handlers.onVideoClick(originalUri) } else Modifier
+                Modifier.clip(RoundedCornerShape(8.dp)).clickable { handlers.onVideoClick(originalUri) } else Modifier
             Box(modifier = clickMod) {
                 coil.compose.AsyncImage(
                     model = imagePath,
@@ -159,7 +159,7 @@ fun AttachmentThumbnailItem(
             }
         }
         else -> { // image
-            Box(modifier = Modifier.clickable { handlers.onImageClick?.invoke(imagePath) }) {
+            Box(modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { handlers.onImageClick?.invoke(imagePath) }) {
                 coil.compose.AsyncImage(
                     model = imagePath,
                     contentDescription = null,
