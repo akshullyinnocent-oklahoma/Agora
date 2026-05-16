@@ -128,11 +128,13 @@ fun ChatBottomBar(
     thinkingEnabled: Boolean = true,
     thinkingLevel: String = "medium",
     webSearchEnabled: Boolean = false,
+    shellEnabled: Boolean = false,
     onCodeExecutionToggle: (Boolean) -> Unit = {},
     onGoogleSearchToggle: (Boolean) -> Unit = {},
     onThinkingToggle: (Boolean) -> Unit = {},
     onThinkingLevelChange: (String) -> Unit = {},
     onWebSearchToggle: (Boolean) -> Unit = {},
+    onShellToggle: (Boolean) -> Unit = {},
     onModelSelect: (String) -> Unit,
     onImageClick: (String) -> Unit = {},
     onFileContentClick: ((fileName: String, content: String) -> Unit)? = null,
@@ -775,6 +777,23 @@ fun ChatBottomBar(
                                 )
                             },
                             onClick = { onWebSearchToggle(!webSearchEnabled) }
+                        )
+                        DropdownMenuItem(
+                            text = {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Default.Terminal, null, modifier = Modifier.size(18.dp))
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Text(stringResource(R.string.shell_title))
+                                }
+                            },
+                            trailingIcon = {
+                                Switch(
+                                    checked = shellEnabled,
+                                    onCheckedChange = { onShellToggle(it) },
+                                    modifier = Modifier.scale(0.7f)
+                                )
+                            },
+                            onClick = { onShellToggle(!shellEnabled) }
                         )
                     }
                 }

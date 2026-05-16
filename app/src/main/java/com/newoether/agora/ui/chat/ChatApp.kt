@@ -109,6 +109,7 @@ fun ChatApp(
     val thinkingEnabled by viewModel.thinkingEnabled.collectAsState()
     val thinkingLevel by viewModel.thinkingLevel.collectAsState()
     val webSearchEnabled by viewModel.webSearchEnabled.collectAsState()
+    val shellEnabled by viewModel.shellEnabled.collectAsState()
 
     val systemPrompts by viewModel.systemPrompts.collectAsState()
     val activeSystemPromptId by viewModel.activeSystemPromptId.collectAsState()
@@ -732,6 +733,8 @@ fun ChatApp(
                         onThinkingLevelChange = { viewModel.setThinkingLevel(it) },
                         webSearchEnabled = webSearchEnabled,
                         onWebSearchToggle = { viewModel.setWebSearchEnabled(it) },
+                        shellEnabled = shellEnabled,
+                        onShellToggle = { viewModel.setShellEnabled(it) },
                         onModelSelect = { viewModel.setActiveModel(it) },
                         onImageClick = onImageClick,
                         onFileContentClick = { name, content -> viewModel.showFilePreview(name, content) },

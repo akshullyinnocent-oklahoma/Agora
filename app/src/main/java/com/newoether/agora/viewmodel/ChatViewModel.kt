@@ -258,6 +258,10 @@ class ChatViewModel(
     val webSearchProvider = settingsManager.webSearchProvider.stateIn(viewModelScope, SharingStarted.Eagerly, "brave")
     val webSearchApiKeys = settingsManager.webSearchApiKeys.stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
     val webSearchBaseUrl = settingsManager.webSearchBaseUrl.stateIn(viewModelScope, SharingStarted.Eagerly, "")
+    val shellEnabled = settingsManager.shellEnabled.stateIn(viewModelScope, SharingStarted.Eagerly, false)
+    val shellServerUrl = settingsManager.shellServerUrl.stateIn(viewModelScope, SharingStarted.Eagerly, "")
+    val shellApiKey = settingsManager.shellApiKey.stateIn(viewModelScope, SharingStarted.Eagerly, "")
+    val shellTimeout = settingsManager.shellTimeout.stateIn(viewModelScope, SharingStarted.Eagerly, 30)
     val ragThreshold = settingsManager.ragThreshold.stateIn(viewModelScope, SharingStarted.Eagerly, 0.5f)
 
         val conversations: StateFlow<List<ChatConversation>> = chatDao.getAllConversations()
@@ -982,6 +986,10 @@ class ChatViewModel(
     fun setWebSearchProvider(provider: String) { viewModelScope.launch { settingsManager.saveWebSearchProvider(provider) } }
     fun setWebSearchApiKey(provider: String, apiKey: String) { viewModelScope.launch { settingsManager.saveWebSearchApiKey(provider, apiKey) } }
     fun setWebSearchBaseUrl(url: String) { viewModelScope.launch { settingsManager.saveWebSearchBaseUrl(url) } }
+    fun setShellEnabled(enabled: Boolean) { viewModelScope.launch { settingsManager.saveShellEnabled(enabled) } }
+    fun setShellServerUrl(url: String) { viewModelScope.launch { settingsManager.saveShellServerUrl(url) } }
+    fun setShellApiKey(key: String) { viewModelScope.launch { settingsManager.saveShellApiKey(key) } }
+    fun setShellTimeout(timeout: Int) { viewModelScope.launch { settingsManager.saveShellTimeout(timeout) } }
     fun setRagThreshold(threshold: Float) { viewModelScope.launch { settingsManager.saveRagThreshold(threshold) } }
     suspend fun testRemoteEmbedding(modelName: String, baseUrl: String): String? {
         val apiKey = resolveEmbeddingApiKey() ?: return "No API key configured"
@@ -1279,7 +1287,11 @@ class ChatViewModel(
                 webSearchEnabled = webSearchEnabled.value,
                 webSearchApiKeys = webSearchApiKeys.value,
                 webSearchProvider = webSearchProvider.value,
-                webSearchBaseUrl = webSearchBaseUrl.value
+                webSearchBaseUrl = webSearchBaseUrl.value,
+                shellEnabled = shellEnabled.value,
+                shellServerUrl = shellServerUrl.value,
+                shellApiKey = shellApiKey.value,
+                shellTimeout = shellTimeout.value
             )
             generationManager.generate(
                 conversationId = currentId,
@@ -1377,7 +1389,11 @@ class ChatViewModel(
                 webSearchEnabled = webSearchEnabled.value,
                 webSearchApiKeys = webSearchApiKeys.value,
                 webSearchProvider = webSearchProvider.value,
-                webSearchBaseUrl = webSearchBaseUrl.value
+                webSearchBaseUrl = webSearchBaseUrl.value,
+                shellEnabled = shellEnabled.value,
+                shellServerUrl = shellServerUrl.value,
+                shellApiKey = shellApiKey.value,
+                shellTimeout = shellTimeout.value
             )
             generationManager.generate(
                 conversationId = currentId,
@@ -1686,7 +1702,11 @@ class ChatViewModel(
                 webSearchEnabled = webSearchEnabled.value,
                 webSearchApiKeys = webSearchApiKeys.value,
                 webSearchProvider = webSearchProvider.value,
-                webSearchBaseUrl = webSearchBaseUrl.value
+                webSearchBaseUrl = webSearchBaseUrl.value,
+                shellEnabled = shellEnabled.value,
+                shellServerUrl = shellServerUrl.value,
+                shellApiKey = shellApiKey.value,
+                shellTimeout = shellTimeout.value
             )
             generationManager.generate(
                 conversationId = currentId,

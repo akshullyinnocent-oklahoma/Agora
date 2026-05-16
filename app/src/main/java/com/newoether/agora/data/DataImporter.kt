@@ -378,6 +378,9 @@ class DataImporter(
                         settingsManager.saveWebSearchProvider(s.webSearchProvider)
                         settingsManager.saveWebSearchBaseUrl(s.webSearchBaseUrl)
                         settingsManager.saveRagThreshold(s.ragThreshold)
+                        settingsManager.saveShellEnabled(s.shellEnabled)
+                        settingsManager.saveShellServerUrl(s.shellServerUrl)
+                        settingsManager.saveShellTimeout(s.shellTimeout)
                         // Skip local chat models — GGUF files don't exist on this device
                         s.activeSystemPromptId?.let { settingsManager.setActiveSystemPromptId(it) }
                         settingsImported = true
@@ -399,6 +402,7 @@ class DataImporter(
                             data.webSearchApiKeys.forEach { (provider, key) ->
                                 settingsManager.saveWebSearchApiKey(provider, key)
                             }
+                            settingsManager.saveShellApiKey(data.shellApiKey)
                         } else {
                             // MERGE: add non-duplicate keys
                             val existing = settingsManager.apiKeys.first().toMutableList()
@@ -414,6 +418,9 @@ class DataImporter(
                                 if (provider !in current) {
                                     settingsManager.saveWebSearchApiKey(provider, key)
                                 }
+                            }
+                            if (data.shellApiKey.isNotBlank() && settingsManager.shellApiKey.first().isBlank()) {
+                                settingsManager.saveShellApiKey(data.shellApiKey)
                             }
                         }
                         // Apply active key IDs
@@ -505,6 +512,10 @@ class DataImporter(
         val webSearchProvider: String = "brave",
         val webSearchBaseUrl: String = "",
         val ragThreshold: Float = 0.5f,
+        val shellEnabled: Boolean = false,
+        val shellServerUrl: String = "",
+        val shellApiKey: String = "",
+        val shellTimeout: Int = 30,
         val customProviders: List<CustomProviderConfig> = emptyList(),
         val localChatModels: List<LocalChatModelConfig> = emptyList(),
         val activeLocalChatModelId: String = "",
@@ -515,6 +526,7 @@ class DataImporter(
     private data class ExportApiKeys(
         val apiKeys: List<ApiKeyEntry> = emptyList(),
         val activeApiKeyIds: Map<String, String> = emptyMap(),
-        val webSearchApiKeys: Map<String, String> = emptyMap()
+        val webSearchApiKeys: Map<String, String> = emptyMap(),
+        val shellApiKey: String = ""
     )
 }

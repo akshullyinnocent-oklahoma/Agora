@@ -102,6 +102,10 @@ class DataExporter(
         val webSearchProvider: String,
         val webSearchBaseUrl: String,
         val ragThreshold: Float,
+        val shellEnabled: Boolean = false,
+        val shellServerUrl: String = "",
+        val shellApiKey: String = "",
+        val shellTimeout: Int = 30,
         val customProviders: List<CustomProviderConfig> = emptyList(),
         val localChatModels: List<LocalChatModelConfig>,
         val activeLocalChatModelId: String,
@@ -112,7 +116,8 @@ class DataExporter(
     private data class ExportApiKeys(
         val apiKeys: List<ApiKeyEntry>,
         val activeApiKeyIds: Map<String, String>,
-        val webSearchApiKeys: Map<String, String>
+        val webSearchApiKeys: Map<String, String>,
+        val shellApiKey: String = ""
     )
 
     data class ExportResult(
@@ -291,6 +296,10 @@ class DataExporter(
                     webSearchProvider = settingsManager.webSearchProvider.first(),
                     webSearchBaseUrl = settingsManager.webSearchBaseUrl.first(),
                     ragThreshold = settingsManager.ragThreshold.first(),
+                    shellEnabled = settingsManager.shellEnabled.first(),
+                    shellServerUrl = settingsManager.shellServerUrl.first(),
+                    shellApiKey = if (includeApiKeys) settingsManager.shellApiKey.first() else "",
+                    shellTimeout = settingsManager.shellTimeout.first(),
                     customProviders = settingsManager.customProviders.first(),
                     localChatModels = settingsManager.localChatModels.first().map { it.copy(localFilePath = "") },
                     activeLocalChatModelId = "", // cleared — models don't exist on target device
@@ -307,7 +316,8 @@ class DataExporter(
                 val keys = ExportApiKeys(
                     apiKeys = settingsManager.apiKeys.first(),
                     activeApiKeyIds = settingsManager.activeApiKeyIds.first(),
-                    webSearchApiKeys = settingsManager.webSearchApiKeys.first()
+                    webSearchApiKeys = settingsManager.webSearchApiKeys.first(),
+                    shellApiKey = settingsManager.shellApiKey.first()
                 )
                 zip.putNextEntry(ZipEntry("api_keys.json"))
                 zip.write(Json.encodeToString(keys).toByteArray())

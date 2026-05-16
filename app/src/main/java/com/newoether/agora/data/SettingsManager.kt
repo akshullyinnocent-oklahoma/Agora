@@ -86,6 +86,10 @@ class SettingsManager(private val context: Context) {
         val LOCAL_CHAT_MODELS_JSON = stringPreferencesKey("local_chat_models_json")
         val ACTIVE_LOCAL_CHAT_MODEL_ID = stringPreferencesKey("active_local_chat_model_id")
         val CUSTOM_PROVIDERS_JSON = stringPreferencesKey("custom_providers_json")
+        val SHELL_ENABLED = booleanPreferencesKey("shell_enabled")
+        val SHELL_SERVER_URL = stringPreferencesKey("shell_server_url")
+        val SHELL_API_KEY = stringPreferencesKey("shell_api_key")
+        val SHELL_TIMEOUT = stringPreferencesKey("shell_timeout")
     }
 
     val selectedModel: Flow<String> = context.dataStore.data.map { it[SELECTED_MODEL] ?: "gemini-1.5-flash" }
@@ -166,6 +170,11 @@ class SettingsManager(private val context: Context) {
         val jsonStr = pref[CUSTOM_PROVIDERS_JSON] ?: "[]"
         try { json.decodeFromString<List<CustomProviderConfig>>(jsonStr) } catch (e: Exception) { emptyList() }
     }
+
+    val shellEnabled: Flow<Boolean> = context.dataStore.data.map { it[SHELL_ENABLED] ?: false }
+    val shellServerUrl: Flow<String> = context.dataStore.data.map { it[SHELL_SERVER_URL] ?: "" }
+    val shellApiKey: Flow<String> = context.dataStore.data.map { it[SHELL_API_KEY] ?: "" }
+    val shellTimeout: Flow<Int> = context.dataStore.data.map { it[SHELL_TIMEOUT]?.toIntOrNull() ?: 30 }
 
     suspend fun saveProviderBaseUrl(provider: String, url: String) {
         context.dataStore.edit { prefs ->
@@ -320,5 +329,21 @@ class SettingsManager(private val context: Context) {
             if (model == null) it.remove(TITLE_GENERATION_MODEL)
             else it[TITLE_GENERATION_MODEL] = model
         }
+    }
+
+    suspend fun saveShellEnabled(enabled: Boolean) {
+        context.dataStore.edit { it[SHELL_ENABLED] = enabled }
+    }
+
+    suspend fun saveShellServerUrl(url: String) {
+        context.dataStore.edit { it[SHELL_SERVER_URL] = url }
+    }
+
+    suspend fun saveShellApiKey(key: String) {
+        context.dataStore.edit { it[SHELL_API_KEY] = key }
+    }
+
+    suspend fun saveShellTimeout(timeout: Int) {
+        context.dataStore.edit { it[SHELL_TIMEOUT] = timeout.toString() }
     }
 }

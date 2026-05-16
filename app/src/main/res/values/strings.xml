@@ -213,6 +213,18 @@
     <string name="web_search_searxng_url">SearXNG Base URL</string>
     <string name="web_search_searxng_url_hint">https://searx.be</string>
 
+    <!-- Settings - Shell Page -->
+    <string name="shell_title">Shell</string>
+    <string name="shell_desc">Remote shell command execution</string>
+    <string name="shell_enable">Enable Shell Tool</string>
+    <string name="shell_enable_desc">Allow the model to execute shell commands via a remote server</string>
+    <string name="shell_server_url">Server URL</string>
+    <string name="shell_server_url_hint">http://192.168.1.100:8080</string>
+    <string name="shell_api_key">API Key</string>
+    <string name="shell_api_key_hint">Optional bearer token</string>
+    <string name="shell_timeout">Command Timeout (seconds)</string>
+    <string name="shell_timeout_value">%d s</string>
+
     <!-- Settings - Title Generation -->
     <string name="title_gen_auto">Auto-Generate Title</string>
     <string name="title_gen_auto_desc">Generate a title after the first response</string>

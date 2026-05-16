@@ -12,7 +12,7 @@ object SearchResultFormatter {
 
     fun isRawSearchResult(text: String): Boolean = try {
         val type = Json.parseToJsonElement(text).jsonObject["type"]?.let { (it as? JsonPrimitive)?.content }
-        type == "web_search" || type == "search_conversations"
+        type == "web_search" || type == "search_conversations" || type == "execute_shell_command"
     } catch (_: Exception) { false }
 
     fun format(text: String, context: Context): String {
@@ -24,6 +24,7 @@ object SearchResultFormatter {
             when (json["type"]?.let { (it as? JsonPrimitive)?.content }) {
                 "web_search" -> formatWebSearch(json, context)
                 "search_conversations" -> formatConversationSearch(json, context)
+                "execute_shell_command" -> formatShellCommand(json)
                 else -> text
             }
         } catch (_: Exception) {
@@ -98,5 +99,19 @@ object SearchResultFormatter {
 
         val total = results.sumOf { (it.jsonObject["messages"]?.jsonArray?.size ?: 0) }
         return context.getString(R.string.search_found_matches, total, query) + "\n\n$body"
+    }
+
+    private fun formatShellCommand(json: JsonObject): String {
+        val command = json["command"]?.let { (it as? JsonPrimitive)?.content } ?: ""
+        val output = json["output"]?.let { (it as? JsonPrimitive)?.content } ?: ""
+        val exitCode = json["exit_code"]?.let { (it as? JsonPrimitive)?.content }
+        val error = json["error"]?.let { (it as? JsonPrimitive)?.content }
+        return if (error != null) {
+            val msg = json["message"]?.let { (it as? JsonPrimitive)?.content } ?: ""
+            "Command: $command\nError: $msg\n${if (output.isNotEmpty()) "\n$output" else ""}"
+        } else {
+            val code = exitCode?.toIntOrNull() ?: -1
+            "Command: $command\nExit code: $code\n\n$output"
+        }
     }
 }

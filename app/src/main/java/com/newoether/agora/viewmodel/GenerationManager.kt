@@ -71,7 +71,11 @@ data class GenerationContext(
     val webSearchEnabled: Boolean = false,
     val webSearchApiKeys: Map<String, String> = emptyMap(),
     val webSearchProvider: String = "brave",
-    val webSearchBaseUrl: String = ""
+    val webSearchBaseUrl: String = "",
+    val shellEnabled: Boolean = false,
+    val shellServerUrl: String = "",
+    val shellApiKey: String = "",
+    val shellTimeout: Int = 30
 )
 
 class GenerationManager(
@@ -280,6 +284,24 @@ class GenerationManager(
                         "limit" to ToolProperty("integer", "Maximum number of results (1-20, default 10).")
                     ),
                     required = listOf("query")
+                )
+            ))
+        )
+    }
+
+    fun buildShellTool(ctx: GenerationContext): List<ToolDefinition> {
+        if (!ctx.shellEnabled || ctx.shellServerUrl.isBlank()) return emptyList()
+        return listOf(
+            ToolDefinition(function = ToolFunction(
+                name = "execute_shell_command",
+                description = "Execute a shell command on a remote server and return the combined stdout and stderr output. Use this to run system commands, scripts, or interact with the command line. The command is sent to a configured remote shell server, not executed locally on the device.",
+                parameters = ToolParameters(
+                    properties = mapOf(
+                        "command" to ToolProperty("string", "The shell command to execute."),
+                        "timeout_ms" to ToolProperty("integer", "Timeout in milliseconds (optional, defaults to configured timeout)."),
+                        "workdir" to ToolProperty("string", "Working directory for the command (optional).")
+                    ),
+                    required = listOf("command")
                 )
             ))
         )
@@ -536,6 +558,98 @@ class GenerationManager(
         }
     }
 
+    private suspend fun executeShellCommand(arguments: String, ctx: GenerationContext): String {
+        val argsStr = arguments.ifBlank { "{}" }
+        val args = try {
+            Json.decodeFromString<Map<String, kotlinx.serialization.json.JsonElement>>(argsStr)
+        } catch (e: Exception) {
+            return buildJsonObject {
+                put("type", "execute_shell_command")
+                put("error", "parse_error")
+                put("message", "Failed to parse arguments: ${e.message}")
+            }.toString()
+        }
+        fun arg(key: String): String = (args[key] as? kotlinx.serialization.json.JsonPrimitive)?.content ?: ""
+        val command = arg("command")
+        if (command.isBlank()) {
+            return buildJsonObject {
+                put("type", "execute_shell_command")
+                put("error", "no_command")
+            }.toString()
+        }
+        val timeoutMs = (arg("timeout_ms").toIntOrNull() ?: ctx.shellTimeout * 1000).coerceIn(1000, 120000)
+        val workdir = arg("workdir")
+        val serverUrl = ctx.shellServerUrl.trimEnd('/')
+        if (serverUrl.isBlank()) {
+            return buildJsonObject {
+                put("type", "execute_shell_command")
+                put("error", "no_server_url")
+            }.toString()
+        }
+        return try {
+            val body = buildJsonObject {
+                put("command", command)
+                put("timeout_ms", timeoutMs)
+                if (workdir.isNotBlank()) put("workdir", workdir)
+            }.toString()
+            val headers = mutableMapOf("Content-Type" to "application/json")
+            if (ctx.shellApiKey.isNotBlank()) headers["Authorization"] = "Bearer ${ctx.shellApiKey}"
+            val handle = com.newoether.agora.api.HttpClient.streamPost("$serverUrl/execute", body, headers)
+            try {
+                val output = StringBuilder()
+                var exitCode: Int? = null
+                var errorMessage: String? = null
+                var currentEvent: String? = null
+                while (true) {
+                    val line = handle.readLine() ?: break
+                    when {
+                        line.startsWith("event: ") -> { currentEvent = line.substring(7).trim() }
+                        line.startsWith("data: ") -> {
+                            val dataStr = line.substring(6).trim()
+                            val dataJson = try { Json.parseToJsonElement(dataStr).jsonObject } catch (_: Exception) { null }
+                            if (dataJson == null) continue
+                            when (currentEvent) {
+                                "line" -> {
+                                    val text = (dataJson["line"] as? kotlinx.serialization.json.JsonPrimitive)?.content
+                                    if (text != null) output.append(text).append('\n')
+                                }
+                                "result" -> {
+                                    exitCode = (dataJson["exit_code"] as? kotlinx.serialization.json.JsonPrimitive)?.content?.toIntOrNull()
+                                }
+                                "error" -> {
+                                    errorMessage = (dataJson["message"] as? kotlinx.serialization.json.JsonPrimitive)?.content
+                                }
+                            }
+                        }
+                    }
+                }
+                if (errorMessage != null) {
+                    buildJsonObject {
+                        put("type", "execute_shell_command")
+                        put("command", command)
+                        put("error", "execution_error")
+                        put("message", errorMessage)
+                        put("output", output.toString().trimEnd())
+                    }.toString()
+                } else {
+                    buildJsonObject {
+                        put("type", "execute_shell_command")
+                        put("command", command)
+                        put("exit_code", exitCode ?: -1)
+                        put("output", output.toString().trimEnd())
+                    }.toString()
+                }
+            } finally { handle.close() }
+        } catch (e: Exception) {
+            buildJsonObject {
+                put("type", "execute_shell_command")
+                put("command", command)
+                put("error", "request_failed")
+                put("message", e.message ?: "Unknown error")
+            }.toString()
+        }
+    }
+
     private suspend fun executeTool(name: String, arguments: String, ctx: GenerationContext): String {
         return try {
             val argsStr = arguments.ifBlank { "{}" }
@@ -576,6 +690,7 @@ class GenerationManager(
                 "web_search" -> executeWebSearch(arguments, ctx)
                 "web_fetch" -> executeWebFetch(arguments, ctx)
                 "search_conversations" -> executeSearchConversations(arguments, ctx)
+                "execute_shell_command" -> executeShellCommand(arguments, ctx)
                 else -> "Unknown tool: $name"
             }
         } catch (e: Exception) {
@@ -715,7 +830,8 @@ class GenerationManager(
             val memoryTools = buildMemoryTools(ctx)
             val webSearchTool = buildWebSearchTool(ctx)
             val ragTool = buildRagTool(ctx)
-            val allTools = memoryTools + webSearchTool + ragTool
+            val shellTool = buildShellTool(ctx)
+            val allTools = memoryTools + webSearchTool + ragTool + shellTool
             val providerConfig = ProviderConfig(
                 apiKey = config.apiKey,
                 modelId = config.modelId,
