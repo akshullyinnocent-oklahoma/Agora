@@ -916,14 +916,18 @@ fun ChatBottomBar(
 @Composable
 private fun ProviderBadge(provider: String) {
     val badgeColor = when (provider.lowercase()) {
-        "google", "gemini" -> Color(0xFF4285F4)
+        "google", "gemini" -> MaterialTheme.colorScheme.onPrimaryContainer
         "anthropic" -> Color(0xFFD97757)
         "openai" -> Color(0xFF74AA9C)
         else -> MaterialTheme.colorScheme.primary
     }
+    val badgeBackground = when (provider.lowercase()) {
+        "google", "gemini" -> MaterialTheme.colorScheme.primaryContainer
+        else -> badgeColor.copy(alpha = 0.15f)
+    }
     Surface(
         shape = RoundedCornerShape(4.dp),
-        color = badgeColor.copy(alpha = 0.15f)
+        color = badgeBackground
     ) {
         Text(
             provider,
