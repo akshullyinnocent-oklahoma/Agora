@@ -1053,7 +1053,8 @@ class ChatViewModel(
             val modelId = modelIdWithPrefix.substringAfter(":")
             val activeKeyId = activeApiKeyIds.value[providerName]
             val activeKey = apiKeys.value.find { it.id == activeKeyId }?.key ?: ""
-            if (activeKey.isBlank() && providerName != "Ollama" && providerName != "Local") return@launch
+            val isCustomProvider = providerName !in builtInProviders
+            if (activeKey.isBlank() && providerName != "Ollama" && providerName != "Local" && !isCustomProvider) return@launch
 
             val summaryText = if (firstModelMsg != null) {
                 "User: ${firstUserMsg.text}\nAssistant: ${firstModelMsg.text.take(500)}"
