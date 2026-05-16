@@ -1182,7 +1182,7 @@ class ChatViewModel(
         val providerName = getProviderForModel(modelId)
         val activeKeyId = activeApiKeyIds.value[providerName]
         val activeKey = apiKeys.value.find { it.id == activeKeyId }?.key ?: ""
-        if (activeKey.isBlank() && providerName != "Ollama" && providerName != "Local" && providerName !in builtInProviders) return
+        if (activeKey.isBlank() && providerName != "Ollama" && providerName != "Local" && providerName in builtInProviders) return
 
         stopGeneration()
 
@@ -1322,7 +1322,7 @@ class ChatViewModel(
         val providerName = getProviderForModel(modelId)
         val activeKeyId = activeApiKeyIds.value[providerName]
         val activeKey = apiKeys.value.find { it.id == activeKeyId }?.key ?: ""
-        if (activeKey.isBlank() && providerName != "Ollama" && providerName != "Local" && providerName !in builtInProviders) return
+        if (activeKey.isBlank() && providerName != "Ollama" && providerName != "Local" && providerName in builtInProviders) return
 
         stopGeneration()
         generationJob = generationScope.launch {
