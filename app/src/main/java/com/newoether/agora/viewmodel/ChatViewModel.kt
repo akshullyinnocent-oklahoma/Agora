@@ -157,6 +157,14 @@ class ChatViewModel(
         return providers[name] ?: GeminiProvider()
     }
 
+    private fun getEffectiveBaseUrl(providerName: String): String? {
+        return if (providerName !in builtInProviders) {
+            getEffectiveBaseUrl(providerName) ?: getProviderInstance(providerName).defaultBaseUrl
+        } else {
+            getEffectiveBaseUrl(providerName)
+        }
+    }
+
     val customProviders = settingsManager.customProviders.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
 
@@ -1077,7 +1085,7 @@ class ChatViewModel(
                 systemPrompt = "You are a title generator. Output only a short title in the same language as the conversation.",
                 maxContextWindow = 1,
                 thinkingEnabled = false,
-                baseUrl = providerBaseUrls.value[providerName]
+                baseUrl = getEffectiveBaseUrl(providerName)
             )
 
             var title = ""
@@ -1255,7 +1263,7 @@ class ChatViewModel(
                 googleSearchEnabled = googleSearchEnabled.value,
                 thinkingEnabled = thinkingEnabled.value,
                 thinkingLevel = thinkingLevel.value,
-                baseUrl = providerBaseUrls.value[providerName],
+                baseUrl = getEffectiveBaseUrl(providerName),
                 userPrepend = resolved.userPrepend,
                 userPostpend = resolved.userPostpend
             )
@@ -1353,7 +1361,7 @@ class ChatViewModel(
                 googleSearchEnabled = googleSearchEnabled.value,
                 thinkingEnabled = thinkingEnabled.value,
                 thinkingLevel = thinkingLevel.value,
-                baseUrl = providerBaseUrls.value[providerName],
+                baseUrl = getEffectiveBaseUrl(providerName),
                 userPrepend = resolved.userPrepend,
                 userPostpend = resolved.userPostpend
             )
@@ -1662,7 +1670,7 @@ class ChatViewModel(
                 googleSearchEnabled = googleSearchEnabled.value,
                 thinkingEnabled = thinkingEnabled.value,
                 thinkingLevel = thinkingLevel.value,
-                baseUrl = providerBaseUrls.value[providerName],
+                baseUrl = getEffectiveBaseUrl(providerName),
                 userPrepend = resolved.userPrepend,
                 userPostpend = resolved.userPostpend
             )
