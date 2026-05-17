@@ -34,6 +34,9 @@ fun SettingsShellPage(viewModel: ChatViewModel, onBack: () -> Unit) {
     var serverUrlInput by remember(shellServerUrl) { mutableStateOf(shellServerUrl) }
     LaunchedEffect(shellServerUrl) { serverUrlInput = shellServerUrl }
 
+    var apiKeyInput by remember(shellApiKey) { mutableStateOf(shellApiKey) }
+    LaunchedEffect(shellApiKey) { apiKeyInput = shellApiKey }
+
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
@@ -101,8 +104,8 @@ fun SettingsShellPage(viewModel: ChatViewModel, onBack: () -> Unit) {
                                 Text(stringResource(R.string.shell_api_key), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface)
                                 Spacer(Modifier.height(8.dp))
                                 OutlinedTextField(
-                                    value = shellApiKey,
-                                    onValueChange = { viewModel.setShellApiKey(it) },
+                                    value = apiKeyInput,
+                                    onValueChange = { apiKeyInput = it; viewModel.setShellApiKey(it) },
                                     placeholder = { Text(stringResource(R.string.shell_api_key_hint)) },
                                     visualTransformation = PasswordVisualTransformation(),
                                     singleLine = true,
