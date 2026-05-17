@@ -179,6 +179,18 @@
     <string name="web_search_searxng_url">SearXNG 基础 URL</string>
     <string name="web_search_searxng_url_hint">https://searx.be</string>
 
+    <!-- Settings - Shell Page -->
+    <string name="shell_title">终端</string>
+    <string name="shell_desc">远程 Shell 命令执行</string>
+    <string name="shell_enable">启用终端工具</string>
+    <string name="shell_enable_desc">允许模型通过远程服务器执行 Shell 命令</string>
+    <string name="shell_server_url">服务器 URL</string>
+    <string name="shell_server_url_hint">http://192.168.1.100:8080</string>
+    <string name="shell_api_key">API 密钥</string>
+    <string name="shell_api_key_hint">可选 Bearer Token</string>
+    <string name="shell_timeout">命令超时（秒）</string>
+    <string name="shell_timeout_value">%d 秒</string>
+
     <!-- Settings - Title Generation -->
     <string name="title_gen_auto">自动生成标题</string>
     <string name="title_gen_auto_desc">在首次回复后生成标题</string>
