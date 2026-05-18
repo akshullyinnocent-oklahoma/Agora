@@ -12,7 +12,7 @@ object SearchResultFormatter {
 
     fun isRawSearchResult(text: String): Boolean = try {
         val type = Json.parseToJsonElement(text).jsonObject["type"]?.let { (it as? JsonPrimitive)?.content }
-        type == "web_search" || type == "search_conversations" || type == "execute_shell_command" || type == "list_shells"
+        type == "web_search" || type == "search_conversations" || type == "execute_shell_command" || type == "list_shells" || type == "list_memory_files"
     } catch (_: Exception) { false }
 
     fun format(text: String, context: Context): String {
@@ -24,6 +24,7 @@ object SearchResultFormatter {
             when (json["type"]?.let { (it as? JsonPrimitive)?.content }) {
                 "web_search" -> formatWebSearch(json, context)
                 "search_conversations" -> formatConversationSearch(json, context)
+                "list_memory_files" -> formatMemoryList(json)
                 "list_shells" -> formatShellList(json, context)
                 "execute_shell_command" -> formatShellCommand(json, context)
                 else -> text
@@ -115,6 +116,17 @@ object SearchResultFormatter {
         } else {
             val code = exitCode?.toIntOrNull() ?: -1
             "$serverLine${context.getString(R.string.shell_result_command, command)}\n${context.getString(R.string.shell_result_exit_code, code)}\n\n$output"
+        }
+    }
+
+    private fun formatMemoryList(json: JsonObject): String {
+        val files = json["files"]?.jsonArray ?: return "No memory files."
+        if (files.isEmpty()) return "No memory files."
+        return files.joinToString("\n") { element ->
+            val obj = element.jsonObject
+            val name = (obj["name"] as? JsonPrimitive)?.content ?: ""
+            val desc = (obj["description"] as? JsonPrimitive)?.content ?: ""
+            if (desc.isNotEmpty()) "$name — $desc" else name
         }
     }
 

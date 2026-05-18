@@ -177,7 +177,7 @@ private fun toolSummary(seg: MessageSegment): String {
             fileName != null -> stringResource(R.string.tool_delete_memory_name, fileName)
             else -> stringResource(R.string.tool_delete_memory_default)
         }
-        "list_memory_files" -> if (isError) stringResource(R.string.tool_lookup_failed) else (if (fileCount != null) stringResource(R.string.tool_lookup_count, fileCount) else stringResource(R.string.tool_lookup_default))
+        "list_memory_files" -> if (isError) stringResource(R.string.tool_lookup_failed) else (if (content.isNotEmpty()) SearchResultFormatter.getFirstLine(content, LocalContext.current) else stringResource(R.string.tool_lookup_default))
         "update_active_memory" -> if (isError) stringResource(R.string.tool_update_active_failed) else stringResource(R.string.tool_update_active_default)
         "web_search" -> {
             val query = argsJson?.get("query")?.let { (it as? JsonPrimitive)?.content }

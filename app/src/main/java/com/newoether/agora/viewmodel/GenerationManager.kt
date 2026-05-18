@@ -712,11 +712,24 @@ class GenerationManager(
             when (name) {
                 "list_memory_files" -> {
                     val files = memoryManager.listFiles()
-                    if (files.isEmpty()) "No memory files found."
-                    else "Memory files:\n${files.joinToString("\n") { file ->
-                        if (file.description.isNotBlank()) "- ${file.name} — ${file.description}"
-                        else "- ${file.name}"
-                    }}"
+                    if (files.isEmpty()) {
+                        buildJsonObject {
+                            put("type", "list_memory_files")
+                            putJsonArray("files") {}
+                        }.toString()
+                    } else {
+                        buildJsonObject {
+                            put("type", "list_memory_files")
+                            putJsonArray("files") {
+                                files.forEach { f ->
+                                    add(buildJsonObject {
+                                        put("name", f.name)
+                                        put("description", f.description)
+                                    })
+                                }
+                            }
+                        }.toString()
+                    }
                 }
                 "read_memory_file" -> {
                     val singleName = arg("name")
