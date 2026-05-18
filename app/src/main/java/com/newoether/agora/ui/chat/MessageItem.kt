@@ -205,8 +205,8 @@ private fun toolSummary(seg: MessageSegment): String {
         "execute_shell_command" -> {
             val command = argsJson?.get("command")?.let { (it as? JsonPrimitive)?.content }
             if (isError) stringResource(R.string.tool_shell_failed)
-            else if (content.isNotEmpty()) SearchResultFormatter.getFirstLine(content, LocalContext.current)
-            else if (command != null) stringResource(R.string.tool_shell_executing, command.take(60)) else stringResource(R.string.tool_shell_done)
+            else if (command != null) stringResource(R.string.tool_shell_executing, command.take(80))
+            else stringResource(R.string.tool_shell_done)
         }
         else -> content.lines().firstOrNull()?.take(100) ?: stringResource(R.string.tool_done)
     }
@@ -238,7 +238,11 @@ private fun toolResultSummary(toolName: String, toolArgs: String, result: String
         "web_fetch" -> stringResource(R.string.tool_web_fetch_done, argsJson?.get("url")?.let { (it as? JsonPrimitive)?.content }?.take(60)?.ifEmpty { "page" } ?: "page")
         "search_conversations" -> SearchResultFormatter.getFirstLine(result, LocalContext.current).ifBlank { stringResource(R.string.tool_conversation_search_done) }
         "list_shells" -> SearchResultFormatter.getFirstLine(result, LocalContext.current).ifBlank { stringResource(R.string.tool_shell_list_done) }
-        "execute_shell_command" -> SearchResultFormatter.getFirstLine(result, LocalContext.current).ifBlank { stringResource(R.string.tool_shell_done) }
+        "execute_shell_command" -> {
+            val command = argsJson?.get("command")?.let { (it as? JsonPrimitive)?.content }
+            if (command != null) stringResource(R.string.tool_shell_executing, command.take(80))
+            else stringResource(R.string.tool_shell_done)
+        }
         else -> stringResource(R.string.tool_done)
     }
 }
