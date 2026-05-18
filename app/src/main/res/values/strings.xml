@@ -45,7 +45,7 @@
     <string name="tool_shell_listing">Listing available shells</string>
     <string name="tool_shell_list_done">Shell list done</string>
     <string name="tool_execute_shell">Shell</string>
-    <string name="tool_shell_executing">Executing: %1$s</string>
+    <string name="tool_shell_executing">Executed: %1$s</string>
     <string name="tool_shell_done">Shell command done</string>
     <string name="tool_shell_failed">Shell command failed</string>
     <string name="tool_thinking">Thinking</string>

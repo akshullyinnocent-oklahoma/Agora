@@ -44,7 +44,7 @@
     <string name="tool_shell_listing">正在列出可用终端</string>
     <string name="tool_shell_list_done">终端列表完成</string>
     <string name="tool_execute_shell">终端</string>
-    <string name="tool_shell_executing">执行: %1$s</string>
+    <string name="tool_shell_executing">已执行: %1$s</string>
     <string name="tool_shell_done">终端命令完成</string>
     <string name="tool_shell_failed">终端命令失败</string>
     <string name="tool_thinking">思考</string>
