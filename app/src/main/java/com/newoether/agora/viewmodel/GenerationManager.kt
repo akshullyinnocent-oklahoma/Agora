@@ -306,7 +306,7 @@ class GenerationManager(
             )),
             ToolDefinition(function = ToolFunction(
                 name = "execute_shell_command",
-                description = "Execute a shell command on a remote server and return the combined stdout and stderr output. Use this to run system commands, scripts, or interact with the command line. The command is sent to a configured remote shell server, not executed locally on the device.",
+                description = "Execute a shell command on a remote server and return the combined stdout and stderr output. Use this to run system commands, scripts, or interact with the command line. The command is sent to a configured remote shell server, not executed locally on the device. On Windows, commands run through cmd.exe which strips nested quotes. For PowerShell on Windows, use the pipe method to avoid quote issues: 'echo <powershell_code> | powershell -NoProfile -'. For complex scripts, use 'powershell -EncodedCommand <base64>'.",
                 parameters = ToolParameters(
                     properties = mapOf(
                         "command" to ToolProperty("string", "The shell command to execute."),
