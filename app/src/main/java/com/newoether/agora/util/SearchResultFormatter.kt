@@ -133,11 +133,13 @@ object SearchResultFormatter {
     private fun formatShellList(json: JsonObject, context: Context): String {
         val devices = json["devices"]?.jsonArray ?: return context.getString(R.string.shell_no_devices)
         if (devices.isEmpty()) return context.getString(R.string.shell_no_devices)
-        return devices.joinToString("\n") { element ->
+        val list = devices.joinToString("\n") { element ->
             val obj = element.jsonObject
             val name = (obj["name"] as? JsonPrimitive)?.content ?: ""
             val desc = (obj["description"] as? JsonPrimitive)?.content ?: ""
             if (desc.isNotEmpty()) "$name — $desc" else name
         }
+        val header = context.getString(R.string.shell_list_count, devices.size)
+        return "$header\n$list"
     }
 }
