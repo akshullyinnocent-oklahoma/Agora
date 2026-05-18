@@ -97,10 +97,12 @@ fun SettingsShellPage(viewModel: ChatViewModel, onBack: () -> Unit) {
                                 keyInput = device.apiKey
                             }
 
-                            HorizontalDivider(
-                                modifier = Modifier.padding(horizontal = if (isFirst) 16.dp else 16.dp),
-                                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
-                            )
+                            if (!isFirst) {
+                                HorizontalDivider(
+                                    modifier = Modifier.padding(horizontal = 16.dp),
+                                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                                )
+                            }
                             ListItem(
                                 colors = ListItemDefaults.colors(containerColor = Color.Transparent),
                                 headlineContent = {
