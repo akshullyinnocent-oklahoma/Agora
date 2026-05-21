@@ -992,7 +992,7 @@ class GenerationManager(
                         }
                         totalThoughtTimeMs = cumulativeThoughtMs
                         // Add pending tool segment (no result yet)
-                        val ts = MessageSegment(type = "tool", toolName = event.name, toolArgs = event.arguments, toolResult = null, signature = event.signature)
+                        val ts = MessageSegment(type = "tool", toolName = event.name, toolArgs = event.arguments, toolResult = null, toolCallId = event.id, signature = event.signature)
                         segments.add(ts)
                         // Emit "tool started"
                         currentStatus = MessageStatus.TOOL_CALLING
@@ -1009,7 +1009,7 @@ class GenerationManager(
                         // Execute tool
                         val result = executeTool(event.name, event.arguments, ctx)
                         // Update segment with result
-                        val idx = segments.indexOfLast { it.toolName == event.name && it.toolResult == null }
+                        val idx = segments.indexOfLast { it.toolCallId == event.id }
                         if (idx >= 0) {
                             segments[idx] = segments[idx].copy(toolResult = result)
                             roundToolSegments.add(segments[idx])
@@ -1044,7 +1044,7 @@ class GenerationManager(
                         totalThoughtTimeMs = cumulativeThoughtMs
                         // Add pending tool segments (no results yet)
                         event.calls.forEach { call ->
-                            segments.add(MessageSegment(type = "tool", toolName = call.name, toolArgs = call.arguments, toolResult = null, signature = call.signature))
+                            segments.add(MessageSegment(type = "tool", toolName = call.name, toolArgs = call.arguments, toolResult = null, toolCallId = call.id, signature = call.signature))
                         }
                         // Emit "tools started"
                         currentStatus = MessageStatus.TOOL_CALLING
@@ -1061,7 +1061,7 @@ class GenerationManager(
                         // Execute tools and update segments with results
                         val tcds = event.calls.map { call ->
                             val result = executeTool(call.name, call.arguments, ctx)
-                            val idx = segments.indexOfLast { it.toolName == call.name && it.toolResult == null }
+                            val idx = segments.indexOfLast { it.toolCallId == call.id }
                             if (idx >= 0) {
                                 segments[idx] = segments[idx].copy(toolResult = result)
                                 roundToolSegments.add(segments[idx])
@@ -1239,7 +1239,7 @@ class GenerationManager(
                             }
                             totalThoughtTimeMs = cumulativeThoughtMs
                             // Add pending tool segment (no result yet)
-                            val ts = MessageSegment(type = "tool", toolName = event.name, toolArgs = event.arguments, toolResult = null, signature = event.signature)
+                            val ts = MessageSegment(type = "tool", toolName = event.name, toolArgs = event.arguments, toolResult = null, toolCallId = event.id, signature = event.signature)
                             segments.add(ts)
                             // Emit "tool started"
                             currentStatus = MessageStatus.TOOL_CALLING
@@ -1256,7 +1256,7 @@ class GenerationManager(
                             // Execute tool
                             val result = executeTool(event.name, event.arguments, ctx)
                             // Update segment with result
-                            val idx = segments.indexOfLast { it.toolName == event.name && it.toolResult == null }
+                            val idx = segments.indexOfLast { it.toolCallId == event.id }
                             if (idx >= 0) {
                                 segments[idx] = segments[idx].copy(toolResult = result)
                                 roundToolSegments.add(segments[idx])
@@ -1291,7 +1291,7 @@ class GenerationManager(
                             totalThoughtTimeMs = cumulativeThoughtMs
                             // Add pending tool segments (no results yet)
                             event.calls.forEach { call ->
-                                segments.add(MessageSegment(type = "tool", toolName = call.name, toolArgs = call.arguments, toolResult = null, signature = call.signature))
+                                segments.add(MessageSegment(type = "tool", toolName = call.name, toolArgs = call.arguments, toolResult = null, toolCallId = call.id, signature = call.signature))
                             }
                             // Emit "tools started"
                             currentStatus = MessageStatus.TOOL_CALLING
@@ -1308,7 +1308,7 @@ class GenerationManager(
                             // Execute tools and update segments with results
                             val tcds = event.calls.map { call ->
                                 val result = executeTool(call.name, call.arguments, ctx)
-                                val idx = segments.indexOfLast { it.toolName == call.name && it.toolResult == null }
+                                val idx = segments.indexOfLast { it.toolCallId == call.id }
                                 if (idx >= 0) {
                                     segments[idx] = segments[idx].copy(toolResult = result)
                                     roundToolSegments.add(segments[idx])

@@ -19,6 +19,7 @@ data class MessageSegment(
     val toolName: String? = null,
     val toolArgs: String? = null,
     val toolResult: String? = null,
+    val toolCallId: String? = null,
     val signature: String? = null
 )
 
