@@ -43,6 +43,7 @@
     <string name="tool_list_shells">列出终端</string>
     <string name="tool_shell_listing">正在列出可用终端</string>
     <string name="tool_shell_list_done">终端列表完成</string>
+    <string name="tool_shell_list_count">列出了 %1$d 个终端</string>
     <string name="tool_execute_shell">终端</string>
     <string name="tool_shell_executing">已执行: %1$s</string>
     <string name="tool_shell_done">终端命令完成</string>
@@ -59,6 +60,7 @@
     <string name="thinking_ellipsis">思考中...</string>
     <string name="answering_ellipsis">回复中...</string>
     <string name="sending_ellipsis">发送中...</string>
+    <string name="tool_calling_ellipsis">调用工具中...</string>
     <string name="thinking_complete">思考完成</string>
     <string name="thought_for_seconds">思考了 %1$d 秒</string>
     <string name="thought_for_minutes">思考了 %1$d 分 %2$d 秒</string>

@@ -77,6 +77,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -95,7 +96,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.res.stringResource
 import com.newoether.agora.R
-import com.newoether.agora.util.SearchResultFormatter
+
 import com.newoether.agora.model.ChatMessage
 import com.newoether.agora.model.MessageSegment
 import com.newoether.agora.model.MessageStatus
@@ -154,53 +155,64 @@ private fun toolSummary(seg: MessageSegment): String {
     val nameCount = argsJson?.get("names")?.let { (it as? kotlinx.serialization.json.JsonArray)?.size }
     val content = seg.toolResult ?: ""
     val isError = content.startsWith("Error")
-    val fileCount = Regex("Memory files:\\s*\\n((?:- .+\\n?)*)").find(content)?.groupValues?.get(1)?.lines()?.count { it.isNotBlank() }
     return when (name) {
         "read_memory_file" -> when {
-            isError -> content.lines().firstOrNull()?.take(100) ?: stringResource(R.string.tool_read_memory_success)
+            isError -> stringResource(R.string.tool_read_memory_success)
             nameCount != null && nameCount > 1 -> stringResource(R.string.tool_read_memory_count, nameCount)
             fileName != null -> stringResource(R.string.tool_read_memory_name, fileName)
             else -> stringResource(R.string.tool_read_memory_success)
         }
         "create_memory_file" -> when {
-            isError -> content.lines().firstOrNull()?.take(100) ?: stringResource(R.string.tool_save_memory_failed)
+            isError -> stringResource(R.string.tool_save_memory_failed)
             fileName != null -> stringResource(R.string.tool_save_memory_name, fileName)
             else -> stringResource(R.string.tool_save_memory_default)
         }
         "edit_memory_file" -> when {
-            isError -> content.lines().firstOrNull()?.take(100) ?: stringResource(R.string.tool_edit_memory_failed)
+            isError -> stringResource(R.string.tool_edit_memory_failed)
             fileName != null -> stringResource(R.string.tool_edit_memory_name, fileName)
             else -> stringResource(R.string.tool_edit_memory_default)
         }
         "delete_memory_file" -> when {
-            isError -> content.lines().firstOrNull()?.take(100) ?: stringResource(R.string.tool_delete_memory_failed)
+            isError -> stringResource(R.string.tool_delete_memory_failed)
             fileName != null -> stringResource(R.string.tool_delete_memory_name, fileName)
             else -> stringResource(R.string.tool_delete_memory_default)
         }
-        "list_memory_files" -> if (isError) stringResource(R.string.tool_lookup_failed) else (if (content.isNotEmpty()) SearchResultFormatter.getFirstLine(content, LocalContext.current) else stringResource(R.string.tool_lookup_default))
+        "list_memory_files" -> {
+            if (isError) stringResource(R.string.tool_lookup_failed)
+            else {
+                val fileCount = try {
+                    Json.parseToJsonElement(content).jsonObject["files"]?.jsonArray?.size ?: 0
+                } catch (_: Exception) { 0 }
+                if (fileCount > 0) stringResource(R.string.tool_lookup_count, fileCount)
+                else stringResource(R.string.tool_lookup_default)
+            }
+        }
         "update_active_memory" -> if (isError) stringResource(R.string.tool_update_active_failed) else stringResource(R.string.tool_update_active_default)
         "web_search" -> {
             val query = argsJson?.get("query")?.let { (it as? JsonPrimitive)?.content }
             if (isError) stringResource(R.string.tool_search_failed)
-            else if (content.isNotEmpty()) SearchResultFormatter.getFirstLine(content, LocalContext.current)
             else if (query != null) stringResource(R.string.tool_searching_web, query) else stringResource(R.string.tool_searching_web_default)
         }
         "web_fetch" -> {
             val url = argsJson?.get("url")?.let { (it as? JsonPrimitive)?.content }
             if (isError) stringResource(R.string.tool_web_fetch_failed)
-            else if (content.isNotEmpty()) stringResource(R.string.tool_web_fetch_done, url?.take(60)?.ifEmpty { "page" } ?: "page")
-            else if (url != null) stringResource(R.string.tool_web_fetching, url.take(40)) else stringResource(R.string.tool_web_fetch_default)
+            else if (url != null) stringResource(R.string.tool_web_fetch_done, url.take(60).ifEmpty { "page" } ?: "page")
+            else stringResource(R.string.tool_web_fetch_default)
         }
         "search_conversations" -> {
             val query = argsJson?.get("query")?.let { (it as? JsonPrimitive)?.content }
             if (isError) stringResource(R.string.tool_search_failed)
-            else if (content.isNotEmpty()) SearchResultFormatter.getFirstLine(content, LocalContext.current)
             else if (query != null) stringResource(R.string.tool_searching_conversations, query) else stringResource(R.string.tool_searching_conversations_default)
         }
         "list_shells" -> {
             if (isError) stringResource(R.string.tool_shell_listing)
-            else if (content.isNotEmpty()) SearchResultFormatter.format(content, LocalContext.current).lines().take(3).joinToString("\n").take(120)
-            else stringResource(R.string.tool_shell_list_done)
+            else {
+                val deviceCount = try {
+                    Json.parseToJsonElement(content).jsonObject["devices"]?.jsonArray?.size ?: 0
+                } catch (_: Exception) { 0 }
+                if (deviceCount > 0) stringResource(R.string.tool_shell_list_count, deviceCount)
+                else stringResource(R.string.tool_shell_list_done)
+            }
         }
         "execute_shell_command" -> {
             val command = argsJson?.get("command")?.let { (it as? JsonPrimitive)?.content }
@@ -208,14 +220,17 @@ private fun toolSummary(seg: MessageSegment): String {
             else if (command != null) stringResource(R.string.tool_shell_executing, command.take(80))
             else stringResource(R.string.tool_shell_done)
         }
-        else -> content.lines().firstOrNull()?.take(100) ?: stringResource(R.string.tool_done)
+        else -> {
+            if (isError) stringResource(R.string.tool_call_failed)
+            else stringResource(R.string.tool_done)
+        }
     }
 }
 
 @Composable
 private fun toolResultSummary(toolName: String, toolArgs: String, result: String = ""): String {
     val isError = result.startsWith("Error")
-    if (isError) return result.lines().firstOrNull()?.take(100) ?: stringResource(R.string.tool_call_failed)
+    if (isError) return stringResource(R.string.tool_call_failed)
     val argsJson = try { Json.parseToJsonElement(toolArgs.ifBlank { "{}" }).jsonObject } catch (_: Exception) { null }
     val fileName = argsJson?.get("name")?.let { (it as? JsonPrimitive)?.content }
         ?: argsJson?.get("names")?.let { names ->
@@ -232,12 +247,34 @@ private fun toolResultSummary(toolName: String, toolArgs: String, result: String
         "create_memory_file" -> if (fileName != null) stringResource(R.string.tool_save_memory_name, fileName) else stringResource(R.string.tool_save_memory_default)
         "edit_memory_file" -> if (fileName != null) stringResource(R.string.tool_edit_memory_name, fileName) else stringResource(R.string.tool_edit_memory_default)
         "delete_memory_file" -> if (fileName != null) stringResource(R.string.tool_delete_memory_name, fileName) else stringResource(R.string.tool_delete_memory_default)
-        "list_memory_files" -> stringResource(R.string.tool_lookup_default)
+        "list_memory_files" -> {
+            val fileCount = try {
+                Json.parseToJsonElement(result).jsonObject["files"]?.jsonArray?.size ?: 0
+            } catch (_: Exception) { 0 }
+            if (fileCount > 0) stringResource(R.string.tool_lookup_count, fileCount)
+            else stringResource(R.string.tool_lookup_default)
+        }
         "update_active_memory" -> stringResource(R.string.tool_update_active_default)
-        "web_search" -> SearchResultFormatter.getFirstLine(result, LocalContext.current).ifBlank { stringResource(R.string.tool_web_search_done) }
-        "web_fetch" -> stringResource(R.string.tool_web_fetch_done, argsJson?.get("url")?.let { (it as? JsonPrimitive)?.content }?.take(60)?.ifEmpty { "page" } ?: "page")
-        "search_conversations" -> SearchResultFormatter.getFirstLine(result, LocalContext.current).ifBlank { stringResource(R.string.tool_conversation_search_done) }
-        "list_shells" -> SearchResultFormatter.format(result, LocalContext.current).lines().take(3).joinToString("\n").take(120).ifBlank { stringResource(R.string.tool_shell_list_done) }
+        "web_search" -> {
+            val query = argsJson?.get("query")?.let { (it as? JsonPrimitive)?.content }
+            if (query != null) stringResource(R.string.tool_searching_web, query) else stringResource(R.string.tool_searching_web_default)
+        }
+        "web_fetch" -> {
+            val url = argsJson?.get("url")?.let { (it as? JsonPrimitive)?.content }
+            if (url != null) stringResource(R.string.tool_web_fetch_done, url.take(60).ifEmpty { "page" } ?: "page")
+            else stringResource(R.string.tool_web_fetch_default)
+        }
+        "search_conversations" -> {
+            val query = argsJson?.get("query")?.let { (it as? JsonPrimitive)?.content }
+            if (query != null) stringResource(R.string.tool_searching_conversations, query) else stringResource(R.string.tool_searching_conversations_default)
+        }
+        "list_shells" -> {
+            val deviceCount = try {
+                Json.parseToJsonElement(result).jsonObject["devices"]?.jsonArray?.size ?: 0
+            } catch (_: Exception) { 0 }
+            if (deviceCount > 0) stringResource(R.string.tool_shell_list_count, deviceCount)
+            else stringResource(R.string.tool_shell_list_done)
+        }
         "execute_shell_command" -> {
             val command = argsJson?.get("command")?.let { (it as? JsonPrimitive)?.content }
             if (command != null) stringResource(R.string.tool_shell_executing, command.take(80))
@@ -658,21 +695,27 @@ fun MessageItem(
                         var heldLabel by remember { mutableStateOf("") }
                         // Update heldLabel after composition to avoid double-recomposition flash
                         val thinkingNow = message.status == MessageStatus.THINKING
+                        val isToolCalling = message.status == MessageStatus.TOOL_CALLING
                         val hasText = message.text.isNotEmpty()
-                        LaunchedEffect(thinkingNow, hasText) {
+                        LaunchedEffect(thinkingNow, hasText, message.status) {
                             heldLabel = when {
                                 thinkingNow -> "thinking"
+                                isToolCalling -> "calling"
                                 hasText -> "answering"
-                                message.status == MessageStatus.SUCCESS -> ""
+                                message.status == MessageStatus.SUCCESS || message.status == MessageStatus.ERROR || message.status == MessageStatus.STOPPED -> ""
+                                message.status == MessageStatus.SENDING -> ""
                                 else -> heldLabel
                             }
                         }
+                        val toolCallingStatus = stringResource(R.string.tool_calling_ellipsis)
                         val statusText = when {
                             message.status == MessageStatus.SUCCESS -> if (message.tokenCount > 0) stringResource(R.string.cost_tokens, message.tokenCount) else null
+                            isStreaming && isToolCalling -> toolCallingStatus
                             isStreaming && thinkingNow -> thinkingStatus
                             isStreaming && hasText -> answeringStatus
                             isStreaming -> when (heldLabel) {
                                 "thinking" -> thinkingStatus
+                                "calling" -> toolCallingStatus
                                 "answering" -> answeringStatus
                                 else -> stringResource(R.string.sending_ellipsis)
                             }
@@ -681,7 +724,7 @@ fun MessageItem(
 
                         if (statusText != null) {
                             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 6.dp)) {
-                                if (isStreaming || message.status == MessageStatus.SENDING || message.status == MessageStatus.THINKING) {
+                                if (isStreaming || message.status == MessageStatus.SENDING || message.status == MessageStatus.THINKING || message.status == MessageStatus.TOOL_CALLING) {
                                     Icon(Icons.Default.Refresh, null, modifier = Modifier.size(12.dp).rotate(rotation), tint = if (statusText == thinkingStatus) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.primary)
                                 } else {
                                     val icon = when (message.status) {
@@ -724,9 +767,13 @@ fun MessageItem(
                     // Level 1: anti-shrink for text and thinking content
                     var streamingMaxHeightPx by remember { mutableIntStateOf(0) }
                     var thinkingContentMaxHeightPx by remember { mutableIntStateOf(0) }
-                    if (!isStreaming) {
-                        streamingMaxHeightPx = 0
-                        thinkingContentMaxHeightPx = 0
+                    LaunchedEffect(isStreaming) {
+                        if (!isStreaming) {
+                            // Delay one frame so animateContentSize starts from the current height
+                            withFrameNanos { }
+                            streamingMaxHeightPx = 0
+                            thinkingContentMaxHeightPx = 0
+                        }
                     }
 
                     Column {
@@ -742,18 +789,20 @@ fun MessageItem(
                             val segs = mergeAdjacentSegments(message.segments!!)
                             val lastSeg = segs.last()
                             val isLastTool = lastSeg.type == "tool"
+                            val isToolInProgress = isLastTool && lastSeg.toolResult == null
                             val isThinking = message.status == MessageStatus.THINKING
-                            val collapsedTitle = if (isLastTool) {
-                                toolSummary(lastSeg)
-                            } else {
-                                if (message.thoughtTitle != null) message.thoughtTitle
-                                else if (!isThinking) {
+                            val isToolCalling = message.status == MessageStatus.TOOL_CALLING
+                            val collapsedTitle = when {
+                                isThinking -> message.thoughtTitle ?: stringResource(R.string.thinking_ellipsis)
+                                isToolCalling || isToolInProgress -> toolDisplayName(lastSeg.toolName)
+                                else -> {
                                     if (message.thoughtTimeMs != null && message.thoughtTimeMs > 0) {
                                         val seconds = message.thoughtTimeMs / 1000
                                         if (seconds >= 60) stringResource(R.string.thought_for_minutes, seconds / 60, seconds % 60)
                                         else stringResource(R.string.thought_for_seconds, seconds)
-                                    } else stringResource(R.string.thinking_complete)
-                                } else stringResource(R.string.thinking_ellipsis)
+                                    } else if (message.thoughtTitle != null) message.thoughtTitle
+                                    else stringResource(R.string.thinking_complete)
+                                }
                             }
                             val mergedBottomPadding by animateDpAsState(
                                 targetValue = if (isThoughtExpanded) 12.dp else 4.dp,
@@ -770,7 +819,7 @@ fun MessageItem(
                                     .padding(10.dp)
                             ) {
                                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                                    if (isLastTool) {
+                                    if (isToolCalling || isToolInProgress) {
                                         Icon(Icons.Default.Build, null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f))
                                     } else {
                                         Icon(androidx.compose.ui.res.painterResource(id = com.newoether.agora.R.drawable.neurology_24), null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f))

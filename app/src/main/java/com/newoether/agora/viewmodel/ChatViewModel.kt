@@ -434,7 +434,7 @@ class ChatViewModel(
                 if (id != null) {
                     // Fix stuck sending states when loading conversation
                     val stuckMessages = chatDao.getMessagesForConversation(id).first()
-                        .filter { it.status == MessageStatus.SENDING || it.status == MessageStatus.THINKING }
+                        .filter { it.status == MessageStatus.SENDING || it.status == MessageStatus.THINKING || it.status == MessageStatus.TOOL_CALLING }
                     
                     stuckMessages.forEach { msg ->
                         chatDao.upsertMessage(msg.copy(status = MessageStatus.STOPPED))
@@ -1033,7 +1033,6 @@ class ChatViewModel(
 
     fun createNewChat() {
         switchingJob?.cancel()
-        stopGeneration()
         if (!_isNewChatMode.value) {
             _pendingSystemPromptId.value = null
         }
@@ -1211,7 +1210,7 @@ class ChatViewModel(
             // _streamingMessage was null — find the in-flight model message directly
             _allMessages.update { it.map { m ->
                 if (m.participant == Participant.MODEL &&
-                    (m.status == MessageStatus.SENDING || m.status == MessageStatus.THINKING)
+                    (m.status == MessageStatus.SENDING || m.status == MessageStatus.THINKING || m.status == MessageStatus.TOOL_CALLING)
                 ) m.copy(status = MessageStatus.STOPPED) else m
             } }
         }
