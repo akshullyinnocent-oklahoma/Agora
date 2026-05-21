@@ -923,10 +923,15 @@ fun MessageItem(
                             else -> null
                         }
 
-                        if (statusText != null) {
+                        AnimatedVisibility(
+                            visible = statusText != null,
+                            enter = fadeIn(tween(300)) + expandVertically(tween(300)),
+                            exit = fadeOut(tween(200)) + shrinkVertically(tween(200))
+                        ) {
+                            val text = statusText ?: return@AnimatedVisibility
                             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 6.dp)) {
                                 if (isStreaming || message.status == MessageStatus.SENDING || message.status == MessageStatus.THINKING || message.status == MessageStatus.TOOL_CALLING) {
-                                    Icon(Icons.Default.Refresh, null, modifier = Modifier.size(12.dp).rotate(rotation), tint = if (statusText == thinkingStatus) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.primary)
+                                    Icon(Icons.Default.Refresh, null, modifier = Modifier.size(12.dp).rotate(rotation), tint = if (text == thinkingStatus) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.primary)
                                 } else {
                                     val icon = when (message.status) {
                                         MessageStatus.SUCCESS -> Icons.Default.CheckCircle
@@ -936,7 +941,7 @@ fun MessageItem(
                                     Icon(icon, null, modifier = Modifier.size(12.dp), tint = if (message.status == MessageStatus.SUCCESS) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.error)
                                 }
                                 Spacer(modifier = Modifier.width(4.dp))
-                                Text(statusText, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text(text, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         }
                     }
@@ -965,17 +970,9 @@ fun MessageItem(
                         }
                     }
 
-                    // Level 1: anti-shrink for text and thinking content
+                    // Level 1: anti-shrink for text and thinking content (kept after streaming ends)
                     var streamingMaxHeightPx by remember { mutableIntStateOf(0) }
                     var thinkingContentMaxHeightPx by remember { mutableIntStateOf(0) }
-                    LaunchedEffect(isStreaming) {
-                        if (!isStreaming) {
-                            // Delay one frame so animateContentSize starts from the current height
-                            withFrameNanos { }
-                            streamingMaxHeightPx = 0
-                            thinkingContentMaxHeightPx = 0
-                        }
-                    }
 
                     Column {
                         val isError = message.status == MessageStatus.ERROR || message.participant == Participant.ERROR
@@ -1051,7 +1048,7 @@ fun MessageItem(
                                     Column(
                                         modifier = Modifier
                                             .then(
-                                                if (isStreaming && thinkingContentMaxHeightPx > 0)
+                                                if (thinkingContentMaxHeightPx > 0)
                                                     Modifier.heightIn(min = with(LocalDensity.current) { thinkingContentMaxHeightPx.toDp() })
                                                 else Modifier
                                             )
@@ -1131,11 +1128,10 @@ fun MessageItem(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .then(
-                                    if (isStreaming && streamingMaxHeightPx > 0)
+                                    if (streamingMaxHeightPx > 0)
                                         Modifier.heightIn(min = with(LocalDensity.current) { streamingMaxHeightPx.toDp() })
                                     else Modifier
                                 )
-                                .then(if (shouldAnimate) Modifier.animateContentSize(animationSpec = tween(if (isStreaming) 300 else 500)) else Modifier)
                                 .onSizeChanged { size ->
                                     if (isStreaming) {
                                         streamingMaxHeightPx = maxOf(streamingMaxHeightPx, size.height)
@@ -1251,37 +1247,43 @@ fun MessageItem(
                             }
                         }
                         
-                        if (message.participant == Participant.MODEL && !isStreaming) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
-                                horizontalArrangement = Arrangement.Start,
-                                verticalAlignment = Alignment.CenterVertically
+                        if (message.participant == Participant.MODEL) {
+                            AnimatedVisibility(
+                                visible = !isStreaming,
+                                enter = fadeIn(tween(400)) + expandVertically(tween(400)),
+                                exit = fadeOut(tween(200)) + shrinkVertically(tween(200))
                             ) {
-                                IconButton(onClick = { clipboardManager.setText(AnnotatedString(message.text)) }, modifier = Modifier.size(40.dp)) {
-                                    Icon(Icons.Default.ContentCopy, null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f))
-                                }
-                                IconButton(onClick = { onRegenerate(message.id) }, enabled = !isLoading, modifier = Modifier.size(40.dp)) {
-                                    Icon(Icons.Default.Refresh, null, modifier = Modifier.size(20.dp), tint = if (isLoading) MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f) else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f))
-                                }
-                                IconButton(onClick = { showInfoDialog = true }, modifier = Modifier.size(40.dp)) {
-                                    Icon(Icons.Default.Info, null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f))
-                                }
-                                
-                                if (totalBranches > 1) {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        modifier = Modifier
-                                            .padding(start = 8.dp)
-                                            .clip(RoundedCornerShape(100))
-                                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
-                                            .padding(horizontal = 4.dp)
-                                    ) {
-                                        IconButton(onClick = { onSwitchBranch(-1) }, enabled = branchIndex > 0, modifier = Modifier.size(24.dp)) {
-                                            Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, null, modifier = Modifier.size(16.dp))
-                                        }
-                                        Text("${branchIndex + 1} / $totalBranches", style = MaterialTheme.typography.labelSmall)
-                                        IconButton(onClick = { onSwitchBranch(1) }, enabled = branchIndex < totalBranches - 1, modifier = Modifier.size(24.dp)) {
-                                            Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, modifier = Modifier.size(16.dp))
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
+                                    horizontalArrangement = Arrangement.Start,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    IconButton(onClick = { clipboardManager.setText(AnnotatedString(message.text)) }, modifier = Modifier.size(40.dp)) {
+                                        Icon(Icons.Default.ContentCopy, null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f))
+                                    }
+                                    IconButton(onClick = { onRegenerate(message.id) }, enabled = !isLoading, modifier = Modifier.size(40.dp)) {
+                                        Icon(Icons.Default.Refresh, null, modifier = Modifier.size(20.dp), tint = if (isLoading) MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f) else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f))
+                                    }
+                                    IconButton(onClick = { showInfoDialog = true }, modifier = Modifier.size(40.dp)) {
+                                        Icon(Icons.Default.Info, null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f))
+                                    }
+
+                                    if (totalBranches > 1) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            modifier = Modifier
+                                                .padding(start = 8.dp)
+                                                .clip(RoundedCornerShape(100))
+                                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                                                .padding(horizontal = 4.dp)
+                                        ) {
+                                            IconButton(onClick = { onSwitchBranch(-1) }, enabled = branchIndex > 0, modifier = Modifier.size(24.dp)) {
+                                                Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, null, modifier = Modifier.size(16.dp))
+                                            }
+                                            Text("${branchIndex + 1} / $totalBranches", style = MaterialTheme.typography.labelSmall)
+                                            IconButton(onClick = { onSwitchBranch(1) }, enabled = branchIndex < totalBranches - 1, modifier = Modifier.size(24.dp)) {
+                                                Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, modifier = Modifier.size(16.dp))
+                                            }
                                         }
                                     }
                                 }
@@ -1613,7 +1615,9 @@ fun MessageItem(
 /**
  * Renders Markdown with a double-buffer crossfade during streaming to mask
  * the flash from composable node destruction/recreation on AST re-parse.
- * Takes a [render] lambda so callers pass their exact Markdown configuration.
+ * On streaming end, stableText is updated to the final content in a hidden
+ * layer while the live layer stays visible, then a brief crossfade swaps
+ * them — both layers share the same content so height never jumps.
  */
 @Composable
 private fun RecomposeSafeMarkdown(
@@ -1624,25 +1628,29 @@ private fun RecomposeSafeMarkdown(
 ) {
     var stableText by remember { mutableStateOf(content) }
     var transitionAlpha by remember { mutableFloatStateOf(1f) }
+    var exitingStreaming by remember { mutableStateOf(false) }
+
+    // Crossfade during streaming when live content differs from cached stable
     val crossfading = stableText.isNotEmpty() && stableText != content && isStreaming
 
-    if (!isStreaming) {
-        stableText = content
-        transitionAlpha = 1f
-    }
-
-    if (crossfading && transitionAlpha >= 1f) {
-        // Only snap on the FIRST frame (alpha == 1f from idle state).
-        // The LaunchedEffect then drives alpha upward; if we reset every
-        // frame the animation would be stuck at 0.
+    // Streaming just ended: always run exit crossfade so key() wrappers are
+    // removed smoothly. If stableText already equals content, skip the snap
+    // but still crossfade the two identical-content layers.
+    if (!isStreaming && !exitingStreaming) {
+        if (stableText != content) stableText = content
+        exitingStreaming = true
         transitionAlpha = 0f
     }
 
-    LaunchedEffect(content) {
-        if (crossfading) {
+    if (crossfading && transitionAlpha >= 1f) {
+        transitionAlpha = 0f
+    }
+
+    LaunchedEffect(content, exitingStreaming) {
+        if (crossfading || exitingStreaming) {
             withFrameNanos { }
             val startNs = withFrameNanos { it }
-            val durationNs = 200_000_000L
+            val durationNs = if (exitingStreaming) 150_000_000L else 200_000_000L
             while (true) {
                 val nowNs = withFrameNanos { it }
                 val progress = ((nowNs - startNs).toFloat() / durationNs).coerceAtMost(1f)
@@ -1650,37 +1658,36 @@ private fun RecomposeSafeMarkdown(
                 if (progress >= 1f) break
             }
             transitionAlpha = 1f
-            stableText = content
+            if (crossfading) stableText = content
+            exitingStreaming = false
         }
     }
 
-    // Two-layer double-buffer with dynamic z-order via zIndex.
-    //
-    //   crossfading:            Layer 1 (stable) zIndex=0 alpha=1f underneath,
-    //                           Layer 2 (live)   zIndex=1 alpha=transitionAlpha on top (fading in)
-    //   streaming, no crossfade: Layer 2 zIndex=1 alpha=1f, Layer 1 hidden
-    //   after streaming:        Layer 2 zIndex=0 alpha=0f (hidden underneath),
-    //                           Layer 1 zIndex=1 alpha=1f on top (visible, selection works)
-    //
-    // After streaming, Layer 1 is the frontmost visible layer so
-    // SelectionContainer's handles and highlights render above the text.
-    // During crossfade, Layer 2 draws on top so the fade-in is visible.
+    // Layer 1 (stableText) — only layer visible in idle state (selection works)
+    // Layer 2 (live content) — visible during streaming and exit crossfade
+    val l1z = if (exitingStreaming || (!crossfading && !isStreaming)) 1f else 0f
+    val l1a = when {
+        exitingStreaming -> transitionAlpha
+        crossfading -> 1f
+        isStreaming -> 0f
+        else -> 1f
+    }
+    val l2z = if (crossfading || isStreaming) 1f else 0f
+    val l2a = when {
+        exitingStreaming -> 1f
+        crossfading -> transitionAlpha
+        isStreaming -> 1f
+        else -> 0f
+    }
+
     Box(modifier = modifier) {
         if (stableText.isNotEmpty()) {
-            Box(modifier = Modifier
-                .fillMaxWidth()
-                .zIndex(if (crossfading) 0f else 1f)
-                .alpha(if (crossfading || !isStreaming) 1f else 0f)
-            ) {
-                key(stableText) { render(stableText) }
+            Box(modifier = Modifier.fillMaxWidth().zIndex(l1z).alpha(l1a)) {
+                render(stableText)
             }
         }
-        Box(modifier = Modifier
-            .fillMaxWidth()
-            .zIndex(if (crossfading) 1f else 0f)
-            .alpha(if (crossfading) transitionAlpha else if (isStreaming) 1f else 0f)
-        ) {
-            key(content) { render(content) }
+        Box(modifier = Modifier.fillMaxWidth().zIndex(l2z).alpha(l2a)) {
+            render(content)
         }
     }
 }
