@@ -5,6 +5,8 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -22,10 +24,13 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.launch
 import com.newoether.agora.R
+import com.newoether.agora.data.ClaudeChatImporter
 import com.newoether.agora.data.DataExporter
 import com.newoether.agora.data.DataImporter
 import com.newoether.agora.viewmodel.ChatViewModel
+import com.newoether.agora.ui.settings.ImportStrategy
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -41,10 +46,18 @@ fun SettingsDataControlPage(viewModel: ChatViewModel, onBack: () -> Unit) {
     val importManifest by viewModel.importManifest.collectAsState()
     val importPreview by viewModel.importPreview.collectAsState()
 
+    val claudeImportPreview by viewModel.claudeImportPreview.collectAsState()
+    val claudeImportProgress by viewModel.claudeImportProgress.collectAsState()
+    val claudeImportResult by viewModel.claudeImportResult.collectAsState()
     var showExportDialog by remember { mutableStateOf(false) }
     var showImportPreviewDialog by remember { mutableStateOf(false) }
     var importUri by remember { mutableStateOf<Uri?>(null) }
     var invalidImportMessage by remember { mutableStateOf<String?>(null) }
+
+    var showClaudeImportDialog by remember { mutableStateOf(false) }
+    var claudeFileUri by remember { mutableStateOf<Uri?>(null) }
+    var claudeFileName by remember { mutableStateOf<String?>(null) }
+    var showClaudeSuccessDialog by remember { mutableStateOf(false) }
 
     val isExporting = exportProgress != null
     val isImporting = importProgress != null
@@ -75,6 +88,36 @@ fun SettingsDataControlPage(viewModel: ChatViewModel, onBack: () -> Unit) {
         }
     }
 
+    // Claude chat file picker launcher
+    val claudeChatLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) {
+            claudeFileUri = uri
+            val name = context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+                val nameIdx = cursor.getColumnIndexOrThrow(android.provider.OpenableColumns.DISPLAY_NAME)
+                if (cursor.moveToFirst()) cursor.getString(nameIdx) else null
+            }
+            claudeFileName = name
+            scope.launch {
+                try {
+                    val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                    if (bytes != null) {
+                        val importer = ClaudeChatImporter()
+                        val jsonResult = importer.extractJsonFromBytes(bytes)
+                        if (jsonResult.isSuccess) {
+                            viewModel.previewClaudeChat(jsonResult.getOrThrow())
+                        } else {
+                            viewModel.setClaudeImportError(jsonResult.exceptionOrNull()?.localizedMessage ?: "Failed to read file")
+                        }
+                    }
+                } catch (e: Exception) {
+                    viewModel.setClaudeImportError(e.localizedMessage ?: "Unknown error")
+                }
+            }
+        }
+    }
+
     // Show import preview dialog when preview is loaded
     LaunchedEffect(importPreview) {
         if (importPreview != null) {
@@ -82,51 +125,111 @@ fun SettingsDataControlPage(viewModel: ChatViewModel, onBack: () -> Unit) {
         }
     }
 
-    Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
-        topBar = {
-            TopAppBar(
-                title = { Text(stringResource(R.string.settings_data_control), fontWeight = FontWeight.Bold) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background,
-                    titleContentColor = MaterialTheme.colorScheme.onBackground
-                )
-            )
-        }
-    ) { padding ->
-        Column(
-            modifier = Modifier
-                .padding(padding)
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp, vertical = 16.dp)
-        ) {
-            // Export card
-            SettingsGroup(title = stringResource(R.string.settings_data_control)) {
-                ListItem(
-                    headlineContent = { Text(stringResource(R.string.data_export_title)) },
-                    supportingContent = { Text(stringResource(R.string.data_export_subtitle)) },
-                    leadingContent = {
-                        Icon(Icons.Default.Upload, null, tint = MaterialTheme.colorScheme.primary)
+    val isClaudeImporting = claudeImportProgress != null
+    val isProgressVisible = isExporting || isImporting || isClaudeImporting
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        Scaffold(
+            containerColor = MaterialTheme.colorScheme.background,
+            topBar = {
+                TopAppBar(
+                    title = { Text(stringResource(R.string.settings_data_control), fontWeight = FontWeight.Bold) },
+                    navigationIcon = {
+                        IconButton(onClick = onBack) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
+                        }
                     },
-                    colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                    modifier = Modifier.clickable { showExportDialog = true }
-                )
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
-                ListItem(
-                    headlineContent = { Text(stringResource(R.string.data_import_title)) },
-                    supportingContent = { Text(stringResource(R.string.data_import_subtitle)) },
-                    leadingContent = {
-                        Icon(Icons.Default.Download, null, tint = MaterialTheme.colorScheme.primary)
-                    },
-                    colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                    modifier = Modifier.clickable { importLauncher.launch(arrayOf("application/zip", "*/*")) }
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.background,
+                        titleContentColor = MaterialTheme.colorScheme.onBackground
+                    )
                 )
             }
+        ) { padding ->
+            Column(
+                modifier = Modifier
+                    .padding(padding)
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 16.dp, vertical = 16.dp)
+            ) {
+                // Import/Export group
+                SettingsGroup(title = stringResource(R.string.settings_data_control)) {
+                    ListItem(
+                        headlineContent = { Text(stringResource(R.string.data_import_title)) },
+                        supportingContent = { Text(stringResource(R.string.data_import_subtitle)) },
+                        leadingContent = {
+                            Icon(Icons.Default.Download, null, tint = MaterialTheme.colorScheme.primary)
+                        },
+                        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                        modifier = Modifier.clickable { importLauncher.launch(arrayOf("application/zip", "*/*")) }
+                    )
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+                    ListItem(
+                        headlineContent = { Text(stringResource(R.string.data_export_title)) },
+                        supportingContent = { Text(stringResource(R.string.data_export_subtitle)) },
+                        leadingContent = {
+                            Icon(Icons.Default.Upload, null, tint = MaterialTheme.colorScheme.primary)
+                        },
+                        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                        modifier = Modifier.clickable { showExportDialog = true }
+                    )
+                }
+
+                // Third party group
+                SettingsGroup(title = stringResource(R.string.third_party_import)) {
+                    ListItem(
+                        headlineContent = { Text(stringResource(R.string.claude_import_title)) },
+                        supportingContent = { Text(stringResource(R.string.claude_import_subtitle)) },
+                        leadingContent = {
+                            Icon(Icons.Default.Download, null, tint = MaterialTheme.colorScheme.primary)
+                        },
+                        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                        modifier = Modifier.clickable { claudeChatLauncher.launch(arrayOf("application/json", "*/*")) }
+                    )
+                }
+
+                // Show Claude import dialog when preview is loaded
+                LaunchedEffect(claudeImportPreview) {
+                    if (claudeImportPreview != null) {
+                        showClaudeImportDialog = true
+                    }
+                }
+
+                // Show Claude import success dialog when result is available
+                LaunchedEffect(claudeImportResult) {
+                    if (claudeImportResult != null) {
+                        showClaudeSuccessDialog = true
+                    }
+                }
+            }
+        }
+
+        // Progress dialog
+        if (isProgressVisible) {
+            val progress = claudeImportProgress ?: exportProgress ?: importProgress ?: 0f
+            val label = if (isClaudeImporting) stringResource(R.string.claude_import_progress)
+                        else if (isExporting) stringResource(R.string.exporting_label)
+                        else stringResource(R.string.importing_label)
+
+            AlertDialog(
+                onDismissRequest = { },
+                title = { Text(label) },
+                text = {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        LinearProgressIndicator(
+                            progress = { progress },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            "${(progress * 100).toInt()}%",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                },
+                confirmButton = { }
+            )
         }
     }
 
@@ -177,39 +280,139 @@ fun SettingsDataControlPage(viewModel: ChatViewModel, onBack: () -> Unit) {
         )
     }
 
-    // Progress overlay
-    if (isExporting || isImporting) {
-        val progress = exportProgress ?: importProgress ?: 0f
-        val label = if (isExporting) stringResource(R.string.exporting_label)
-                    else stringResource(R.string.importing_label)
+    // Claude import preview dialog
+    if (showClaudeImportDialog && claudeImportPreview != null) {
+        val preview = claudeImportPreview!!
+        var dialogSelectedIds by remember { mutableStateOf(preview.conversations.map { it.uuid }.toSet()) }
+        val allIds = preview.conversations.map { it.uuid }.toSet()
+        val allSelected = dialogSelectedIds.size == allIds.size
+        val selectedConvCount = preview.conversations.count { it.uuid in dialogSelectedIds }
+        val selectedMsgCount = preview.conversations.filter { it.uuid in dialogSelectedIds }.sumOf { it.messageCount }
 
-        Box(
-            modifier = Modifier.fillMaxSize(),
-            contentAlignment = Alignment.Center
-        ) {
-            Card(
-                modifier = Modifier.padding(32.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-            ) {
-                Column(
-                    modifier = Modifier.padding(24.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text(label, style = MaterialTheme.typography.titleMedium)
-                    Spacer(Modifier.height(16.dp))
-                    LinearProgressIndicator(
-                        progress = { progress },
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    Spacer(Modifier.height(8.dp))
+        AlertDialog(
+            onDismissRequest = {
+                showClaudeImportDialog = false
+                viewModel.clearClaudeImportState()
+            },
+            title = { Text(stringResource(R.string.claude_import_title)) },
+            text = {
+                Column {
+                    // Fixed header
                     Text(
-                        "${(progress * 100).toInt()}%",
-                        style = MaterialTheme.typography.bodyMedium,
+                        "$selectedConvCount ${stringResource(R.string.claude_import_conversations)}, $selectedMsgCount ${stringResource(R.string.claude_import_messages)}",
+                        style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                    Spacer(Modifier.height(4.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        TextButton(onClick = {
+                            dialogSelectedIds = if (allSelected) emptySet() else allIds
+                        }) {
+                            Text(
+                                if (allSelected) stringResource(R.string.deselect_all) else stringResource(R.string.select_all),
+                                style = MaterialTheme.typography.labelSmall
+                            )
+                        }
+                    }
+                    HorizontalDivider()
+                    // Scrollable list
+                    LazyColumn(modifier = Modifier.heightIn(max = 280.dp)) {
+                        items(preview.conversations.size) { index ->
+                            val conv = preview.conversations[index]
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        dialogSelectedIds = if (conv.uuid in dialogSelectedIds)
+                                            dialogSelectedIds - conv.uuid else dialogSelectedIds + conv.uuid
+                                    }
+                                    .padding(vertical = 2.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Checkbox(
+                                    checked = conv.uuid in dialogSelectedIds,
+                                    onCheckedChange = {
+                                        dialogSelectedIds = if (it)
+                                            dialogSelectedIds + conv.uuid else dialogSelectedIds - conv.uuid
+                                    }
+                                )
+                                Spacer(Modifier.width(4.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        conv.title.ifEmpty { "Untitled" },
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        maxLines = 1
+                                    )
+                                    Text(
+                                        "${conv.messageCount} messages",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val finalIds = dialogSelectedIds
+                        showClaudeImportDialog = false
+                        viewModel.clearClaudeImportState()
+                        claudeFileUri?.let {
+                            scope.launch {
+                                viewModel.importClaudeChat(it, ImportStrategy.MERGE, finalIds)
+                            }
+                        }
+                    },
+                    enabled = dialogSelectedIds.isNotEmpty()
+                ) {
+                    Text(stringResource(R.string.claude_import_import))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    showClaudeImportDialog = false
+                    viewModel.clearClaudeImportState()
+                }) {
+                    Text(stringResource(R.string.cancel))
                 }
             }
-        }
+        )
+    }
+
+    // Claude import success dialog
+    if (showClaudeSuccessDialog && claudeImportResult != null) {
+        val result = claudeImportResult!!
+        AlertDialog(
+            onDismissRequest = {
+                showClaudeSuccessDialog = false
+                viewModel.clearClaudeImportState()
+            },
+            title = { Text(stringResource(R.string.claude_import_success)) },
+            text = {
+                Column {
+                    Text(stringResource(R.string.claude_import_success_detail, result.conversationsImported, result.messagesImported))
+                    if (result.errors.isNotEmpty()) {
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            "Errors: ${result.errors.joinToString(", ")}",
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    showClaudeSuccessDialog = false
+                    viewModel.clearClaudeImportState()
+                }) {
+                    Text(stringResource(R.string.provider_close))
+                }
+            }
+        )
     }
 }
 

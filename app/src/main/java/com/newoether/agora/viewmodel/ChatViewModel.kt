@@ -8,6 +8,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.newoether.agora.api.*
+import com.newoether.agora.data.ClaudeChatImporter
 import com.newoether.agora.data.ApiKeyEntry
 import com.newoether.agora.data.CustomProviderConfig
 import com.newoether.agora.data.DataExporter
@@ -59,6 +60,9 @@ import kotlinx.serialization.json.Json
 import java.io.File
 import java.util.UUID
 import androidx.compose.foundation.lazy.LazyListState
+
+private inline fun <reified T : Enum<T>> safeValueOf(name: String): T? =
+    try { enumValueOf<T>(name) } catch (_: Exception) { null }
 
 class ChatViewModel(
     application: Application,
@@ -404,6 +408,17 @@ class ChatViewModel(
     private val _importPreview = MutableStateFlow<DataImporter.ImportPreview?>(null)
     val importPreview: StateFlow<DataImporter.ImportPreview?> = _importPreview.asStateFlow()
 
+    // Claude import state
+    private val _claudeImportPreview = MutableStateFlow<ClaudeChatImporter.ImportPreview?>(null)
+    val claudeImportPreview: StateFlow<ClaudeChatImporter.ImportPreview?> = _claudeImportPreview.asStateFlow()
+
+    private val _claudeImportProgress = MutableStateFlow<Float?>(null)
+    val claudeImportProgress: StateFlow<Float?> = _claudeImportProgress.asStateFlow()
+
+    private val _claudeImportResult = MutableStateFlow<ClaudeChatImporter.ImportResult?>(null)
+    val claudeImportResult: StateFlow<ClaudeChatImporter.ImportResult?> = _claudeImportResult.asStateFlow()
+
+ 
     private val _conversationCount = MutableStateFlow(0)
     val conversationCount: StateFlow<Int> = _conversationCount.asStateFlow()
 
@@ -1745,6 +1760,14 @@ class ChatViewModel(
             val failedProviders = mutableListOf<String>()
             var skippedCount = 0
 
+            // Ensure custom providers are loaded into the providers map before iterating
+            customProviders.value.forEach { config ->
+                if (config.name !in providers) {
+                    val url = providerBaseUrls.value[config.name] ?: ""
+                    providers[config.name] = CustomOpenAiProvider(config.name, url)
+                }
+            }
+
             val message = try {
                 providers.forEach { (name, providerInstance) ->
                     if (name == "Local") return@forEach
@@ -1752,7 +1775,11 @@ class ChatViewModel(
                     val activeKeyId = activeApiKeyIds.value[name]
                     val activeKey = apiKeys.value.find { it.id == activeKeyId }?.key ?: ""
                     val isCustomProvider = name !in builtInProviders
-                    val currentBaseUrl = if (isCustomProvider) providerInstance.defaultBaseUrl else providerBaseUrls.value[name]
+                    val currentBaseUrl = if (isCustomProvider) {
+                        providerBaseUrls.value[name]?.takeIf { it.isNotBlank() } ?: providerInstance.defaultBaseUrl
+                    } else {
+                        providerBaseUrls.value[name]
+                    }
 
                     val isConfigured = when {
                         isCustomProvider -> providerInstance.defaultBaseUrl.isNotBlank()
@@ -1866,6 +1893,115 @@ class ChatViewModel(
     fun clearImportState() {
         _importManifest.value = null
         _importPreview.value = null
+    }
+
+    fun setClaudeImportPreview(preview: ClaudeChatImporter.ImportPreview) {
+        _claudeImportPreview.value = preview
+    }
+
+    fun previewClaudeChat(json: String) {
+        try {
+            val importer = ClaudeChatImporter()
+            val parseResult = importer.parseJson(json)
+            if (parseResult.isSuccess) {
+                val preview = importer.preview(parseResult.getOrThrow())
+                _claudeImportPreview.value = preview
+            } else {
+                emitSnackbar(parseResult.exceptionOrNull()?.localizedMessage ?: "Parse error")
+                _claudeImportPreview.value = null
+            }
+        } catch (e: Exception) {
+            emitSnackbar(e.localizedMessage ?: "Unknown error")
+            _claudeImportPreview.value = null
+        }
+    }
+
+    fun setClaudeImportError(error: String) {
+        emitSnackbar(error)
+        _claudeImportPreview.value = null
+    }
+
+    fun clearClaudeImportState() {
+        _claudeImportPreview.value = null
+        _claudeImportProgress.value = null
+        _claudeImportResult.value = null
+    }
+
+    fun importClaudeChat(uri: Uri, strategy: com.newoether.agora.ui.settings.ImportStrategy, selectedIds: Set<String>) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                _claudeImportProgress.value = 0.2f
+                val bytes = getApplication<android.app.Application>().contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                if (bytes == null) {
+                    emitSnackbar(getApplication<android.app.Application>().getString(R.string.claude_import_error_detail, "Could not read file"))
+                    return@launch
+                }
+
+                val importer = ClaudeChatImporter()
+                val jsonResult = importer.extractJsonFromBytes(bytes)
+                if (jsonResult.isFailure) {
+                    emitSnackbar(getApplication<android.app.Application>().getString(R.string.claude_import_error_detail, jsonResult.exceptionOrNull()?.localizedMessage ?: "Parse error"))
+                    return@launch
+                }
+
+                val parseResult = importer.parseJson(jsonResult.getOrThrow())
+                if (parseResult.isFailure) {
+                    emitSnackbar(getApplication<android.app.Application>().getString(R.string.claude_import_error_detail, parseResult.exceptionOrNull()?.localizedMessage ?: "Parse error"))
+                    return@launch
+                }
+
+                _claudeImportProgress.value = 0.4f
+                val conversations = parseResult.getOrThrow()
+                val preview = importer.preview(conversations)
+                val importData = importer.toImportFormat(conversations, selectedIds)
+
+                if (preview.totalMessageCount == 0) {
+                    emitSnackbar(getApplication<android.app.Application>().getString(R.string.claude_import_no_data))
+                    return@launch
+                }
+
+                _claudeImportProgress.value = 0.6f
+
+                // Convert to Room entities
+                val chatEntities = importData.conversations.map { ce ->
+                    ChatEntity(ce.id, ce.title, ce.lastUpdated, ce.selectedBranchesJson, ce.systemPromptId, ce.modelId)
+                }
+                val messageEntities = importData.messages.map { me ->
+                    MessageEntity(
+                        id = me.id, conversationId = me.conversationId, parentId = me.parentId,
+                        text = me.text, images = me.images, thoughts = me.thoughts,
+                        thoughtTitle = me.thoughtTitle, tokenCount = me.tokenCount,
+                        status = safeValueOf<MessageStatus>(me.status) ?: MessageStatus.SUCCESS,
+                        participant = safeValueOf<Participant>(me.participant) ?: Participant.MODEL,
+                        timestamp = me.timestamp, thoughtTimeMs = me.thoughtTimeMs,
+                        modelName = me.modelName, toolCallJson = me.toolCallJson,
+                        attachmentMeta = me.attachmentMeta
+                    )
+                }
+
+                if (strategy == com.newoether.agora.ui.settings.ImportStrategy.REPLACE) {
+                    chatDao.deleteAllConversations()
+                    chatEntities.forEach { chatDao.upsertConversation(it) }
+                    messageEntities.forEach { chatDao.upsertMessage(it) }
+                    _claudeImportProgress.value = 0.8f
+                    _claudeImportResult.value = ClaudeChatImporter.ImportResult(chatEntities.size, messageEntities.size)
+                } else {
+                    val existingConvIds = chatDao.getAllConversationsList().map { it.id }.toSet()
+                    val existingMsgIds = chatDao.findExistingMessageIds(messageEntities.map { it.id }).toSet()
+                    val newCh = chatEntities.filterNot { it.id in existingConvIds }
+                    val newMsgs = messageEntities.filterNot { it.id in existingMsgIds }
+                    newCh.forEach { chatDao.upsertConversation(it) }
+                    newMsgs.forEach { chatDao.upsertMessage(it) }
+                    _claudeImportProgress.value = 0.8f
+                    _claudeImportResult.value = ClaudeChatImporter.ImportResult(newCh.size, newMsgs.size)
+                }
+                _claudeImportProgress.value = null
+                refreshDataCounts()
+            } catch (e: Exception) {
+                _claudeImportProgress.value = null
+                emitSnackbar(getApplication<android.app.Application>().getString(R.string.claude_import_error_detail, e.localizedMessage ?: ""))
+            }
+        }
     }
 
     fun importData(uri: Uri, decisions: Map<DataExporter.ExportCategory, DataImporter.ImportStrategy>) {

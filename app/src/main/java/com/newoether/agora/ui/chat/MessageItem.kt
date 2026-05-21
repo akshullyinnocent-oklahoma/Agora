@@ -531,7 +531,7 @@ fun MessageItem(
                                     }
                                     // Meta-only items (file/PDF without image representation)
                                     val metaOnlyItems = meta?.items
-                                        ?.filter { it.imageIndex == null && (it.type == "file" || it.type == "pdf") }
+                                        ?.filter { it.imageIndex == null && (it.type == "file" || it.type == "pdf" || it.type == "image") }
                                         ?.map { Triple(-1, "", it) }
                                         ?: emptyList()
                                     imageItems + metaOnlyItems

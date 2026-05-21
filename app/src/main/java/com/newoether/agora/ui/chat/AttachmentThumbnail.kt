@@ -160,13 +160,33 @@ fun AttachmentThumbnailItem(
             }
         }
         else -> { // image
-            Box(modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { handlers.onImageClick?.invoke(imagePath) }) {
-                coil.compose.AsyncImage(
-                    model = imagePath,
-                    contentDescription = null,
-                    modifier = thumbModifier,
-                    contentScale = ContentScale.Fit
-                )
+            if (imagePath.isNotEmpty()) {
+                Box(modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { handlers.onImageClick?.invoke(imagePath) }) {
+                    coil.compose.AsyncImage(
+                        model = imagePath,
+                        contentDescription = null,
+                        modifier = thumbModifier,
+                        contentScale = ContentScale.Fit
+                    )
+                }
+            } else {
+                // No image data available (e.g. Claude import), show file-style thumbnail
+                val clickMod = if (fileName != null && handlers.onFileClick != null)
+                    Modifier.clip(RoundedCornerShape(8.dp)).clickable { handlers.onFileClick(fileName, textContent ?: "") } else Modifier
+                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(72.dp)) {
+                    Box(
+                        modifier = Modifier.size(64.dp).then(clickMod)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        val ext = (fileName ?: "").substringAfterLast('.', "").uppercase().take(4).ifEmpty { "IMG" }
+                        Text(ext, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
+                    }
+                    if (showFileName && fileName != null) {
+                        Text(fileName, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp))
+                    }
+                }
             }
         }
     }

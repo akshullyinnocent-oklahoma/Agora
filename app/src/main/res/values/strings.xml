@@ -434,6 +434,34 @@
     <string name="import_invalid_file">Invalid .agora file. Please select a valid export.</string>
     <string name="import_no_data">This export file contains no importable data.</string>
 
+    <!-- Claude Chat Import -->
+    <string name="third_party_import">Third Party</string>
+    <string name="claude_import_title">Import from Claude</string>
+    <string name="claude_import_subtitle">Import conversations from a Claude export file.</string>
+    <string name="claude_import_select_file">Select Claude export file</string>
+    <string name="claude_import_no_file">No file selected</string>
+    <string name="claude_import_conversations">Conversations</string>
+    <string name="claude_import_messages">Messages</string>
+    <string name="claude_import_human">From You</string>
+    <string name="claude_import_assistant">From Claude</string>
+    <string name="claude_import_has_attachments">Has attachments</string>
+    <string name="claude_import_no_attachments">No attachments</string>
+    <string name="claude_import_strategy">Import Strategy</string>
+    <string name="claude_import_replace">Replace</string>
+    <string name="claude_import_merge">Merge</string>
+    <string name="claude_import_error">Import Error</string>
+    <string name="claude_import_error_detail">Failed to import: %1$s</string>
+    <string name="claude_import_success">Import Successful</string>
+    <string name="claude_import_success_detail">Imported %1$d conversations (%2$d messages).</string>
+    <string name="claude_import_cancel">Cancel</string>
+    <string name="claude_import_import">Import</string>
+    <string name="claude_import_progress">Importing…</string>
+    <string name="claude_import_select_file_desc">Select a Claude export .zip or .json file.</string>
+    <string name="claude_import_preview_title">Import Preview</string>
+    <string name="claude_import_no_data">This file contains no importable data.</string>
+    <string name="select_all">Select All</string>
+    <string name="deselect_all">Deselect All</string>
+
     <!-- Video Slicing -->
     <string name="video_slice_title">Video Frame Extraction</string>
     <string name="video_duration">Duration: %1$s</string>
