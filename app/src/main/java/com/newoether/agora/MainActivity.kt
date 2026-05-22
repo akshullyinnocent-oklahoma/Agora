@@ -133,7 +133,8 @@ fun MainNavigation(viewModel: ChatViewModel) {
     if (pdfPages.isNotEmpty()) { savedPdfPages = pdfPages } else { savedPdfPages = emptyList() }
     val snackbarHostState = remember { SnackbarHostState() }
     var chatSnackbarOffset by remember { mutableStateOf(0.dp) }
-    val snackbarBottomPadding = if (showSettings) 0.dp else chatSnackbarOffset
+    val navBarPadding = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+    val snackbarBottomPadding = if (showSettings) navBarPadding else chatSnackbarOffset
     val focusManager = LocalFocusManager.current
 
     LaunchedEffect(Unit) {
