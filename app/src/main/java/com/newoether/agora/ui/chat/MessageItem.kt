@@ -939,9 +939,9 @@ fun MessageItem(
                             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 6.dp)) {
                                 if (isStreaming || message.status == MessageStatus.SENDING || message.status == MessageStatus.THINKING || message.status == MessageStatus.TOOL_CALLING) {
                                     CircularProgressIndicator(
-                                        modifier = Modifier.size(12.dp),
+                                        modifier = Modifier.size(16.dp),
                                         color = if (text == thinkingStatus) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.primary,
-                                        strokeWidth = 1.5.dp,
+                                        strokeWidth = 2.dp,
                                     )
                                 } else {
                                     val icon = when (message.status) {
