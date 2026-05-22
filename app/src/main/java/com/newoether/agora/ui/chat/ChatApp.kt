@@ -36,6 +36,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -126,6 +128,7 @@ fun ChatApp(
     val bottomBarHeight = with(density) { bottomBarHeightPx.toDp() }
     val listState = viewModel.listState
     val textFieldState = rememberSaveable(saver = androidx.compose.foundation.text.input.TextFieldState.Saver) { androidx.compose.foundation.text.input.TextFieldState() }
+    val inputFocusRequester = remember { FocusRequester() }
 
     val messageHeights = viewModel.messageHeights
     var viewportHeightPx by remember { mutableIntStateOf(0) }
@@ -134,6 +137,8 @@ fun ChatApp(
     LaunchedEffect(Unit) {
         delay(100)
         showLaunchContent = true
+        delay(200)
+        inputFocusRequester.requestFocus()
     }
 
     suspend fun scrollToLastUserMessage(animate: Boolean = true, targetMessageId: String? = null) {
@@ -740,6 +745,7 @@ fun ChatApp(
                         onFileContentClick = { name, content -> viewModel.showFilePreview(name, content) },
                         modifier = Modifier,
                         textFieldState = textFieldState,
+                        focusRequester = inputFocusRequester,
                         isExpanded = isExpanded,
                         onCollapse = { isExpanded = false },
                         onExpand = { isExpanded = true }
