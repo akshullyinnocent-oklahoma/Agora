@@ -76,7 +76,7 @@ fun ChatApp(
     onImageClick: (String) -> Unit,
     onFileContentClick: ((String, String) -> Unit)? = null,
     onPdfPagesClick: ((List<String>, Int) -> Unit)? = null,
-    snackbarHostState: SnackbarHostState = SnackbarHostState()
+    onBottomBarHeightChanged: (androidx.compose.ui.unit.Dp) -> Unit = {}
 ) {
     val scope = rememberCoroutineScope()
     val density = LocalDensity.current
@@ -127,6 +127,7 @@ fun ChatApp(
     val drawerWidth = configuration.screenWidthDp.dp * 0.8f
     var bottomBarHeightPx by rememberSaveable { mutableFloatStateOf(0f) }
     val bottomBarHeight = with(density) { bottomBarHeightPx.toDp() }
+    LaunchedEffect(bottomBarHeight) { onBottomBarHeightChanged(bottomBarHeight) }
     val listState = viewModel.listState
     val textFieldState = rememberSaveable(saver = androidx.compose.foundation.text.input.TextFieldState.Saver) { androidx.compose.foundation.text.input.TextFieldState() }
     val inputFocusRequester = remember { FocusRequester() }
@@ -753,13 +754,6 @@ fun ChatApp(
                     )
                 }
             }
-
-            SnackbarHost(
-                hostState = snackbarHostState,
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(bottom = bottomBarHeight)
-            )
         }
     }
 

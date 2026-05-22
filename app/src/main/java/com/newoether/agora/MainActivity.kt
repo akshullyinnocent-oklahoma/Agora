@@ -132,6 +132,7 @@ fun MainNavigation(viewModel: ChatViewModel) {
     var savedPdfPages by remember { mutableStateOf<List<String>>(emptyList()) }
     if (pdfPages.isNotEmpty()) { savedPdfPages = pdfPages } else { savedPdfPages = emptyList() }
     val snackbarHostState = remember { SnackbarHostState() }
+    var snackbarBottomPadding by remember { mutableStateOf(0.dp) }
     val focusManager = LocalFocusManager.current
 
     LaunchedEffect(Unit) {
@@ -171,7 +172,7 @@ fun MainNavigation(viewModel: ChatViewModel) {
                     viewModel.showPdfPreview(pages, idx)
                     fullScreenImageUrl = pages[idx]
                 },
-                snackbarHostState = snackbarHostState
+                onBottomBarHeightChanged = { snackbarBottomPadding = it }
             )
 
             // Scrim that fades in behind the settings page
@@ -245,6 +246,13 @@ fun MainNavigation(viewModel: ChatViewModel) {
                     com.newoether.agora.ui.chat.TextFileViewer(content = savedContent!!, fileName = savedName!!, onClose = { viewModel.clearPreviews() })
                 }
             }
+
+            SnackbarHost(
+                hostState = snackbarHostState,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = snackbarBottomPadding)
+            )
         }
     }
 }
