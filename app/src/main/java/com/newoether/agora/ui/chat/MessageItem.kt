@@ -56,9 +56,11 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.movableContentOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
@@ -974,6 +976,14 @@ fun MessageItem(
                     var streamingMaxHeightPx by remember { mutableIntStateOf(0) }
                     var thinkingContentMaxHeightPx by remember { mutableIntStateOf(0) }
 
+                    // Reset anti-shrink heights when streaming restarts (e.g. regeneration)
+                    LaunchedEffect(isStreaming) {
+                        if (isStreaming) {
+                            streamingMaxHeightPx = 0
+                            thinkingContentMaxHeightPx = 0
+                        }
+                    }
+
                     Column {
                         val isError = message.status == MessageStatus.ERROR || message.participant == Participant.ERROR
 
@@ -1078,22 +1088,26 @@ fun MessageItem(
                                                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
                                                         fontWeight = FontWeight.SemiBold
                                                     )
-                                                    SelectionContainer {
-                                                        RecomposeSafeMarkdown(
-                                                            content = seg.content,
-                                                            isStreaming = isStreaming
-                                                        ) { text ->
-                                                            Markdown(
-                                                                content = text.escapeThinkTags(),
-                                                                modifier = Modifier.fillMaxWidth(),
-                                                                colors = customMarkdownColors,
-                                                                typography = thoughtTypography,
-                                                                padding = thoughtMarkdownPadding,
-                                                                components = customMarkdownComponents,
-                                                                imageTransformer = latexImageTransformer
-                                                            )
+                                                    val thoughtMarkdown = remember {
+                                                        movableContentOf {
+                                                            RecomposeSafeMarkdown(
+                                                                content = seg.content,
+                                                                isStreaming = isStreaming
+                                                            ) { text ->
+                                                                Markdown(
+                                                                    content = text.escapeThinkTags(),
+                                                                    modifier = Modifier.fillMaxWidth(),
+                                                                    colors = customMarkdownColors,
+                                                                    typography = thoughtTypography,
+                                                                    padding = thoughtMarkdownPadding,
+                                                                    components = customMarkdownComponents,
+                                                                    imageTransformer = latexImageTransformer
+                                                                )
+                                                            }
                                                         }
                                                     }
+                                                    if (!isStreaming) SelectionContainer { thoughtMarkdown() }
+                                                    if (isStreaming) { thoughtMarkdown() }
                                                 }
                                             } else if (seg.type == "tool") {
                                                 val isToolError = (seg.toolResult ?: "").startsWith("Error")
@@ -1161,22 +1175,26 @@ fun MessageItem(
                             } else if (debouncedText.isNotEmpty()) {
                                 val spans = remember(debouncedText) { parseLatexSpans(debouncedText) }
                                 if (spans.all { !it.isLatex }) {
-                                    SelectionContainer {
-                                        RecomposeSafeMarkdown(
-                                            content = debouncedText,
-                                            isStreaming = isStreaming
-                                        ) { text ->
-                                            Markdown(
-                                                content = text.escapeThinkTags(),
-                                                modifier = Modifier.fillMaxWidth(),
-                                                colors = customMarkdownColors,
-                                                typography = customTypography,
-                                                padding = customMarkdownPadding,
-                                                components = customMarkdownComponents,
-                                                imageTransformer = latexImageTransformer
-                                            )
+                                    val mainMarkdown = remember {
+                                        movableContentOf {
+                                            RecomposeSafeMarkdown(
+                                                content = debouncedText,
+                                                isStreaming = isStreaming
+                                            ) { text ->
+                                                Markdown(
+                                                    content = text.escapeThinkTags(),
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    colors = customMarkdownColors,
+                                                    typography = customTypography,
+                                                    padding = customMarkdownPadding,
+                                                    components = customMarkdownComponents,
+                                                    imageTransformer = latexImageTransformer
+                                                )
+                                            }
                                         }
                                     }
+                                    if (!isStreaming) SelectionContainer { mainMarkdown() }
+                                    if (isStreaming) { mainMarkdown() }
                                 } else {
                                     val paragraphs = remember(debouncedText) { splitParagraphs(debouncedText) }
                                     Column {
@@ -1631,75 +1649,85 @@ private fun RecomposeSafeMarkdown(
     modifier: Modifier = Modifier,
     render: @Composable (text: String) -> Unit
 ) {
-    var stableText by remember { mutableStateOf(content) }
-    var transitionAlpha by remember { mutableFloatStateOf(1f) }
-    var exitingStreaming by remember { mutableStateOf(false) }
+    var buf0 by remember { mutableStateOf(content) }
+    var buf1 by remember { mutableStateOf("") }
+    var front by remember { mutableStateOf(0) }
+    var fading by remember { mutableStateOf(false) }
+    var fadeAlpha by remember { mutableFloatStateOf(0f) }
+    var fadeKey by remember { mutableIntStateOf(0) }
+    var wasStreaming by remember { mutableStateOf(false) }
+    var waitingForFade by remember { mutableStateOf(false) }
 
-    // Crossfade during streaming when live content differs from cached stable
-    val crossfading = stableText.isNotEmpty() && stableText != content && isStreaming
-
-    // Streaming just ended: always run exit crossfade so key() wrappers are
-    // removed smoothly. If stableText already equals content, skip the snap
-    // but still crossfade the two identical-content layers.
-    if (!isStreaming && !exitingStreaming) {
-        if (stableText != content) stableText = content
-        exitingStreaming = true
-        transitionAlpha = 0f
-    }
-
-    if (crossfading && transitionAlpha >= 1f) {
-        transitionAlpha = 0f
-    }
-
-    LaunchedEffect(content, exitingStreaming) {
-        if (crossfading || exitingStreaming) {
-            withFrameNanos { }
-            val startNs = withFrameNanos { it }
-            val durationNs = if (exitingStreaming) 150_000_000L else 200_000_000L
-            while (true) {
-                val nowNs = withFrameNanos { it }
-                val progress = ((nowNs - startNs).toFloat() / durationNs).coerceAtMost(1f)
-                transitionAlpha = progress
-                if (progress >= 1f) break
+    // State machine
+    if (isStreaming) {
+        waitingForFade = false
+        val cur = if (front == 0) buf0 else buf1
+        if (content != cur && !fading) {
+            if (front == 0) buf1 = content else buf0 = content
+            fadeKey++
+            fading = true
+            fadeAlpha = 0f
+        }
+    } else {
+        if (wasStreaming) {
+            waitingForFade = true
+        }
+        if (waitingForFade) {
+            if (!fading) {
+                // Current fade (if any) completed — write final to hidden, start final fade
+                if (front == 0) buf1 = content else buf0 = content
+                waitingForFade = false
+                fadeKey++
+                fading = true
+                fadeAlpha = 0f
             }
-            transitionAlpha = 1f
-            if (crossfading) stableText = content
-            exitingStreaming = false
+            // If fading still in progress, wait (don't interrupt)
+        }
+        if (!waitingForFade && !fading) {
+            // Normal idle — update front buffer, clear hidden
+            if (front == 0) {
+                if (buf0 != content) buf0 = content
+                buf1 = ""
+            } else {
+                if (buf1 != content) buf1 = content
+                buf0 = ""
+            }
         }
     }
+    wasStreaming = isStreaming
 
-    // Layer 1 (stableText) — only layer visible in idle state (selection works)
-    // Layer 2 (live content) — visible during streaming and exit crossfade
-    val l1z = if (exitingStreaming || (!crossfading && !isStreaming)) 1f else 0f
-    val l1a = when {
-        exitingStreaming -> transitionAlpha
-        crossfading -> 1f
-        isStreaming -> 0f
-        else -> 1f
-    }
-    val l2z = if (crossfading || isStreaming) 1f else 0f
-    val l2a = when {
-        exitingStreaming -> 1f
-        crossfading -> transitionAlpha
-        isStreaming -> 1f
-        else -> 0f
+    // Fade animation — keyed by fadeKey so every fade gets a fresh LaunchedEffect
+    LaunchedEffect(fadeKey) {
+        // Guard: only animate when a fade was actually requested
+        // (fadeKey=0 on init would otherwise run a spurious fade)
+        if (!fading) return@LaunchedEffect
+        withFrameNanos { }
+        val startNs = withFrameNanos { it }
+        val durationNs = 180_000_000L
+        while (true) {
+            val nowNs = withFrameNanos { it }
+            val p = ((nowNs - startNs).toFloat() / durationNs).coerceAtMost(1f)
+            fadeAlpha = p
+            if (p >= 1f) break
+        }
+        front = 1 - front
+        fading = false
+        fadeAlpha = 0f
     }
 
-    // Only render Layer 2 during streaming/transitions. In idle state,
-    // removing Layer 2 from the tree avoids a hidden duplicate text
-    // element that can intercept SelectionContainer handles.
-    val showL2 = isStreaming || crossfading || exitingStreaming
+    // Visibility / z-order: symmetric for both buffers
+    val incoming = 1 - front
+    val z0 = when { fading && incoming == 0 -> 2f; fading && front == 0 -> 0f; front == 0 -> 2f; else -> 0f }
+    val a0 = when { fading && incoming == 0 -> fadeAlpha; fading && front == 0 -> 1f; front == 0 -> 1f; else -> 0f }
+    val z1 = when { fading && incoming == 1 -> 2f; fading && front == 1 -> 0f; front == 1 -> 2f; else -> 0f }
+    val a1 = when { fading && incoming == 1 -> fadeAlpha; fading && front == 1 -> 1f; front == 1 -> 1f; else -> 0f }
 
     Box(modifier = modifier) {
-        if (stableText.isNotEmpty()) {
-            Box(modifier = Modifier.fillMaxWidth().zIndex(l1z).alpha(l1a)) {
-                render(stableText)
-            }
+        if (buf0.isNotEmpty()) {
+            Box(modifier = Modifier.fillMaxWidth().zIndex(z0).alpha(a0)) { render(buf0) }
         }
-        if (showL2) {
-            Box(modifier = Modifier.fillMaxWidth().zIndex(l2z).alpha(l2a)) {
-                render(content)
-            }
+        if (buf1.isNotEmpty()) {
+            Box(modifier = Modifier.fillMaxWidth().zIndex(z1).alpha(a1)) { render(buf1) }
         }
     }
 }
