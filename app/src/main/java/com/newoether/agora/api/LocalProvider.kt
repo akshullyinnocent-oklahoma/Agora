@@ -196,4 +196,15 @@ class LocalProvider(
         currentEngine?.close()
         currentEngine = null
     }
+
+    suspend fun releaseEngine() {
+        engineLock.withLock {
+            currentEngine?.close()
+            currentEngine = null
+        }
+    }
+
+    fun releaseEngineBlocking() {
+        kotlinx.coroutines.runBlocking { releaseEngine() }
+    }
 }

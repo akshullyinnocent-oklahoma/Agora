@@ -30,6 +30,7 @@ class LlamaChatEngine(
         }
     }
 
+    @Volatile
     private var nativeHandle: Long = 0
 
     private external fun nativeChatLoadModel(path: String, nCtx: Int): Long
@@ -105,27 +106,37 @@ class LlamaChatEngine(
         }
 
         awaitClose {
-            nativeChatCancel(nativeHandle)
+            synchronized(this@LlamaChatEngine) {
+                if (nativeHandle != 0L) {
+                    nativeChatCancel(nativeHandle)
+                }
+            }
         }
     }
 
     fun cancel() {
-        if (nativeHandle != 0L) {
-            nativeChatCancel(nativeHandle)
+        synchronized(this) {
+            if (nativeHandle != 0L) {
+                nativeChatCancel(nativeHandle)
+            }
         }
     }
 
     fun resetContext() {
-        if (nativeHandle != 0L) {
-            nativeChatReset(nativeHandle)
+        synchronized(this) {
+            if (nativeHandle != 0L) {
+                nativeChatReset(nativeHandle)
+            }
         }
     }
 
     override fun close() {
-        if (nativeHandle != 0L) {
-            nativeChatFreeModel(nativeHandle)
-            nativeHandle = 0L
-            DebugLog.d(TAG, "Model closed: $modelPath")
+        synchronized(this) {
+            if (nativeHandle != 0L) {
+                nativeChatFreeModel(nativeHandle)
+                nativeHandle = 0L
+                DebugLog.d(TAG, "Model closed: $modelPath")
+            }
         }
     }
 

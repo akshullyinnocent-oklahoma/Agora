@@ -791,13 +791,16 @@ class ChatViewModel(
                 var processed = alreadyDone
                 var succeeded = 0
                 _cachingProgress.update { it + (modelId to (alreadyDone to total)) }
+                val releaseCallback: (() -> Unit)? = if (model.type == EmbeddingModelType.LOCAL) {
+                    { localProvider.releaseEngineBlocking() }
+                } else null
                 try {
                     for (msg in toProcess) {
                         if (embeddingModels.value.none { it.id == modelId }) return@launch
                         val text = msg.text.take(8000)
                         val embedding: FloatArray? = if (model.type == EmbeddingModelType.LOCAL) {
                             if (LlamaEngine.isModelReady(model.localFilePath))
-                                LlamaEngine.computeEmbedding(text, model.localFilePath)
+                                LlamaEngine.computeEmbedding(text, model.localFilePath, releaseCallback)
                             else null
                         } else {
                             val apiKey = resolveEmbeddingApiKey()
@@ -940,7 +943,9 @@ class ChatViewModel(
                 return@withContext null
             }
             DebugLog.d("AgoraVM", "resolveEmbedding: using local model ${model.name}")
-            LlamaEngine.computeEmbedding(text, model.localFilePath)
+            LlamaEngine.computeEmbedding(text, model.localFilePath) {
+                localProvider.releaseEngineBlocking()
+            }
         } else {
             val apiKey = resolveEmbeddingApiKey()
             if (apiKey == null) {
@@ -981,7 +986,9 @@ class ChatViewModel(
                     DebugLog.w("AgoraVM", "RAG index: local model not ready, skipping")
                     return@launch
                 }
-                LlamaEngine.computeEmbedding(toEmbed, model.localFilePath)
+                LlamaEngine.computeEmbedding(toEmbed, model.localFilePath) {
+                    localProvider.releaseEngineBlocking()
+                }
             } else {
                 val apiKey = resolveEmbeddingApiKey()
                 if (apiKey == null) {
@@ -1136,9 +1143,22 @@ class ChatViewModel(
 
             var title = ""
             try {
-                provider.generateResponse(titlePrompt, config).collect { event ->
-                    if (event is StreamEvent.TextChunk) title += event.text
-                    else if (event is StreamEvent.Error) DebugLog.e("AgoraVM", "Title generation error: ${event.message}")
+                // Serialize with embedding to avoid dual model load OOM
+                if (providerName == "Local") {
+                    LlamaEngine.modelMutex.withLock {
+                        withContext(Dispatchers.IO) {
+                            provider.generateResponse(titlePrompt, config).collect { event ->
+                                if (event is StreamEvent.TextChunk) title += event.text
+                                else if (event is StreamEvent.Error) DebugLog.e("AgoraVM", "Title generation error: ${event.message}")
+                            }
+                        }
+                        localProvider.releaseEngine()
+                    }
+                } else {
+                    provider.generateResponse(titlePrompt, config).collect { event ->
+                        if (event is StreamEvent.TextChunk) title += event.text
+                        else if (event is StreamEvent.Error) DebugLog.e("AgoraVM", "Title generation error: ${event.message}")
+                    }
                 }
             } catch (e: Exception) {
                 DebugLog.e("AgoraVM", "Title generation failed for provider=$providerName model=$modelId", e)
