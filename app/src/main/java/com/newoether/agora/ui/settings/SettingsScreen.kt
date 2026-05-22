@@ -135,6 +135,7 @@ fun SettingsScreen(viewModel: ChatViewModel, onBack: () -> Unit) {
                 else -> {
                     Scaffold(
                         containerColor = MaterialTheme.colorScheme.background,
+                        contentWindowInsets = WindowInsets(0.dp),
                         topBar = {
                             TopAppBar(
                                 title = { Text(stringResource(R.string.settings_title), fontWeight = FontWeight.Bold) },
@@ -153,6 +154,7 @@ fun SettingsScreen(viewModel: ChatViewModel, onBack: () -> Unit) {
                         LazyColumn(
                             modifier = Modifier
                                 .padding(padding)
+                                .navigationBarsPadding()
                                 .padding(horizontal = 16.dp, vertical = 12.dp)
                         ) {
                             items(settingsGroups.size) { groupIndex ->
