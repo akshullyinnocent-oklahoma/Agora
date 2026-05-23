@@ -25,20 +25,24 @@ Agora is a fully open-source, BYOK (Bring Your Own Key) Android client designed 
 ## Features
 
 ### Multi-Provider Access
-- **8 AI providers** in one app: OpenAI, Anthropic, Google Gemini, DeepSeek, Qwen (DashScope), OpenRouter, Ollama, and on-device Local (GGUF via llama.cpp)
+- **8 built-in AI providers** plus custom provider support: OpenAI, Anthropic, Google Gemini, DeepSeek, Qwen (DashScope), OpenRouter, Ollama, and on-device Local (GGUF via llama.cpp)
+- **Custom providers:** Define arbitrary provider names with custom base URLs and API keys
 - **BYOK:** Bring your own API keys for every provider — no subscriptions, no middlemen
 - Per-provider base URL override for proxies and self-hosted endpoints
 - **Multiple API keys per provider** with named aliases for easy rotation
 
 ### Agentic Capabilities
-- **Tool Calling:** Multi-round tool execution loop — the model can search the web, read/write memory files, search past conversations, and more
+- **Tool Calling:** Multi-round tool execution loop — the model can search the web, read/write memory files, search past conversations, execute shell commands, and more
 - **Web Search:** Built-in Brave, Serper, Tavily, and SearXNG integration. The model decides when to search and the app executes it client-side
 - **Code Execution:** Gemini code execution support for running and testing code inline
+- **Remote Shell Execution:** Execute shell commands on remote servers via configurable shell devices with SSH-like access
 - **Active Memory:** Persistent context carried across conversations — the model can store and recall information between chats
 - **Saved Memory Files:** Model-created and managed markdown files for long-term knowledge storage
+- **Granular Context Access Controls:** Independently toggle the model's access to past conversations, saved memories, and active memory
 
 ### Thinking & Reasoning
 - Deep support for reasoning models across providers (OpenAI o1/o3, Anthropic extended thinking, Gemini thinking, DeepSeek-R1, Qwen QwQ, OpenRouter reasoning)
+- Configurable thinking level per model (low/medium/high) for fine-grained control over reasoning depth
 - Streaming think-tag parser renders thought chains in real-time with collapsible UI
 - Thinking duration tracking for performance analysis
 
@@ -49,16 +53,23 @@ Agora is a fully open-source, BYOK (Bring Your Own Key) Android client designed 
 
 ### Knowledge Management
 - **RAG-powered semantic search** across all past conversations using cosine similarity
-- Configurable similarity threshold and embedding model selection (remote or local)
+- Configurable similarity threshold and keyword/model search methods
+- Selectable embedding model (remote or local) independent of chat model
 - **Context window management** with real-time token counting and configurable sliding window
-- Visual context rollout indicator shows which messages are in/out of window
+- Visual context rollout indicator dims messages outside the active window
+
+### Data Portability
+- **.agora Export/Import:** Export conversations, memories, prompts, settings, and API keys to a single portable file
+- **Merge, Replace, and Skip import strategies** for flexible data restoration
+- **Third-Party Import:** Import chat history from Claude and ChatGPT exports (.zip or .json)
+- API key safety warnings for both export and import workflows
 
 ### Customization
-- **System prompt templates** with multi-tab editor (system prompt + user prepend/postpend)
+- **System prompt templates** with three-section editor (system prompt + user prepend + user append)
 - Variable substitution: `{sent_time}`, `{sent_date}`, and future-proof variable system
 - Per-conversation model and system prompt switching on the fly
 - Per-message model selection from the chat bottom bar
-- **Auto title generation** for conversations
+- **Auto title generation** with configurable model selection
 
 ### UI & UX
 - Modern Material 3 design built entirely in Jetpack Compose
