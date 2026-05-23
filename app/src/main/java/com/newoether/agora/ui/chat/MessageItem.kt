@@ -1488,7 +1488,7 @@ fun MessageItem(
         Popup(
             onDismissRequest = { dismiss() },
             properties = PopupProperties(
-                focusable = true,
+                focusable = false,
                 dismissOnBackPress = true,
                 dismissOnClickOutside = false
             )
