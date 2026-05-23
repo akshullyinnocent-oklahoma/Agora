@@ -10,7 +10,6 @@ class ShellClient(
     cachedPublicKey: String = ""
 ) {
     private var serverPublicKey: java.security.PublicKey? = null
-    private var supportsEncryption: Boolean? = null
     private var currentAesKey: ByteArray? = null
     private var currentKeyPair: java.security.KeyPair? = null
 
@@ -18,19 +17,19 @@ class ShellClient(
         if (cachedPublicKey.isNotBlank()) {
             try {
                 serverPublicKey = ShellCrypto.decodePublicKey(cachedPublicKey)
-                supportsEncryption = true
             } catch (_: Exception) {
-                supportsEncryption = null // probe fresh
+                // Will fetch fresh
             }
         }
     }
 
-    suspend fun probeEncryption(): Boolean {
-        if (supportsEncryption != null) return supportsEncryption!!
+    suspend fun fetchPublicKey(): Boolean {
+        if (serverPublicKey != null) return true
+        if (apiKey.isBlank()) return false
         return try {
             val response = com.newoether.agora.api.HttpClient.fetchModels(
                 "$serverUrl/public-key",
-                if (apiKey.isNotBlank()) mapOf("Authorization" to "Bearer $apiKey") else emptyMap()
+                mapOf("Authorization" to "Bearer $apiKey")
             )
             if (response != null) {
                 val json = Json.parseToJsonElement(response).jsonObject
@@ -38,29 +37,22 @@ class ShellClient(
                 val nonce = json["nonce"]?.jsonPrimitive?.content
                 val sig = json["signature"]?.jsonPrimitive?.content
                 if (pubKeyStr != null && nonce != null && sig != null) {
-                    // Verify signature to prevent MITM
-                    if (apiKey.isBlank() || verifyPublicKey(pubKeyStr, nonce, sig)) {
+                    if (verifyPublicKeySignature(pubKeyStr, nonce, sig)) {
                         serverPublicKey = ShellCrypto.decodePublicKey(pubKeyStr)
-                        supportsEncryption = true
+                        true
                     } else {
                         DebugLog.e("ShellClient", "Public key signature verification failed")
-                        supportsEncryption = false
+                        false
                     }
-                } else {
-                    supportsEncryption = false
-                }
-            } else {
-                supportsEncryption = false
-            }
-            supportsEncryption!!
+                } else false
+            } else false
         } catch (e: Exception) {
-            DebugLog.w("ShellClient", "Encryption probe failed: ${e.message}")
-            supportsEncryption = false
+            DebugLog.w("ShellClient", "Failed to fetch public key: ${e.message}")
             false
         }
     }
 
-    private fun verifyPublicKey(pubKey: String, nonce: String, sig: String): Boolean {
+    private fun verifyPublicKeySignature(pubKey: String, nonce: String, sig: String): Boolean {
         val mac = javax.crypto.Mac.getInstance("HmacSHA256")
         mac.init(javax.crypto.spec.SecretKeySpec(apiKey.toByteArray(Charsets.UTF_8), "HmacSHA256"))
         val message = "$nonce|$pubKey"
@@ -74,8 +66,6 @@ class ShellClient(
     fun getServerPublicKeyBase64(): String? {
         return serverPublicKey?.let { ShellCrypto.encodePublicKey(it) }
     }
-
-    fun isEncryptionAvailable(): Boolean = supportsEncryption == true && serverPublicKey != null
 
     data class PreparedRequest(
         val body: String,
@@ -91,15 +81,16 @@ class ShellClient(
     ): PreparedRequest {
         val jsonBody = buildJsonBody(command, timeoutMs, workdir)
 
-        if (!isEncryptionAvailable()) {
-            val headers = mutableMapOf("Content-Type" to "application/json")
-            if (apiKey.isNotBlank()) headers["Authorization"] = "Bearer $apiKey"
-            return PreparedRequest(jsonBody, headers, false, serverUrl)
+        if (apiKey.isBlank()) {
+            return PreparedRequest(jsonBody, mapOf("Content-Type" to "application/json"), false, serverUrl)
         }
+
+        val pubKey = serverPublicKey
+            ?: throw IllegalStateException("Server public key not available. Call fetchPublicKey() first.")
 
         // Generate ephemeral key pair and derive AES key
         val ephemeralKP = ShellCrypto.generateEphemeralKeyPair()
-        val aesKey = ShellCrypto.deriveAesKey(ephemeralKP.private, serverPublicKey!!)
+        val aesKey = ShellCrypto.deriveAesKey(ephemeralKP.private, pubKey)
         currentAesKey = aesKey
         currentKeyPair = ephemeralKP
 

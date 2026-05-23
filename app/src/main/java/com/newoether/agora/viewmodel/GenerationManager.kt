@@ -643,8 +643,8 @@ class GenerationManager(
                 apiKey = device.apiKey,
                 cachedPublicKey = device.conchPublicKey
             )
-            // Probe encryption support (fast, returns cached result if already probed)
-            shellClient.probeEncryption()
+            // Fetch and verify server public key for E2E encryption
+            shellClient.fetchPublicKey()
 
             val prepared = shellClient.prepareRequest(command, timeoutMs, workdir)
             val handle = com.newoether.agora.api.HttpClient.streamPost(
