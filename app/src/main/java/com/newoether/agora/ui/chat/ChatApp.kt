@@ -131,29 +131,19 @@ fun ChatApp(
     var bottomBarHeightPx by rememberSaveable { mutableFloatStateOf(0f) }
     val bottomBarHeight = with(density) { bottomBarHeightPx.toDp() }
     val drawerWidthPx = with(density) { drawerWidth.toPx() }
-    var drawerProgress by remember { mutableFloatStateOf(0f) }
-    LaunchedEffect(drawerWidthPx) {
-        if (drawerWidthPx <= 0f) return@LaunchedEffect
-        snapshotFlow { drawerState.offset.value }
-            .collect { offset ->
-                if (!offset.isNaN()) {
-                    drawerProgress = (offset / drawerWidthPx).coerceIn(0f, 1f)
-                }
-            }
-    }
+    val offset = drawerState.offset.value
+    val drawerProgress = if (drawerWidthPx > 0f && !offset.isNaN()) {
+        (offset / drawerWidthPx).coerceIn(0f, 1f)
+    } else 0f
     // Bottom offset to clear the Settings button in the drawer.
     var settingsButtonBottomDp by remember { mutableFloatStateOf(80f) }
-    val snackbarOffset by animateDpAsState(
-        targetValue = if (drawerProgress <= 0.5f) {
-            bottomBarHeight
-        } else {
-            val t = ((drawerProgress - 0.5f) * 2f).coerceIn(0f, 1f)
-            (bottomBarHeight.value + (settingsButtonBottomDp - bottomBarHeight.value) * t).dp
-        },
-        animationSpec = spring(dampingRatio = 1.0f, stiffness = 1000f),
-        label = "snackbarOffset"
-    )
-    LaunchedEffect(snackbarOffset) { onSnackbarOffsetChanged(snackbarOffset) }
+    val targetSnackbarOffset = if (drawerProgress <= 0.5f) {
+        bottomBarHeight
+    } else {
+        val t = ((drawerProgress - 0.5f) * 2f).coerceIn(0f, 1f)
+        (bottomBarHeight.value + (settingsButtonBottomDp - bottomBarHeight.value) * t).dp
+    }
+    LaunchedEffect(targetSnackbarOffset) { onSnackbarOffsetChanged(targetSnackbarOffset) }
     val listState = viewModel.listState
     val textFieldState = rememberSaveable(saver = androidx.compose.foundation.text.input.TextFieldState.Saver) { androidx.compose.foundation.text.input.TextFieldState() }
     val inputFocusRequester = remember { FocusRequester() }
