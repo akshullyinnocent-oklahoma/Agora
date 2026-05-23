@@ -93,581 +93,612 @@ fun SettingsProviderPage(viewModel: ChatViewModel, onBack: () -> Unit) {
                 .clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) { fm.clearFocus() }
                 .padding(horizontal = 16.dp, vertical = 16.dp)
         ) {
-            SettingsGroup(title = stringResource(R.string.settings_provider)) {
-                ListItem(
-                    colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                    headlineContent = { Text(stringResource(R.string.provider_api_provider)) },
-                    supportingContent = { Text(viewingProvider) },
-                    leadingContent = {
-                        Icon(Icons.Default.Cloud, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                    },
-                    modifier = Modifier.clickable { showProviderDialog = true }
-                )
-                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+            // Hoisted state for local model and custom provider dialogs
+            val activeLocalId by viewModel.activeLocalChatModelId.collectAsState()
+            val context = LocalContext.current
+            val scope = rememberCoroutineScope()
+            var showAddDialog by remember { mutableStateOf(false) }
+            var showEditDialog by remember { mutableStateOf<com.newoether.agora.data.LocalChatModelConfig?>(null) }
+            var showDeleteConfirm by remember { mutableStateOf<com.newoether.agora.data.LocalChatModelConfig?>(null) }
+            var importingModel by remember { mutableStateOf(false) }
+            var copiedFilePath by remember { mutableStateOf<String?>(null) }
+            var showDeleteProvider by remember { mutableStateOf(false) }
+            var showRenameProvider by remember { mutableStateOf(false) }
+
+            val filePickerLauncher = rememberLauncherForActivityResult(
+                contract = ActivityResultContracts.OpenDocument()
+            ) { uri ->
+                if (uri != null) {
+                    importingModel = true
+                    scope.launch(Dispatchers.IO) {
+                        try {
+                            val destFile = java.io.File(context.filesDir, "chat_model_${java.util.UUID.randomUUID()}.gguf")
+                            context.contentResolver.openInputStream(uri)?.use { input ->
+                                destFile.outputStream().use { output ->
+                                    input.copyTo(output)
+                                }
+                            }
+                            copiedFilePath = destFile.absolutePath
+                            showAddDialog = true
+                        } catch (e: Exception) {
+                            DebugLog.e("SettingsProvider", "Failed to import GGUF", e)
+                        } finally {
+                            importingModel = false
+                        }
+                    }
+                }
+            }
+
+            // Build items list based on selected provider
+            val providerItems: List<@Composable () -> Unit> = buildList {
+                add {
+                    ListItem(
+                        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                        headlineContent = { Text(stringResource(R.string.provider_api_provider)) },
+                        supportingContent = { Text(viewingProvider) },
+                        leadingContent = {
+                            Icon(Icons.Default.Cloud, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                        },
+                        modifier = Modifier.clickable { showProviderDialog = true }
+                    )
+                }
 
                 if (viewingProvider == "Local") {
                     // Local chat model management
-                    val activeLocalId by viewModel.activeLocalChatModelId.collectAsState()
-                    val context = LocalContext.current
-                    val scope = rememberCoroutineScope()
-                    var showAddDialog by remember { mutableStateOf(false) }
-                    var showEditDialog by remember { mutableStateOf<com.newoether.agora.data.LocalChatModelConfig?>(null) }
-                    var showDeleteConfirm by remember { mutableStateOf<com.newoether.agora.data.LocalChatModelConfig?>(null) }
-                    var importingModel by remember { mutableStateOf(false) }
-                    var copiedFilePath by remember { mutableStateOf<String?>(null) }
+                    add {
+                        ListItem(
+                            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                            headlineContent = { Text(stringResource(R.string.local_chat_models)) },
+                            supportingContent = { Text(stringResource(R.string.local_chat_models_count, localChatModels.size)) },
+                            leadingContent = {
+                                Icon(
+                                    Icons.Default.AutoAwesome,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                        )
+                    }
 
-                    val filePickerLauncher = rememberLauncherForActivityResult(
-                        contract = ActivityResultContracts.OpenDocument()
-                    ) { uri ->
-                        if (uri != null) {
-                            importingModel = true
-                            scope.launch(Dispatchers.IO) {
-                                try {
-                                    val destFile = java.io.File(context.filesDir, "chat_model_${java.util.UUID.randomUUID()}.gguf")
-                                    context.contentResolver.openInputStream(uri)?.use { input ->
-                                        destFile.outputStream().use { output ->
-                                            input.copyTo(output)
+                    localChatModels.forEach { model ->
+                        add {
+                            var showMenu by remember { mutableStateOf(false) }
+                            ListItem(
+                                colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                                headlineContent = { Text(model.alias, fontWeight = FontWeight.Medium) },
+                                supportingContent = {
+                                    Text("${model.modelId}\nctx=${model.nCtx}  temp=${model.temperature}  topP=${model.topP}")
+                                },
+                                leadingContent = {
+                                    RadioButton(
+                                        selected = model.id == activeLocalId,
+                                        onClick = { viewModel.setActiveLocalChatModel(model.id) }
+                                    )
+                                },
+                                trailingContent = {
+                                    Box {
+                                        IconButton(onClick = { showMenu = true }) {
+                                            Icon(Icons.Default.MoreVert, contentDescription = stringResource(R.string.options))
+                                        }
+                                        DropdownMenu(
+                                            expanded = showMenu,
+                                            onDismissRequest = { showMenu = false },
+                                            shape = RoundedCornerShape(12.dp)
+                                        ) {
+                                            DropdownMenuItem(
+                                                text = { Text(stringResource(R.string.edit)) },
+                                                leadingIcon = { Icon(Icons.Default.Edit, null) },
+                                                onClick = { showMenu = false; showEditDialog = model }
+                                            )
+                                            DropdownMenuItem(
+                                                text = { Text(stringResource(R.string.delete), color = MaterialTheme.colorScheme.error) },
+                                                leadingIcon = { Icon(Icons.Default.Delete, null, tint = MaterialTheme.colorScheme.error) },
+                                                onClick = { showMenu = false; showDeleteConfirm = model }
+                                            )
                                         }
                                     }
-                                    copiedFilePath = destFile.absolutePath
-                                    showAddDialog = true
-                                } catch (e: Exception) {
-                                    DebugLog.e("SettingsProvider", "Failed to import GGUF", e)
-                                } finally {
-                                    importingModel = false
+                                },
+                                modifier = Modifier.clickable { viewModel.setActiveLocalChatModel(model.id) }.padding(start = 16.dp)
+                            )
+                        }
+                    }
+
+                    add {
+                        TextButton(
+                            onClick = { filePickerLauncher.launch(arrayOf("*/*")) },
+                            enabled = !importingModel,
+                            modifier = Modifier.padding(start = 16.dp, top = 4.dp, bottom = 8.dp)
+                        ) {
+                            if (importingModel) {
+                                CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(stringResource(R.string.importing_model))
+                            } else {
+                                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(stringResource(R.string.import_model_chat))
+                            }
+                        }
+                    }
+                } else {
+                    val providerInstance = viewModel.getProviderInstance(viewingProvider)
+                    val baseUrlState = remember(viewingProvider) {
+                        val saved = providerBaseUrls[viewingProvider]
+                        val initial = if (saved.isNullOrBlank() && viewingProvider != "Ollama") {
+                            providerInstance.defaultBaseUrl
+                        } else {
+                            saved ?: ""
+                        }
+                        androidx.compose.foundation.text.input.TextFieldState(initial)
+                    }
+
+                    LaunchedEffect(baseUrlState.text) {
+                        kotlinx.coroutines.delay(500)
+                        viewModel.setProviderBaseUrl(viewingProvider, baseUrlState.text.toString())
+                    }
+
+                    add {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 16.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.Top
+                            ) {
+                                Icon(
+                                    painter = androidx.compose.ui.res.painterResource(id = com.newoether.agora.R.drawable.link_24),
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.padding(top = 2.dp)
+                                )
+                                Spacer(modifier = Modifier.width(16.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = stringResource(R.string.provider_base_url),
+                                        style = MaterialTheme.typography.bodyLarge,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                    Box(modifier = Modifier.bringIntoViewResponder(noOpResponder).padding(top = 8.dp)) {
+                                        OutlinedTextField(
+                                            state = baseUrlState,
+                                            placeholder = { Text(providerInstance.defaultBaseUrl, style = MaterialTheme.typography.bodyMedium) },
+                                            modifier = Modifier.fillMaxWidth(),
+                                            textStyle = MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.height(12.dp))
                                 }
                             }
                         }
                     }
 
-                    ListItem(
-                        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                        headlineContent = { Text(stringResource(R.string.local_chat_models)) },
-                        supportingContent = { Text(stringResource(R.string.local_chat_models_count, localChatModels.size)) },
-                        leadingContent = {
-                            Icon(
-                                Icons.Default.AutoAwesome,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary
-                            )
-                        }
-                    )
-
-                    localChatModels.forEach { model ->
-                        var showMenu by remember { mutableStateOf(false) }
+                    val isCustom = customProviders.any { it.name == viewingProvider }
+                    add {
                         ListItem(
                             colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                            headlineContent = { Text(model.alias, fontWeight = FontWeight.Medium) },
+                            headlineContent = { Text(if (viewingProvider == "Ollama" || isCustom) stringResource(R.string.provider_api_keys_optional) else stringResource(R.string.provider_api_keys)) },
                             supportingContent = {
-                                Text("${model.modelId}\nctx=${model.nCtx}  temp=${model.temperature}  topP=${model.topP}")
+                                val providerKeys = apiKeys.filter { it.provider == viewingProvider }
+                                Text(if (providerKeys.isEmpty()) stringResource(R.string.provider_no_keys, viewingProvider) else stringResource(R.string.provider_keys_count, providerKeys.size))
                             },
-                            leadingContent = {
-                                RadioButton(
-                                    selected = model.id == activeLocalId,
-                                    onClick = { viewModel.setActiveLocalChatModel(model.id) }
-                                )
-                            },
-                            trailingContent = {
-                                Box {
-                                    IconButton(onClick = { showMenu = true }) {
-                                        Icon(Icons.Default.MoreVert, contentDescription = stringResource(R.string.options))
-                                    }
-                                    DropdownMenu(
-                                        expanded = showMenu,
-                                        onDismissRequest = { showMenu = false },
-                                        shape = RoundedCornerShape(12.dp)
-                                    ) {
-                                        DropdownMenuItem(
-                                            text = { Text(stringResource(R.string.edit)) },
-                                            leadingIcon = { Icon(Icons.Default.Edit, null) },
-                                            onClick = { showMenu = false; showEditDialog = model }
-                                        )
-                                        DropdownMenuItem(
-                                            text = { Text(stringResource(R.string.delete), color = MaterialTheme.colorScheme.error) },
-                                            leadingIcon = { Icon(Icons.Default.Delete, null, tint = MaterialTheme.colorScheme.error) },
-                                            onClick = { showMenu = false; showDeleteConfirm = model }
-                                        )
-                                    }
-                                }
-                            },
-                            modifier = Modifier.clickable { viewModel.setActiveLocalChatModel(model.id) }.padding(start = 16.dp)
+                            leadingContent = { Icon(Icons.Default.Key, contentDescription = null, tint = MaterialTheme.colorScheme.primary) }
                         )
                     }
 
-                    TextButton(
-                        onClick = { filePickerLauncher.launch(arrayOf("*/*")) },
-                        enabled = !importingModel,
-                        modifier = Modifier.padding(start = 16.dp, top = 4.dp, bottom = 8.dp)
-                    ) {
-                        if (importingModel) {
-                            CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(stringResource(R.string.importing_model))
-                        } else {
-                            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(stringResource(R.string.import_model_chat))
+                    apiKeys.filter { it.provider == viewingProvider }.forEach { entry ->
+                        add {
+                            var showMenu by remember { mutableStateOf(false) }
+                            ListItem(
+                                colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                                headlineContent = { Text(entry.name, fontWeight = FontWeight.Medium) },
+                                supportingContent = { Text(entry.key.take(4) + "••••••••" + entry.key.takeLast(4)) },
+                                leadingContent = {
+                                    RadioButton(selected = entry.id == activeApiKeyIds[viewingProvider], onClick = { viewModel.setActiveApiKey(viewingProvider, entry.id) })
+                                },
+                                trailingContent = {
+                                    Box {
+                                        IconButton(onClick = { showMenu = true }) {
+                                            Icon(Icons.Default.MoreVert, contentDescription = stringResource(R.string.options))
+                                        }
+                                        DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }, shape = RoundedCornerShape(12.dp)) {
+                                            DropdownMenuItem(text = { Text(stringResource(R.string.provider_edit)) }, leadingIcon = { Icon(Icons.Default.Edit, null) }, onClick = { showMenu = false; showKeyDialog = entry })
+                                            DropdownMenuItem(text = { Text(stringResource(R.string.provider_delete), color = MaterialTheme.colorScheme.error) }, leadingIcon = { Icon(Icons.Default.Delete, null, tint = MaterialTheme.colorScheme.error) }, onClick = { showMenu = false; showDeleteKeyConfirm = entry })
+                                        }
+                                    }
+                                },
+                                modifier = Modifier.clickable { viewModel.setActiveApiKey(viewingProvider, entry.id) }.padding(start = 16.dp)
+                            )
                         }
                     }
 
-                    // Add local model config dialog
-                    if (showAddDialog && copiedFilePath != null) {
-                        var modelId by remember { mutableStateOf("") }
-                        var modelAlias by remember { mutableStateOf("") }
-                        var nCtx by remember { mutableStateOf("2048") }
-                        var temperature by remember { mutableStateOf("0.7") }
-                        var topP by remember { mutableStateOf("0.9") }
-                        var maxTokens by remember { mutableStateOf("4096") }
-                        var idError by remember { mutableStateOf<String?>(null) }
-                        var formError by remember { mutableStateOf<String?>(null) }
-                        val fm = LocalFocusManager.current
-                        val idRegex = remember { Regex("^[a-z0-9._-]+\$") }
+                    add {
+                        TextButton(
+                            onClick = { showKeyDialog = ApiKeyEntry(name = "", key = "", provider = viewingProvider) },
+                            modifier = Modifier.padding(start = 16.dp, top = 4.dp, bottom = 8.dp)
+                        ) {
+                            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(stringResource(R.string.provider_add_key))
+                        }
+                    }
 
-                        AlertDialog(
-                            onDismissRequest = {
+                    if (isCustom) {
+                        add {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 16.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.End,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    TextButton(onClick = { showRenameProvider = true }) {
+                                        Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(18.dp))
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text(stringResource(R.string.custom_provider_rename))
+                                    }
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    TextButton(onClick = { showDeleteProvider = true }) {
+                                        Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.error)
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text(stringResource(R.string.custom_provider_delete), color = MaterialTheme.colorScheme.error)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            SettingsGroup(title = stringResource(R.string.settings_provider), items = providerItems)
+
+            // Local chat model dialogs (moved outside SettingsGroup)
+            if (viewingProvider == "Local") {
+                // Add local model config dialog
+                if (showAddDialog && copiedFilePath != null) {
+                    var modelId by remember { mutableStateOf("") }
+                    var modelAlias by remember { mutableStateOf("") }
+                    var nCtx by remember { mutableStateOf("2048") }
+                    var temperature by remember { mutableStateOf("0.7") }
+                    var topP by remember { mutableStateOf("0.9") }
+                    var maxTokens by remember { mutableStateOf("4096") }
+                    var idError by remember { mutableStateOf<String?>(null) }
+                    var formError by remember { mutableStateOf<String?>(null) }
+                    val fm = LocalFocusManager.current
+                    val idRegex = remember { Regex("^[a-z0-9._-]+\$") }
+
+                    AlertDialog(
+                        onDismissRequest = {
+                            scope.launch(Dispatchers.IO) {
+                                copiedFilePath?.let { java.io.File(it).delete() }
+                            }
+                            showAddDialog = false
+                            copiedFilePath = null
+                        },
+                        title = { Text(stringResource(R.string.add_local_chat_model)) },
+                        text = {
+                            Column(
+                                Modifier
+                                    .fillMaxWidth()
+                                    .clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) { fm.clearFocus() }
+                                    .verticalScroll(rememberScrollState())
+                            ) {
+                                OutlinedTextField(
+                                    value = modelId,
+                                    onValueChange = { modelId = it; idError = null },
+                                    label = { Text(stringResource(R.string.model_id_label)) },
+                                    supportingText = if (idError != null) {{ Text(idError!!, color = MaterialTheme.colorScheme.error) }} else null,
+                                    isError = idError != null,
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                OutlinedTextField(
+                                    value = modelAlias,
+                                    onValueChange = { modelAlias = it },
+                                    label = { Text(stringResource(R.string.model_alias_label)) },
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                OutlinedTextField(
+                                    value = nCtx,
+                                    onValueChange = { nCtx = it },
+                                    label = { Text(stringResource(R.string.local_ctx_size)) },
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                OutlinedTextField(
+                                    value = temperature,
+                                    onValueChange = { temperature = it },
+                                    label = { Text(stringResource(R.string.local_temperature)) },
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                OutlinedTextField(
+                                    value = topP,
+                                    onValueChange = { topP = it },
+                                    label = { Text(stringResource(R.string.local_top_p)) },
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                OutlinedTextField(
+                                    value = maxTokens,
+                                    onValueChange = { maxTokens = it },
+                                    label = { Text(stringResource(R.string.local_max_tokens)) },
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                                formError?.let { err ->
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Text(err, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                                }
+                            }
+                        },
+                        confirmButton = {
+                            TextButton(onClick = {
+                                val id = modelId.trim()
+                                idError = null
+                                formError = null
+                                if (id.isBlank()) {
+                                    idError = "ID is required"
+                                    return@TextButton
+                                }
+                                if (!idRegex.matches(id)) {
+                                    idError = "Only lowercase a-z, 0-9, . _ - allowed"
+                                    return@TextButton
+                                }
+                                if (viewModel.isLocalModelIdTaken(id)) {
+                                    idError = "This ID is already in use"
+                                    return@TextButton
+                                }
+                                val nCtxVal = nCtx.toIntOrNull()
+                                if (nCtxVal == null || nCtxVal <= 0) {
+                                    formError = "Context size must be a positive integer"
+                                    return@TextButton
+                                }
+                                val tempVal = temperature.toFloatOrNull()
+                                if (tempVal == null || tempVal < 0f || tempVal > 2f) {
+                                    formError = "Temperature must be 0–2"
+                                    return@TextButton
+                                }
+                                val topPVal = topP.toFloatOrNull()
+                                if (topPVal == null || topPVal < 0f || topPVal > 1f) {
+                                    formError = "Top P must be 0–1"
+                                    return@TextButton
+                                }
+                                val maxTokVal = maxTokens.toIntOrNull()
+                                if (maxTokVal == null || maxTokVal <= 0) {
+                                    formError = "Max tokens must be a positive integer"
+                                    return@TextButton
+                                }
+                                val path = copiedFilePath ?: return@TextButton
+                                val config = com.newoether.agora.data.LocalChatModelConfig(
+                                    modelId = id,
+                                    alias = modelAlias.ifBlank { id },
+                                    localFilePath = path,
+                                    nCtx = nCtxVal,
+                                    temperature = tempVal,
+                                    topP = topPVal,
+                                    maxTokens = maxTokVal
+                                )
+                                viewModel.addLocalChatModel(config)
+                                showAddDialog = false
+                                copiedFilePath = null
+                            }) { Text(stringResource(R.string.add)) }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = {
                                 scope.launch(Dispatchers.IO) {
                                     copiedFilePath?.let { java.io.File(it).delete() }
                                 }
                                 showAddDialog = false
                                 copiedFilePath = null
-                            },
-                            title = { Text(stringResource(R.string.add_local_chat_model)) },
-                            text = {
-                                Column(
-                                    Modifier
-                                        .fillMaxWidth()
-                                        .clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) { fm.clearFocus() }
-                                        .verticalScroll(rememberScrollState())
-                                ) {
-                                    OutlinedTextField(
-                                        value = modelId,
-                                        onValueChange = { modelId = it; idError = null },
-                                        label = { Text(stringResource(R.string.model_id_label)) },
-                                        supportingText = if (idError != null) {{ Text(idError!!, color = MaterialTheme.colorScheme.error) }} else null,
-                                        isError = idError != null,
-                                        modifier = Modifier.fillMaxWidth()
-                                    )
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                    OutlinedTextField(
-                                        value = modelAlias,
-                                        onValueChange = { modelAlias = it },
-                                        label = { Text(stringResource(R.string.model_alias_label)) },
-                                        modifier = Modifier.fillMaxWidth()
-                                    )
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                    OutlinedTextField(
-                                        value = nCtx,
-                                        onValueChange = { nCtx = it },
-                                        label = { Text(stringResource(R.string.local_ctx_size)) },
-                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                        modifier = Modifier.fillMaxWidth()
-                                    )
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                    OutlinedTextField(
-                                        value = temperature,
-                                        onValueChange = { temperature = it },
-                                        label = { Text(stringResource(R.string.local_temperature)) },
-                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                                        modifier = Modifier.fillMaxWidth()
-                                    )
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                    OutlinedTextField(
-                                        value = topP,
-                                        onValueChange = { topP = it },
-                                        label = { Text(stringResource(R.string.local_top_p)) },
-                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                                        modifier = Modifier.fillMaxWidth()
-                                    )
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                    OutlinedTextField(
-                                        value = maxTokens,
-                                        onValueChange = { maxTokens = it },
-                                        label = { Text(stringResource(R.string.local_max_tokens)) },
-                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                        modifier = Modifier.fillMaxWidth()
-                                    )
-                                    formError?.let { err ->
-                                        Spacer(modifier = Modifier.height(8.dp))
-                                        Text(err, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
-                                    }
-                                }
-                            },
-                            confirmButton = {
-                                TextButton(onClick = {
-                                    val id = modelId.trim()
-                                    idError = null
-                                    formError = null
-                                    if (id.isBlank()) {
-                                        idError = "ID is required"
-                                        return@TextButton
-                                    }
-                                    if (!idRegex.matches(id)) {
-                                        idError = "Only lowercase a-z, 0-9, . _ - allowed"
-                                        return@TextButton
-                                    }
-                                    if (viewModel.isLocalModelIdTaken(id)) {
-                                        idError = "This ID is already in use"
-                                        return@TextButton
-                                    }
-                                    val nCtxVal = nCtx.toIntOrNull()
-                                    if (nCtxVal == null || nCtxVal <= 0) {
-                                        formError = "Context size must be a positive integer"
-                                        return@TextButton
-                                    }
-                                    val tempVal = temperature.toFloatOrNull()
-                                    if (tempVal == null || tempVal < 0f || tempVal > 2f) {
-                                        formError = "Temperature must be 0–2"
-                                        return@TextButton
-                                    }
-                                    val topPVal = topP.toFloatOrNull()
-                                    if (topPVal == null || topPVal < 0f || topPVal > 1f) {
-                                        formError = "Top P must be 0–1"
-                                        return@TextButton
-                                    }
-                                    val maxTokVal = maxTokens.toIntOrNull()
-                                    if (maxTokVal == null || maxTokVal <= 0) {
-                                        formError = "Max tokens must be a positive integer"
-                                        return@TextButton
-                                    }
-                                    val path = copiedFilePath ?: return@TextButton
-                                    val config = com.newoether.agora.data.LocalChatModelConfig(
-                                        modelId = id,
-                                        alias = modelAlias.ifBlank { id },
-                                        localFilePath = path,
-                                        nCtx = nCtxVal,
-                                        temperature = tempVal,
-                                        topP = topPVal,
-                                        maxTokens = maxTokVal
-                                    )
-                                    viewModel.addLocalChatModel(config)
-                                    showAddDialog = false
-                                    copiedFilePath = null
-                                }) { Text(stringResource(R.string.add)) }
-                            },
-                            dismissButton = {
-                                TextButton(onClick = {
-                                    scope.launch(Dispatchers.IO) {
-                                        copiedFilePath?.let { java.io.File(it).delete() }
-                                    }
-                                    showAddDialog = false
-                                    copiedFilePath = null
-                                }) { Text(stringResource(R.string.cancel)) }
-                            }
-                        )
-                    }
-
-                    // Edit dialog
-                    showEditDialog?.let { model ->
-                        var editModelId by remember { mutableStateOf(model.modelId) }
-                        var editAlias by remember { mutableStateOf(model.alias) }
-                        var editNCtx by remember { mutableStateOf(model.nCtx.toString()) }
-                        var editTemp by remember { mutableStateOf(model.temperature.toString()) }
-                        var editTopP by remember { mutableStateOf(model.topP.toString()) }
-                        var editMaxTokens by remember { mutableStateOf(model.maxTokens.toString()) }
-                        var editIdError by remember { mutableStateOf<String?>(null) }
-                        var editFormError by remember { mutableStateOf<String?>(null) }
-                        val fm = LocalFocusManager.current
-                        val idRegex = remember { Regex("^[a-z0-9._-]+\$") }
-                        AlertDialog(
-                            onDismissRequest = { showEditDialog = null },
-                            title = { Text(stringResource(R.string.edit)) },
-                            text = {
-                                Column(
-                                    Modifier
-                                        .fillMaxWidth()
-                                        .clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) { fm.clearFocus() }
-                                        .verticalScroll(rememberScrollState())
-                                ) {
-                                    OutlinedTextField(
-                                        value = editModelId,
-                                        onValueChange = { editModelId = it; editIdError = null },
-                                        label = { Text(stringResource(R.string.model_id_label)) },
-                                        supportingText = if (editIdError != null) {{ Text(editIdError!!, color = MaterialTheme.colorScheme.error) }} else null,
-                                        isError = editIdError != null,
-                                        modifier = Modifier.fillMaxWidth()
-                                    )
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                    OutlinedTextField(
-                                        value = editAlias,
-                                        onValueChange = { editAlias = it },
-                                        label = { Text(stringResource(R.string.model_alias_label)) },
-                                        modifier = Modifier.fillMaxWidth()
-                                    )
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                    OutlinedTextField(
-                                        value = editNCtx,
-                                        onValueChange = { editNCtx = it },
-                                        label = { Text(stringResource(R.string.local_ctx_size)) },
-                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                        modifier = Modifier.fillMaxWidth()
-                                    )
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                    OutlinedTextField(
-                                        value = editTemp,
-                                        onValueChange = { editTemp = it },
-                                        label = { Text(stringResource(R.string.local_temperature)) },
-                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                                        modifier = Modifier.fillMaxWidth()
-                                    )
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                    OutlinedTextField(
-                                        value = editTopP,
-                                        onValueChange = { editTopP = it },
-                                        label = { Text(stringResource(R.string.local_top_p)) },
-                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                                        modifier = Modifier.fillMaxWidth()
-                                    )
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                    OutlinedTextField(
-                                        value = editMaxTokens,
-                                        onValueChange = { editMaxTokens = it },
-                                        label = { Text(stringResource(R.string.local_max_tokens)) },
-                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                        modifier = Modifier.fillMaxWidth()
-                                    )
-                                    editFormError?.let { err ->
-                                        Spacer(modifier = Modifier.height(8.dp))
-                                        Text(err, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
-                                    }
-                                }
-                            },
-                            confirmButton = {
-                                TextButton(onClick = {
-                                    val id = editModelId.trim()
-                                    editIdError = null
-                                    editFormError = null
-                                    if (id.isBlank()) {
-                                        editIdError = "ID is required"
-                                        return@TextButton
-                                    }
-                                    if (!idRegex.matches(id)) {
-                                        editIdError = "Only lowercase a-z, 0-9, . _ - allowed"
-                                        return@TextButton
-                                    }
-                                    if (viewModel.isLocalModelIdTaken(id, excludeId = model.id)) {
-                                        editIdError = "This ID is already in use"
-                                        return@TextButton
-                                    }
-                                    val nCtxVal = editNCtx.toIntOrNull()
-                                    if (nCtxVal == null || nCtxVal <= 0) {
-                                        editFormError = "Context size must be a positive integer"
-                                        return@TextButton
-                                    }
-                                    val tempVal = editTemp.toFloatOrNull()
-                                    if (tempVal == null || tempVal < 0f || tempVal > 2f) {
-                                        editFormError = "Temperature must be 0–2"
-                                        return@TextButton
-                                    }
-                                    val topPVal = editTopP.toFloatOrNull()
-                                    if (topPVal == null || topPVal < 0f || topPVal > 1f) {
-                                        editFormError = "Top P must be 0–1"
-                                        return@TextButton
-                                    }
-                                    val maxTokVal = editMaxTokens.toIntOrNull()
-                                    if (maxTokVal == null || maxTokVal <= 0) {
-                                        editFormError = "Max tokens must be a positive integer"
-                                        return@TextButton
-                                    }
-                                    viewModel.updateLocalChatModel(
-                                        model.id, id, editAlias.ifBlank { id },
-                                        nCtxVal, tempVal, topPVal, maxTokVal
-                                    )
-                                    showEditDialog = null
-                                }) { Text(stringResource(R.string.save)) }
-                            },
-                            dismissButton = { TextButton(onClick = { showEditDialog = null }) { Text(stringResource(R.string.cancel)) } }
-                        )
-                    }
-
-                    // Delete confirmation
-                    showDeleteConfirm?.let { model ->
-                        AlertDialog(
-                            onDismissRequest = { showDeleteConfirm = null },
-                            title = { Text(stringResource(R.string.local_chat_delete_title)) },
-                            text = { Text(stringResource(R.string.local_chat_delete_text, model.alias)) },
-                            confirmButton = {
-                                TextButton(
-                                    onClick = {
-                                        viewModel.deleteLocalChatModel(model.id)
-                                        showDeleteConfirm = null
-                                    },
-                                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
-                                ) { Text(stringResource(R.string.delete)) }
-                            },
-                            dismissButton = { TextButton(onClick = { showDeleteConfirm = null }) { Text(stringResource(R.string.cancel)) } }
-                        )
-                    }
-                } else {
-                val providerInstance = viewModel.getProviderInstance(viewingProvider)
-                val baseUrlState = remember(viewingProvider) {
-                    val saved = providerBaseUrls[viewingProvider]
-                    val initial = if (saved.isNullOrBlank() && viewingProvider != "Ollama") {
-                        providerInstance.defaultBaseUrl
-                    } else {
-                        saved ?: ""
-                    }
-                    androidx.compose.foundation.text.input.TextFieldState(initial)
-                }
-
-                LaunchedEffect(baseUrlState.text) {
-                    kotlinx.coroutines.delay(500)
-                    viewModel.setProviderBaseUrl(viewingProvider, baseUrlState.text.toString())
-                }
-
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 16.dp, bottom = 8.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-                        verticalAlignment = Alignment.Top
-                    ) {
-                        Icon(
-                            painter = androidx.compose.ui.res.painterResource(id = com.newoether.agora.R.drawable.link_24),
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.padding(top = 2.dp)
-                        )
-                        Spacer(modifier = Modifier.width(16.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = stringResource(R.string.provider_base_url),
-                                style = MaterialTheme.typography.bodyLarge,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                            Box(modifier = Modifier.bringIntoViewResponder(noOpResponder).padding(top = 8.dp)) {
-                                OutlinedTextField(
-                                    state = baseUrlState,
-                                    placeholder = { Text(providerInstance.defaultBaseUrl, style = MaterialTheme.typography.bodyMedium) },
-                                    modifier = Modifier.fillMaxWidth(),
-                                    textStyle = MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                )
-                            }
-                            Spacer(modifier = Modifier.height(12.dp))
+                            }) { Text(stringResource(R.string.cancel)) }
                         }
-                    }
-                }
-                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-
-                val isCustom = customProviders.any { it.name == viewingProvider }
-                ListItem(
-                    colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                    headlineContent = { Text(if (viewingProvider == "Ollama" || isCustom) stringResource(R.string.provider_api_keys_optional) else stringResource(R.string.provider_api_keys)) },
-                    supportingContent = {
-                        val providerKeys = apiKeys.filter { it.provider == viewingProvider }
-                        Text(if (providerKeys.isEmpty()) stringResource(R.string.provider_no_keys, viewingProvider) else stringResource(R.string.provider_keys_count, providerKeys.size))
-                    },
-                    leadingContent = { Icon(Icons.Default.Key, contentDescription = null, tint = MaterialTheme.colorScheme.primary) }
-                )
-
-                apiKeys.filter { it.provider == viewingProvider }.forEach { entry ->
-                    var showMenu by remember { mutableStateOf(false) }
-                    ListItem(
-                        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                        headlineContent = { Text(entry.name, fontWeight = FontWeight.Medium) },
-                        supportingContent = { Text(entry.key.take(4) + "••••••••" + entry.key.takeLast(4)) },
-                        leadingContent = {
-                            RadioButton(selected = entry.id == activeApiKeyIds[viewingProvider], onClick = { viewModel.setActiveApiKey(viewingProvider, entry.id) })
-                        },
-                        trailingContent = {
-                            Box {
-                                IconButton(onClick = { showMenu = true }) {
-                                    Icon(Icons.Default.MoreVert, contentDescription = stringResource(R.string.options))
-                                }
-                                DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }, shape = RoundedCornerShape(12.dp)) {
-                                    DropdownMenuItem(text = { Text(stringResource(R.string.provider_edit)) }, leadingIcon = { Icon(Icons.Default.Edit, null) }, onClick = { showMenu = false; showKeyDialog = entry })
-                                    DropdownMenuItem(text = { Text(stringResource(R.string.provider_delete), color = MaterialTheme.colorScheme.error) }, leadingIcon = { Icon(Icons.Default.Delete, null, tint = MaterialTheme.colorScheme.error) }, onClick = { showMenu = false; showDeleteKeyConfirm = entry })
-                                }
-                            }
-                        },
-                        modifier = Modifier.clickable { viewModel.setActiveApiKey(viewingProvider, entry.id) }.padding(start = 16.dp)
                     )
                 }
 
-                TextButton(
-                    onClick = { showKeyDialog = ApiKeyEntry(name = "", key = "", provider = viewingProvider) },
-                    modifier = Modifier.padding(start = 16.dp, top = 4.dp, bottom = 8.dp)
-                ) {
-                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(stringResource(R.string.provider_add_key))
+                // Edit dialog
+                showEditDialog?.let { model ->
+                    var editModelId by remember { mutableStateOf(model.modelId) }
+                    var editAlias by remember { mutableStateOf(model.alias) }
+                    var editNCtx by remember { mutableStateOf(model.nCtx.toString()) }
+                    var editTemp by remember { mutableStateOf(model.temperature.toString()) }
+                    var editTopP by remember { mutableStateOf(model.topP.toString()) }
+                    var editMaxTokens by remember { mutableStateOf(model.maxTokens.toString()) }
+                    var editIdError by remember { mutableStateOf<String?>(null) }
+                    var editFormError by remember { mutableStateOf<String?>(null) }
+                    val fm = LocalFocusManager.current
+                    val idRegex = remember { Regex("^[a-z0-9._-]+\$") }
+                    AlertDialog(
+                        onDismissRequest = { showEditDialog = null },
+                        title = { Text(stringResource(R.string.edit)) },
+                        text = {
+                            Column(
+                                Modifier
+                                    .fillMaxWidth()
+                                    .clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) { fm.clearFocus() }
+                                    .verticalScroll(rememberScrollState())
+                            ) {
+                                OutlinedTextField(
+                                    value = editModelId,
+                                    onValueChange = { editModelId = it; editIdError = null },
+                                    label = { Text(stringResource(R.string.model_id_label)) },
+                                    supportingText = if (editIdError != null) {{ Text(editIdError!!, color = MaterialTheme.colorScheme.error) }} else null,
+                                    isError = editIdError != null,
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                OutlinedTextField(
+                                    value = editAlias,
+                                    onValueChange = { editAlias = it },
+                                    label = { Text(stringResource(R.string.model_alias_label)) },
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                OutlinedTextField(
+                                    value = editNCtx,
+                                    onValueChange = { editNCtx = it },
+                                    label = { Text(stringResource(R.string.local_ctx_size)) },
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                OutlinedTextField(
+                                    value = editTemp,
+                                    onValueChange = { editTemp = it },
+                                    label = { Text(stringResource(R.string.local_temperature)) },
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                OutlinedTextField(
+                                    value = editTopP,
+                                    onValueChange = { editTopP = it },
+                                    label = { Text(stringResource(R.string.local_top_p)) },
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                OutlinedTextField(
+                                    value = editMaxTokens,
+                                    onValueChange = { editMaxTokens = it },
+                                    label = { Text(stringResource(R.string.local_max_tokens)) },
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                                editFormError?.let { err ->
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Text(err, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                                }
+                            }
+                        },
+                        confirmButton = {
+                            TextButton(onClick = {
+                                val id = editModelId.trim()
+                                editIdError = null
+                                editFormError = null
+                                if (id.isBlank()) {
+                                    editIdError = "ID is required"
+                                    return@TextButton
+                                }
+                                if (!idRegex.matches(id)) {
+                                    editIdError = "Only lowercase a-z, 0-9, . _ - allowed"
+                                    return@TextButton
+                                }
+                                if (viewModel.isLocalModelIdTaken(id, excludeId = model.id)) {
+                                    editIdError = "This ID is already in use"
+                                    return@TextButton
+                                }
+                                val nCtxVal = editNCtx.toIntOrNull()
+                                if (nCtxVal == null || nCtxVal <= 0) {
+                                    editFormError = "Context size must be a positive integer"
+                                    return@TextButton
+                                }
+                                val tempVal = editTemp.toFloatOrNull()
+                                if (tempVal == null || tempVal < 0f || tempVal > 2f) {
+                                    editFormError = "Temperature must be 0–2"
+                                    return@TextButton
+                                }
+                                val topPVal = editTopP.toFloatOrNull()
+                                if (topPVal == null || topPVal < 0f || topPVal > 1f) {
+                                    editFormError = "Top P must be 0–1"
+                                    return@TextButton
+                                }
+                                val maxTokVal = editMaxTokens.toIntOrNull()
+                                if (maxTokVal == null || maxTokVal <= 0) {
+                                    editFormError = "Max tokens must be a positive integer"
+                                    return@TextButton
+                                }
+                                viewModel.updateLocalChatModel(
+                                    model.id, id, editAlias.ifBlank { id },
+                                    nCtxVal, tempVal, topPVal, maxTokVal
+                                )
+                                showEditDialog = null
+                            }) { Text(stringResource(R.string.save)) }
+                        },
+                        dismissButton = { TextButton(onClick = { showEditDialog = null }) { Text(stringResource(R.string.cancel)) } }
+                    )
                 }
 
-                if (isCustom) {
-                    HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-                    var showDeleteProvider by remember { mutableStateOf(false) }
-                    var showRenameProvider by remember { mutableStateOf(false) }
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
-                        horizontalArrangement = Arrangement.End,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        TextButton(onClick = { showRenameProvider = true }) {
-                            Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(18.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(stringResource(R.string.custom_provider_rename))
-                        }
-                        Spacer(modifier = Modifier.width(8.dp))
-                        TextButton(onClick = { showDeleteProvider = true }) {
-                            Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.error)
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(stringResource(R.string.custom_provider_delete), color = MaterialTheme.colorScheme.error)
-                        }
-                    }
-                    if (showRenameProvider) {
-                        var renameValue by remember { mutableStateOf(viewingProvider) }
-                        var renameError by remember { mutableStateOf(false) }
-                        AlertDialog(
-                            onDismissRequest = { showRenameProvider = false },
-                            title = { Text(stringResource(R.string.custom_provider_rename_title)) },
-                            text = {
-                                Column(Modifier.fillMaxWidth()) {
-                                    OutlinedTextField(
-                                        value = renameValue, onValueChange = { renameValue = it; renameError = false },
-                                        label = { Text(stringResource(R.string.custom_provider_name_label)) },
-                                        isError = renameError,
-                                        supportingText = if (renameError) {{ Text(stringResource(R.string.custom_provider_name_error)) }} else null,
-                                        modifier = Modifier.fillMaxWidth(),
-                                        singleLine = true
-                                    )
-                                }
-                            },
-                            confirmButton = {
-                                TextButton(onClick = {
-                                    val trimmed = renameValue.trim()
-                                    renameError = trimmed.isBlank() || (trimmed != viewingProvider && trimmed in providers)
-                                    if (!renameError) {
-                                        if (trimmed != viewingProvider) {
-                                            viewModel.renameCustomProvider(viewingProvider, trimmed)
-                                            viewingProvider = trimmed
-                                        }
-                                        showRenameProvider = false
-                                    }
-                                }) { Text(stringResource(R.string.custom_provider_rename)) }
-                            },
-                            dismissButton = { TextButton(onClick = { showRenameProvider = false }) { Text(stringResource(R.string.provider_cancel)) } }
-                        )
-                    }
-                    if (showDeleteProvider) {
-                        AlertDialog(
-                            onDismissRequest = { showDeleteProvider = false },
-                            title = { Text(stringResource(R.string.custom_provider_delete_title)) },
-                            text = { Text(stringResource(R.string.custom_provider_delete_text, viewingProvider)) },
-                            confirmButton = {
-                                TextButton(
-                                    onClick = {
-                                        viewModel.deleteCustomProvider(viewingProvider)
-                                        viewingProvider = "Google"
-                                        showDeleteProvider = false
-                                    },
-                                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
-                                ) { Text(stringResource(R.string.provider_delete)) }
-                            },
-                            dismissButton = { TextButton(onClick = { showDeleteProvider = false }) { Text(stringResource(R.string.provider_cancel)) } }
-                        )
-                    }
+                // Delete confirmation
+                showDeleteConfirm?.let { model ->
+                    AlertDialog(
+                        onDismissRequest = { showDeleteConfirm = null },
+                        title = { Text(stringResource(R.string.local_chat_delete_title)) },
+                        text = { Text(stringResource(R.string.local_chat_delete_text, model.alias)) },
+                        confirmButton = {
+                            TextButton(
+                                onClick = {
+                                    viewModel.deleteLocalChatModel(model.id)
+                                    showDeleteConfirm = null
+                                },
+                                colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                            ) { Text(stringResource(R.string.delete)) }
+                        },
+                        dismissButton = { TextButton(onClick = { showDeleteConfirm = null }) { Text(stringResource(R.string.cancel)) } }
+                    )
                 }
+            }
+
+            // Custom provider dialogs (moved outside SettingsGroup)
+            if (viewingProvider != "Local" && customProviders.any { it.name == viewingProvider }) {
+                if (showRenameProvider) {
+                    var renameValue by remember { mutableStateOf(viewingProvider) }
+                    var renameError by remember { mutableStateOf(false) }
+                    AlertDialog(
+                        onDismissRequest = { showRenameProvider = false },
+                        title = { Text(stringResource(R.string.custom_provider_rename_title)) },
+                        text = {
+                            Column(Modifier.fillMaxWidth()) {
+                                OutlinedTextField(
+                                    value = renameValue, onValueChange = { renameValue = it; renameError = false },
+                                    label = { Text(stringResource(R.string.custom_provider_name_label)) },
+                                    isError = renameError,
+                                    supportingText = if (renameError) {{ Text(stringResource(R.string.custom_provider_name_error)) }} else null,
+                                    modifier = Modifier.fillMaxWidth(),
+                                    singleLine = true
+                                )
+                            }
+                        },
+                        confirmButton = {
+                            TextButton(onClick = {
+                                val trimmed = renameValue.trim()
+                                renameError = trimmed.isBlank() || (trimmed != viewingProvider && trimmed in providers)
+                                if (!renameError) {
+                                    if (trimmed != viewingProvider) {
+                                        viewModel.renameCustomProvider(viewingProvider, trimmed)
+                                        viewingProvider = trimmed
+                                    }
+                                    showRenameProvider = false
+                                }
+                            }) { Text(stringResource(R.string.custom_provider_rename)) }
+                        },
+                        dismissButton = { TextButton(onClick = { showRenameProvider = false }) { Text(stringResource(R.string.provider_cancel)) } }
+                    )
+                }
+                if (showDeleteProvider) {
+                    AlertDialog(
+                        onDismissRequest = { showDeleteProvider = false },
+                        title = { Text(stringResource(R.string.custom_provider_delete_title)) },
+                        text = { Text(stringResource(R.string.custom_provider_delete_text, viewingProvider)) },
+                        confirmButton = {
+                            TextButton(
+                                onClick = {
+                                    viewModel.deleteCustomProvider(viewingProvider)
+                                    viewingProvider = "Google"
+                                    showDeleteProvider = false
+                                },
+                                colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                            ) { Text(stringResource(R.string.provider_delete)) }
+                        },
+                        dismissButton = { TextButton(onClick = { showDeleteProvider = false }) { Text(stringResource(R.string.provider_cancel)) } }
+                    )
                 }
             }
         }

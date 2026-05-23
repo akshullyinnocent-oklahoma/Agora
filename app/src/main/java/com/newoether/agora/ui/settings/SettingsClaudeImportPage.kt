@@ -96,54 +96,58 @@ fun SettingsClaudeImportPage(
                 .padding(horizontal = 16.dp, vertical = 16.dp)
         ) {
             // File selection card
-            SettingsGroup(title = stringResource(R.string.claude_import_title)) {
-                ListItem(
-                    headlineContent = { Text(stringResource(R.string.claude_import_select_file)) },
-                    supportingContent = {
-                        if (fileName != null) {
-                            Text(fileName!!)
-                        } else {
-                            Text(stringResource(R.string.claude_import_no_file))
-                        }
-                    },
-                    leadingContent = {
-                        Icon(Icons.Default.Download, null, tint = MaterialTheme.colorScheme.primary)
-                    },
-                    colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                    modifier = Modifier.clickable { filePickerLauncher.launch(arrayOf("application/json", "application/zip", "*/*")) }
-                )
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
-
-                if (importPreview != null) {
-                    Spacer(Modifier.height(8.dp))
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f))
-                    ) {
-                        Column(modifier = Modifier.padding(16.dp)) {
-                            Text(
-                                stringResource(R.string.claude_import_preview_title),
-                                style = MaterialTheme.typography.labelLarge,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                            Spacer(Modifier.height(8.dp))
-                            val p = importPreview!!
-                            Text("${stringResource(R.string.claude_import_conversations)}: ${p.conversationCount}")
-                            Text("${stringResource(R.string.claude_import_messages)}: ${p.totalMessageCount}")
-                            Text("${stringResource(R.string.claude_import_human)}: ${p.humanMessageCount}")
-                            Text("${stringResource(R.string.claude_import_assistant)}: ${p.assistantMessageCount}")
-                            Text(
-                                if (p.hasAttachments) stringResource(R.string.claude_import_has_attachments)
-                                else stringResource(R.string.claude_import_no_attachments)
-                            )
-                            Spacer(Modifier.height(12.dp))
-                            TextButton(onClick = { showImportDialog = true }) {
-                                Text(stringResource(R.string.claude_import_import))
+            SettingsGroup(
+                title = stringResource(R.string.claude_import_title),
+                items = buildList {
+                    add {
+                        ListItem(
+                            headlineContent = { Text(stringResource(R.string.claude_import_select_file)) },
+                            supportingContent = {
+                                if (fileName != null) {
+                                    Text(fileName!!)
+                                } else {
+                                    Text(stringResource(R.string.claude_import_no_file))
+                                }
+                            },
+                            leadingContent = {
+                                Icon(Icons.Default.Download, null, tint = MaterialTheme.colorScheme.primary)
+                            },
+                            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                            modifier = Modifier.clickable { filePickerLauncher.launch(arrayOf("application/json", "application/zip", "*/*")) }
+                        )
+                    }
+                    if (importPreview != null) {
+                        add {
+                            Card(
+                                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f))
+                            ) {
+                                Column(modifier = Modifier.padding(16.dp)) {
+                                    Text(
+                                        stringResource(R.string.claude_import_preview_title),
+                                        style = MaterialTheme.typography.labelLarge,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                    Spacer(Modifier.height(8.dp))
+                                    val p = importPreview!!
+                                    Text("${stringResource(R.string.claude_import_conversations)}: ${p.conversationCount}")
+                                    Text("${stringResource(R.string.claude_import_messages)}: ${p.totalMessageCount}")
+                                    Text("${stringResource(R.string.claude_import_human)}: ${p.humanMessageCount}")
+                                    Text("${stringResource(R.string.claude_import_assistant)}: ${p.assistantMessageCount}")
+                                    Text(
+                                        if (p.hasAttachments) stringResource(R.string.claude_import_has_attachments)
+                                        else stringResource(R.string.claude_import_no_attachments)
+                                    )
+                                    Spacer(Modifier.height(12.dp))
+                                    TextButton(onClick = { showImportDialog = true }) {
+                                        Text(stringResource(R.string.claude_import_import))
+                                    }
+                                }
                             }
                         }
                     }
                 }
-            }
+            )
 
          }
     }

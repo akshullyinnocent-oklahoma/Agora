@@ -192,50 +192,56 @@ fun SettingsDataControlPage(viewModel: ChatViewModel, onBack: () -> Unit) {
                     .padding(horizontal = 16.dp, vertical = 16.dp)
             ) {
                 // Import/Export group
-                SettingsGroup(title = stringResource(R.string.settings_data_control)) {
-                    ListItem(
-                        headlineContent = { Text(stringResource(R.string.data_import_title)) },
-                        supportingContent = { Text(stringResource(R.string.data_import_subtitle)) },
-                        leadingContent = {
-                            Icon(Icons.Default.Download, null, tint = MaterialTheme.colorScheme.primary)
-                        },
-                        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                        modifier = Modifier.clickable { importLauncher.launch(arrayOf("application/zip", "*/*")) }
-                    )
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
-                    ListItem(
-                        headlineContent = { Text(stringResource(R.string.data_export_title)) },
-                        supportingContent = { Text(stringResource(R.string.data_export_subtitle)) },
-                        leadingContent = {
-                            Icon(Icons.Default.Upload, null, tint = MaterialTheme.colorScheme.primary)
-                        },
-                        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                        modifier = Modifier.clickable { showExportDialog = true }
-                    )
-                }
+                SettingsGroup(title = stringResource(R.string.settings_data_control), items = listOf(
+                    {
+                        ListItem(
+                            headlineContent = { Text(stringResource(R.string.data_import_title)) },
+                            supportingContent = { Text(stringResource(R.string.data_import_subtitle)) },
+                            leadingContent = {
+                                Icon(Icons.Default.Download, null, tint = MaterialTheme.colorScheme.primary)
+                            },
+                            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                            modifier = Modifier.clickable { importLauncher.launch(arrayOf("application/zip", "*/*")) }
+                        )
+                    },
+                    {
+                        ListItem(
+                            headlineContent = { Text(stringResource(R.string.data_export_title)) },
+                            supportingContent = { Text(stringResource(R.string.data_export_subtitle)) },
+                            leadingContent = {
+                                Icon(Icons.Default.Upload, null, tint = MaterialTheme.colorScheme.primary)
+                            },
+                            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                            modifier = Modifier.clickable { showExportDialog = true }
+                        )
+                    }
+                ))
 
                 // Third party group
-                SettingsGroup(title = stringResource(R.string.third_party_import)) {
-                    ListItem(
-                        headlineContent = { Text(stringResource(R.string.gpt_import_title)) },
-                        supportingContent = { Text(stringResource(R.string.gpt_import_subtitle)) },
-                        leadingContent = {
-                            Icon(Icons.Default.Download, null, tint = MaterialTheme.colorScheme.primary)
-                        },
-                        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                        modifier = Modifier.clickable { gptChatLauncher.launch(arrayOf("application/zip", "*/*")) }
-                    )
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
-                    ListItem(
-                        headlineContent = { Text(stringResource(R.string.claude_import_title)) },
-                        supportingContent = { Text(stringResource(R.string.claude_import_subtitle)) },
-                        leadingContent = {
-                            Icon(Icons.Default.Download, null, tint = MaterialTheme.colorScheme.primary)
-                        },
-                        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                        modifier = Modifier.clickable { claudeChatLauncher.launch(arrayOf("application/json", "*/*")) }
-                    )
-                }
+                SettingsGroup(title = stringResource(R.string.third_party_import), items = listOf(
+                    {
+                        ListItem(
+                            headlineContent = { Text(stringResource(R.string.gpt_import_title)) },
+                            supportingContent = { Text(stringResource(R.string.gpt_import_subtitle)) },
+                            leadingContent = {
+                                Icon(Icons.Default.Download, null, tint = MaterialTheme.colorScheme.primary)
+                            },
+                            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                            modifier = Modifier.clickable { gptChatLauncher.launch(arrayOf("application/zip", "*/*")) }
+                        )
+                    },
+                    {
+                        ListItem(
+                            headlineContent = { Text(stringResource(R.string.claude_import_title)) },
+                            supportingContent = { Text(stringResource(R.string.claude_import_subtitle)) },
+                            leadingContent = {
+                                Icon(Icons.Default.Download, null, tint = MaterialTheme.colorScheme.primary)
+                            },
+                            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                            modifier = Modifier.clickable { claudeChatLauncher.launch(arrayOf("application/json", "*/*")) }
+                        )
+                    }
+                ))
 
                 // Show Claude import dialog when preview is loaded
                 LaunchedEffect(claudeImportPreview) {

@@ -2,6 +2,7 @@ package com.newoether.agora.ui.settings
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.ui.res.painterResource
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -70,113 +71,118 @@ fun SettingsWebSearchPage(viewModel: ChatViewModel, onBack: () -> Unit) {
                 .clickable(indication = null, interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }) { fm.clearFocus() }
                 .padding(horizontal = 16.dp, vertical = 16.dp)
         ) {
-            SettingsGroup(title = stringResource(R.string.web_search_title)) {
-                ListItem(
-                    colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                    headlineContent = { Text(stringResource(R.string.web_search_enable)) },
-                    supportingContent = { Text(stringResource(R.string.web_search_enable_desc)) },
-                    leadingContent = { Icon(Icons.Default.Language, null, tint = MaterialTheme.colorScheme.primary) },
-                    trailingContent = {
-                        Switch(checked = webSearchEnabled, onCheckedChange = { viewModel.setWebSearchEnabled(it) })
-                    },
-                    modifier = Modifier.clickable { viewModel.setWebSearchEnabled(!webSearchEnabled) }
-                )
-
-                if (webSearchEnabled) {
-                    HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+            SettingsGroup(title = stringResource(R.string.web_search_title), items = buildList {
+                add {
                     ListItem(
                         colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                        headlineContent = { Text(stringResource(R.string.web_search_provider_label)) },
-                        supportingContent = {
-                            Text(
-                                when (webSearchProvider) {
-                                    "searxng" -> stringResource(R.string.web_search_searxng)
-                                    "serper" -> stringResource(R.string.web_search_serper)
-                                    "tavily" -> stringResource(R.string.web_search_tavily)
-                                    else -> stringResource(R.string.web_search_brave)
-                                }
-                            )
+                        headlineContent = { Text(stringResource(R.string.web_search_enable)) },
+                        supportingContent = { Text(stringResource(R.string.web_search_enable_desc)) },
+                        leadingContent = { Icon(Icons.Default.Language, null, tint = MaterialTheme.colorScheme.primary) },
+                        trailingContent = {
+                            Switch(checked = webSearchEnabled, onCheckedChange = { viewModel.setWebSearchEnabled(it) })
                         },
-                        leadingContent = { Icon(Icons.Default.Cloud, null, tint = MaterialTheme.colorScheme.primary) },
-                        modifier = Modifier.clickable { showProviderDialog = true }
+                        modifier = Modifier.clickable { viewModel.setWebSearchEnabled(!webSearchEnabled) }
                     )
+                }
+
+                if (webSearchEnabled) {
+                    add {
+                        ListItem(
+                            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                            headlineContent = { Text(stringResource(R.string.web_search_provider_label)) },
+                            supportingContent = {
+                                Text(
+                                    when (webSearchProvider) {
+                                        "searxng" -> stringResource(R.string.web_search_searxng)
+                                        "serper" -> stringResource(R.string.web_search_serper)
+                                        "tavily" -> stringResource(R.string.web_search_tavily)
+                                        else -> stringResource(R.string.web_search_brave)
+                                    }
+                                )
+                            },
+                            leadingContent = { Icon(Icons.Default.Cloud, null, tint = MaterialTheme.colorScheme.primary) },
+                            modifier = Modifier.clickable { showProviderDialog = true }
+                        )
+                    }
 
                     if (webSearchProvider != "searxng") {
-                        HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-                        Column(
-                            modifier = Modifier.fillMaxWidth().padding(top = 16.dp, bottom = 8.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-                                verticalAlignment = Alignment.Top
+                        add {
+                            Column(
+                                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 16.dp)
                             ) {
-                                Icon(Icons.Default.Key, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(top = 2.dp))
-                                Spacer(modifier = Modifier.width(16.dp))
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        stringResource(
-                                            when (webSearchProvider) {
-                                                "serper" -> R.string.web_search_serper_key
-                                                "tavily" -> R.string.web_search_tavily_key
-                                                else -> R.string.web_search_brave_key
-                                            }
-                                        ),
-                                        style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface
-                                    )
-                                    Box(modifier = Modifier.bringIntoViewResponder(noOpResponder).padding(top = 8.dp)) {
-                                        OutlinedTextField(
-                                            value = apiKeyText,
-                                            onValueChange = { apiKeyText = it; viewModel.setWebSearchApiKey(webSearchProvider, it) },
-                                            placeholder = {
-                                                Text(
-                                                    stringResource(
-                                                        when (webSearchProvider) {
-                                                            "serper" -> R.string.web_search_serper_key_hint
-                                                            "tavily" -> R.string.web_search_tavily_key_hint
-                                                            else -> R.string.web_search_brave_key_hint
-                                                        }
-                                                    )
-                                                )
-                                            },
-                                            visualTransformation = PasswordVisualTransformation(),
-                                            modifier = Modifier.fillMaxWidth(),
-                                            textStyle = MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.Top
+                                ) {
+                                    Icon(Icons.Default.Key, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(top = 2.dp))
+                                    Spacer(modifier = Modifier.width(16.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            stringResource(
+                                                when (webSearchProvider) {
+                                                    "serper" -> R.string.web_search_serper_key
+                                                    "tavily" -> R.string.web_search_tavily_key
+                                                    else -> R.string.web_search_brave_key
+                                                }
+                                            ),
+                                            style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface
                                         )
+                                        Box(modifier = Modifier.bringIntoViewResponder(noOpResponder).padding(top = 8.dp)) {
+                                            OutlinedTextField(
+                                                value = apiKeyText,
+                                                onValueChange = { apiKeyText = it; viewModel.setWebSearchApiKey(webSearchProvider, it) },
+                                                placeholder = {
+                                                    Text(
+                                                        stringResource(
+                                                            when (webSearchProvider) {
+                                                                "serper" -> R.string.web_search_serper_key_hint
+                                                                "tavily" -> R.string.web_search_tavily_key_hint
+                                                                else -> R.string.web_search_brave_key_hint
+                                                            }
+                                                        )
+                                                    )
+                                                },
+                                                visualTransformation = PasswordVisualTransformation(),
+                                                modifier = Modifier.fillMaxWidth(),
+                                                textStyle = MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                            )
+                                        }
                                     }
                                 }
                             }
                         }
                     } else {
-                        HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-                        Column(
-                            modifier = Modifier.fillMaxWidth().padding(top = 16.dp, bottom = 8.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-                                verticalAlignment = Alignment.Top
+                        add {
+                            Column(
+                                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 16.dp)
                             ) {
-                                Icon(painter = androidx.compose.ui.res.painterResource(id = com.newoether.agora.R.drawable.link_24), null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(top = 2.dp))
-                                Spacer(modifier = Modifier.width(16.dp))
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(stringResource(R.string.web_search_searxng_url), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface)
-                                    val urlState = rememberTextFieldState(webSearchBaseUrl)
-                                    LaunchedEffect(urlState.text) {
-                                        viewModel.setWebSearchBaseUrl(urlState.text.toString())
-                                    }
-                                    Box(modifier = Modifier.bringIntoViewResponder(noOpResponder).padding(top = 8.dp)) {
-                                        OutlinedTextField(
-                                            state = urlState,
-                                            placeholder = { Text(stringResource(R.string.web_search_searxng_url_hint)) },
-                                            modifier = Modifier.fillMaxWidth(),
-                                            textStyle = MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                        )
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.Top
+                                ) {
+                                    Icon(painter = painterResource(id = com.newoether.agora.R.drawable.link_24), null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(top = 2.dp))
+                                    Spacer(modifier = Modifier.width(16.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(stringResource(R.string.web_search_searxng_url), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface)
+                                        val urlState = rememberTextFieldState(webSearchBaseUrl)
+                                        LaunchedEffect(urlState.text) {
+                                            viewModel.setWebSearchBaseUrl(urlState.text.toString())
+                                        }
+                                        Box(modifier = Modifier.bringIntoViewResponder(noOpResponder).padding(top = 8.dp)) {
+                                            OutlinedTextField(
+                                                state = urlState,
+                                                placeholder = { Text(stringResource(R.string.web_search_searxng_url_hint)) },
+                                                modifier = Modifier.fillMaxWidth(),
+                                                textStyle = MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                            )
+                                        }
                                     }
                                 }
                             }
                         }
                     }
                 }
-            }
+            })
         }
     }
 

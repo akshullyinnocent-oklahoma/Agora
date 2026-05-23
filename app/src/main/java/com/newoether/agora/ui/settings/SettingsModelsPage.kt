@@ -76,92 +76,101 @@ fun SettingsModelsPage(viewModel: ChatViewModel, onBack: () -> Unit) {
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 16.dp, vertical = 16.dp)
         ) {
-            SettingsGroup(title = stringResource(R.string.models_default)) {
-                val activeAlias = modelAliases[selectedModel]
-                val cleanId = selectedModel.substringAfter(":")
-                val providerName = selectedModel.substringBefore(":")
-                val activeDisplayName = activeAlias ?: cleanId.removePrefix("models/")
+            SettingsGroup(
+                title = stringResource(R.string.models_default),
+                items = listOf(
+                    {
+                        val activeAlias = modelAliases[selectedModel]
+                        val cleanId = selectedModel.substringAfter(":")
+                        val providerName = selectedModel.substringBefore(":")
+                        val activeDisplayName = activeAlias ?: cleanId.removePrefix("models/")
 
-                ListItem(
-                    colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                    headlineContent = {
-                        Text(
-                            if (enabledModels.isEmpty()) stringResource(R.string.models_no_models) else activeDisplayName,
-                            color = if (enabledModels.isEmpty()) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
+                        ListItem(
+                            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                            headlineContent = {
+                                Text(
+                                    if (enabledModels.isEmpty()) stringResource(R.string.models_no_models) else activeDisplayName,
+                                    color = if (enabledModels.isEmpty()) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
+                                )
+                            },
+                            supportingContent = if (enabledModels.isNotEmpty()) {
+                                { Text(providerName, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)) }
+                            } else null,
+                            leadingContent = { Icon(Icons.Default.Chat, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+                            modifier = Modifier.clickable(enabled = enabledModels.isNotEmpty()) { showActiveModelDialog = true }
                         )
-                    },
-                    supportingContent = if (enabledModels.isNotEmpty()) {
-                        { Text(providerName, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)) }
-                    } else null,
-                    leadingContent = { Icon(Icons.Default.Chat, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
-                    modifier = Modifier.clickable(enabled = enabledModels.isNotEmpty()) { showActiveModelDialog = true }
+                    }
                 )
-            }
-            SettingsGroup(title = stringResource(R.string.models_available)) {
-                ListItem(
-                    colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                    headlineContent = { Text(stringResource(R.string.models_sync)) },
-                    supportingContent = { Text(stringResource(R.string.models_sync_desc)) },
-                    leadingContent = { Icon(Icons.Default.Refresh, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
-                    modifier = Modifier.clickable { viewModel.fetchAvailableModels() }
-                )
-
-                if (availableModels.isNotEmpty()) {
-                    val expandedProviders = remember { mutableStateMapOf<String, Boolean>() }
-
-                    availableModels.forEach { (providerName, models) ->
-                        if (models.isNotEmpty()) {
-                            HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-
-                            val isExpanded = expandedProviders[providerName] ?: false
-
-                            ListItem(
-                                colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                                headlineContent = { Text(providerName, fontWeight = FontWeight.Bold) },
-                                supportingContent = { Text(stringResource(R.string.models_count, models.size)) },
-                                trailingContent = {
-                                    Icon(if (isExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown, null)
-                                },
-                                modifier = Modifier.clickable { expandedProviders[providerName] = !isExpanded }
-                            )
-
-                            AnimatedVisibility(
-                                visible = isExpanded,
-                                enter = expandVertically(),
-                                exit = shrinkVertically()
-                            ) {
-                                Column {
-                                    models.forEach { model ->
-                                        val isEnabled = enabledModels.contains(model)
-                                        val alias = modelAliases[model]
-                                        val cleanId = model.substringAfter(":")
-                                        val displayName = alias ?: cleanId.removePrefix("models/")
-
+            )
+            val expandedProviders = remember { mutableStateMapOf<String, Boolean>() }
+            SettingsGroup(
+                title = stringResource(R.string.models_available),
+                items = buildList {
+                    add {
+                        ListItem(
+                            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                            headlineContent = { Text(stringResource(R.string.models_sync)) },
+                            supportingContent = { Text(stringResource(R.string.models_sync_desc)) },
+                            leadingContent = { Icon(Icons.Default.Refresh, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+                            modifier = Modifier.clickable { viewModel.fetchAvailableModels() }
+                        )
+                    }
+                    if (availableModels.isNotEmpty()) {
+                        availableModels.forEach { (providerName, models) ->
+                            if (models.isNotEmpty()) {
+                                add {
+                                    val isExpanded = expandedProviders[providerName] ?: false
+                                    Column {
                                         ListItem(
                                             colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                                            headlineContent = { Text(displayName) },
-                                            supportingContent = if (alias != null) { { Text(cleanId.removePrefix("models/")) } } else null,
+                                            headlineContent = { Text(providerName, fontWeight = FontWeight.Bold) },
+                                            supportingContent = { Text(stringResource(R.string.models_count, models.size)) },
                                             trailingContent = {
-                                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                                    IconButton(onClick = { showModelAliasDialog = model }) {
-                                                        Icon(Icons.Default.Edit, contentDescription = stringResource(R.string.models_rename), tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
-                                                    }
-                                                    Checkbox(checked = isEnabled, onCheckedChange = {
-                                                        viewModel.setEnabledModels(if (it) enabledModels + model else enabledModels - model)
-                                                    })
-                                                }
+                                                Icon(if (isExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown, null)
                                             },
-                                            modifier = Modifier.clickable {
-                                                viewModel.setEnabledModels(if (!isEnabled) enabledModels + model else enabledModels - model)
-                                            }.padding(start = 16.dp)
+                                            modifier = Modifier.clickable { expandedProviders[providerName] = !isExpanded }
                                         )
+
+                                        AnimatedVisibility(
+                                            visible = isExpanded,
+                                            enter = expandVertically(),
+                                            exit = shrinkVertically()
+                                        ) {
+                                            Column {
+                                                models.forEach { model ->
+                                                    val isEnabled = enabledModels.contains(model)
+                                                    val alias = modelAliases[model]
+                                                    val cleanId = model.substringAfter(":")
+                                                    val displayName = alias ?: cleanId.removePrefix("models/")
+
+                                                    ListItem(
+                                                        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                                                        headlineContent = { Text(displayName) },
+                                                        supportingContent = if (alias != null) { { Text(cleanId.removePrefix("models/")) } } else null,
+                                                        trailingContent = {
+                                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                                IconButton(onClick = { showModelAliasDialog = model }) {
+                                                                    Icon(Icons.Default.Edit, contentDescription = stringResource(R.string.models_rename), tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+                                                                }
+                                                                Checkbox(checked = isEnabled, onCheckedChange = {
+                                                                    viewModel.setEnabledModels(if (it) enabledModels + model else enabledModels - model)
+                                                                })
+                                                            }
+                                                        },
+                                                        modifier = Modifier.clickable {
+                                                            viewModel.setEnabledModels(if (!isEnabled) enabledModels + model else enabledModels - model)
+                                                        }.padding(start = 16.dp)
+                                                    )
+                                                }
+                                            }
+                                        }
                                     }
                                 }
                             }
                         }
                     }
                 }
-            }
+            )
         }
     }
 

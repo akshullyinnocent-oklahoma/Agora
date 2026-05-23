@@ -131,52 +131,59 @@ private fun PromptList(
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 16.dp, vertical = 16.dp)
         ) {
-            SettingsGroup(title = stringResource(R.string.prompts_title)) {
-                ListItem(
-                    colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                    headlineContent = { Text(stringResource(R.string.prompts_default)) },
-                    supportingContent = { Text(stringResource(R.string.prompts_default_desc)) },
-                    leadingContent = {
-                        Icon(Icons.Default.Psychology, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                    }
-                )
-
-                systemPrompts.forEach { entry ->
-                    var showMenu by remember { mutableStateOf(false) }
+            val promptItems: List<@Composable () -> Unit> = buildList {
+                add {
                     ListItem(
                         colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                        headlineContent = { Text(entry.title, fontWeight = FontWeight.Medium) },
-                        supportingContent = {
-                            val preview = entry.resolvedSystemItems.firstOrNull()?.value ?: entry.content
-                            Text(preview, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        },
+                        headlineContent = { Text(stringResource(R.string.prompts_default)) },
+                        supportingContent = { Text(stringResource(R.string.prompts_default_desc)) },
                         leadingContent = {
-                            RadioButton(selected = entry.id == activeSystemPromptId, onClick = { onSelectPrompt(entry.id) })
-                        },
-                        trailingContent = {
-                            Box {
-                                IconButton(onClick = { showMenu = true }) {
-                                    Icon(Icons.Default.MoreVert, contentDescription = stringResource(R.string.options))
-                                }
-                                DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }, shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp)) {
-                                    DropdownMenuItem(text = { Text(stringResource(R.string.provider_edit)) }, leadingIcon = { Icon(Icons.Default.Edit, null) }, onClick = { showMenu = false; onEdit(entry) })
-                                    DropdownMenuItem(text = { Text(stringResource(R.string.provider_delete), color = MaterialTheme.colorScheme.error) }, leadingIcon = { Icon(Icons.Default.Delete, null, tint = MaterialTheme.colorScheme.error) }, onClick = { showMenu = false; onDeleteRequest(entry) })
-                                }
-                            }
-                        },
-                        modifier = Modifier.clickable { onSelectPrompt(entry.id) }.padding(start = 16.dp)
+                            Icon(Icons.Default.Psychology, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                        }
                     )
                 }
 
-                TextButton(
-                    onClick = onAdd,
-                    modifier = Modifier.padding(start = 16.dp, top = 4.dp, bottom = 8.dp)
-                ) {
-                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(stringResource(R.string.prompts_add))
+                systemPrompts.forEach { entry ->
+                    add {
+                        var showMenu by remember { mutableStateOf(false) }
+                        ListItem(
+                            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                            headlineContent = { Text(entry.title, fontWeight = FontWeight.Medium) },
+                            supportingContent = {
+                                val preview = entry.resolvedSystemItems.firstOrNull()?.value ?: entry.content
+                                Text(preview, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            },
+                            leadingContent = {
+                                RadioButton(selected = entry.id == activeSystemPromptId, onClick = { onSelectPrompt(entry.id) })
+                            },
+                            trailingContent = {
+                                Box {
+                                    IconButton(onClick = { showMenu = true }) {
+                                        Icon(Icons.Default.MoreVert, contentDescription = stringResource(R.string.options))
+                                    }
+                                    DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }, shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp)) {
+                                        DropdownMenuItem(text = { Text(stringResource(R.string.provider_edit)) }, leadingIcon = { Icon(Icons.Default.Edit, null) }, onClick = { showMenu = false; onEdit(entry) })
+                                        DropdownMenuItem(text = { Text(stringResource(R.string.provider_delete), color = MaterialTheme.colorScheme.error) }, leadingIcon = { Icon(Icons.Default.Delete, null, tint = MaterialTheme.colorScheme.error) }, onClick = { showMenu = false; onDeleteRequest(entry) })
+                                    }
+                                }
+                            },
+                            modifier = Modifier.clickable { onSelectPrompt(entry.id) }.padding(start = 16.dp)
+                        )
+                    }
+                }
+
+                add {
+                    TextButton(
+                        onClick = onAdd,
+                        modifier = Modifier.padding(start = 16.dp, top = 4.dp, bottom = 8.dp)
+                    ) {
+                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(stringResource(R.string.prompts_add))
+                    }
                 }
             }
+            SettingsGroup(title = stringResource(R.string.prompts_title), items = promptItems)
         }
     }
 }

@@ -70,87 +70,96 @@ fun SettingsAppearancePage(viewModel: ChatViewModel, onBack: () -> Unit) {
                 .padding(horizontal = 16.dp, vertical = 16.dp)
         ) {
             // ── Theme Mode ──
-            SettingsGroup(title = stringResource(R.string.theme_mode)) {
-                ThemeModeOption(
-                    label = stringResource(R.string.theme_mode_light),
-                    icon = Icons.Default.LightMode,
-                    selected = themeMode == "LIGHT",
-                    onClick = { viewModel.setThemeMode("LIGHT") }
+            SettingsGroup(
+                title = stringResource(R.string.theme_mode),
+                items = listOf(
+                    {
+                        ThemeModeOption(
+                            label = stringResource(R.string.theme_mode_light),
+                            icon = Icons.Default.LightMode,
+                            selected = themeMode == "LIGHT",
+                            onClick = { viewModel.setThemeMode("LIGHT") }
+                        )
+                    },
+                    {
+                        ThemeModeOption(
+                            label = stringResource(R.string.theme_mode_dark),
+                            icon = Icons.Default.DarkMode,
+                            selected = themeMode == "DARK",
+                            onClick = { viewModel.setThemeMode("DARK") }
+                        )
+                    },
+                    {
+                        ThemeModeOption(
+                            label = stringResource(R.string.theme_mode_follow_device),
+                            icon = Icons.Default.SettingsBrightness,
+                            selected = themeMode != "LIGHT" && themeMode != "DARK",
+                            onClick = { viewModel.setThemeMode("FOLLOW_DEVICE") }
+                        )
+                    }
                 )
-                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
-                ThemeModeOption(
-                    label = stringResource(R.string.theme_mode_dark),
-                    icon = Icons.Default.DarkMode,
-                    selected = themeMode == "DARK",
-                    onClick = { viewModel.setThemeMode("DARK") }
-                )
-                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
-                ThemeModeOption(
-                    label = stringResource(R.string.theme_mode_follow_device),
-                    icon = Icons.Default.SettingsBrightness,
-                    selected = themeMode != "LIGHT" && themeMode != "DARK",
-                    onClick = { viewModel.setThemeMode("FOLLOW_DEVICE") }
-                )
-            }
+            )
 
             // ── Color Scheme ──
             val schemeAlpha = if (dynamicColor && isDynamicAvailable) 0.38f else 1f
-            SettingsGroup(title = stringResource(R.string.color_scheme)) {
-                ColorSchemePreset.entries.forEachIndexed { index, preset ->
-                    val presetPrimary = colorSchemeForPreset(preset).light.primary
-                    ListItem(
-                        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                        headlineContent = {
-                            Text(
-                                text = presetDisplayName(preset),
-                                fontWeight = if (preset == currentPreset) FontWeight.Bold else FontWeight.Normal
-                            )
-                        },
-                        supportingContent = if (dynamicColor && isDynamicAvailable) {
-                            { Text(stringResource(R.string.dynamic_color_overrides_scheme)) }
-                        } else null,
-                        leadingContent = {
-                            Box(
-                                modifier = Modifier
-                                    .size(32.dp)
-                                    .clip(CircleShape)
-                                    .background(presetPrimary)
-                            )
-                        },
-                        trailingContent = {
-                            RadioButton(
-                                selected = preset == currentPreset,
-                                onClick = { viewModel.setColorScheme(preset.name) }
-                            )
-                        },
-                        modifier = Modifier
-                            .alpha(schemeAlpha)
-                            .clickable(enabled = schemeAlpha > 0.5f) { viewModel.setColorScheme(preset.name) }
-                    )
-                    if (preset != ColorSchemePreset.entries.last()) {
-                        HorizontalDivider(
-                            modifier = Modifier.padding(horizontal = 16.dp),
-                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
+            SettingsGroup(
+                title = stringResource(R.string.color_scheme),
+                items = ColorSchemePreset.entries.map { preset ->
+                    {
+                        val presetPrimary = colorSchemeForPreset(preset).light.primary
+                        ListItem(
+                            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                            headlineContent = {
+                                Text(
+                                    text = presetDisplayName(preset),
+                                    fontWeight = if (preset == currentPreset) FontWeight.Bold else FontWeight.Normal
+                                )
+                            },
+                            supportingContent = if (dynamicColor && isDynamicAvailable) {
+                                { Text(stringResource(R.string.dynamic_color_overrides_scheme)) }
+                            } else null,
+                            leadingContent = {
+                                Box(
+                                    modifier = Modifier
+                                        .size(32.dp)
+                                        .clip(CircleShape)
+                                        .background(presetPrimary)
+                                )
+                            },
+                            trailingContent = {
+                                RadioButton(
+                                    selected = preset == currentPreset,
+                                    onClick = { viewModel.setColorScheme(preset.name) }
+                                )
+                            },
+                            modifier = Modifier
+                                .alpha(schemeAlpha)
+                                .clickable(enabled = schemeAlpha > 0.5f) { viewModel.setColorScheme(preset.name) }
                         )
                     }
                 }
-            }
+            )
 
             // ── Dynamic Color ──
             if (isDynamicAvailable) {
-                SettingsGroup(title = stringResource(R.string.dynamic_color)) {
-                    ListItem(
-                        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                        headlineContent = { Text(stringResource(R.string.dynamic_color)) },
-                        supportingContent = { Text(stringResource(R.string.dynamic_color_desc)) },
-                        trailingContent = {
-                            Switch(
-                                checked = dynamicColor,
-                                onCheckedChange = { viewModel.setDynamicColor(it) }
+                SettingsGroup(
+                    title = stringResource(R.string.dynamic_color),
+                    items = buildList {
+                        add {
+                            ListItem(
+                                colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                                headlineContent = { Text(stringResource(R.string.dynamic_color)) },
+                                supportingContent = { Text(stringResource(R.string.dynamic_color_desc)) },
+                                trailingContent = {
+                                    Switch(
+                                        checked = dynamicColor,
+                                        onCheckedChange = { viewModel.setDynamicColor(it) }
+                                    )
+                                }
                             )
                         }
-                    )
-                }
+                    }
+                )
             }
         }
     }

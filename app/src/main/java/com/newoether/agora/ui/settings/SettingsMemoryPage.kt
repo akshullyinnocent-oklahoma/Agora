@@ -78,110 +78,128 @@ fun SettingsMemoryPage(viewModel: ChatViewModel, onBack: () -> Unit) {
                 .clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) { fm.clearFocus() }
                 .padding(horizontal = 16.dp, vertical = 16.dp)
         ) {
-            SettingsGroup(title = stringResource(R.string.memory_access_title)) {
-                ListItem(
-                    colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                    headlineContent = { Text(stringResource(R.string.memory_access_saved)) },
-                    supportingContent = { Text(stringResource(R.string.memory_access_saved_desc)) },
-                    leadingContent = { Icon(Icons.Default.Description, null, tint = MaterialTheme.colorScheme.primary) },
-                    trailingContent = {
-                        Switch(checked = accessSavedMemories, onCheckedChange = { viewModel.setAccessSavedMemories(it) })
-                    },
-                    modifier = Modifier.clickable { viewModel.setAccessSavedMemories(!accessSavedMemories) }
-                )
-                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-                ListItem(
-                    colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                    headlineContent = { Text(stringResource(R.string.memory_access_active)) },
-                    supportingContent = { Text(stringResource(R.string.memory_access_active_desc)) },
-                    leadingContent = { Icon(Icons.Default.Memory, null, tint = MaterialTheme.colorScheme.primary) },
-                    trailingContent = {
-                        Switch(checked = accessActiveMemory, onCheckedChange = { viewModel.setAccessActiveMemory(it) })
-                    },
-                    modifier = Modifier.clickable { viewModel.setAccessActiveMemory(!accessActiveMemory) }
-                )
-            }
-
-            SettingsGroup(title = stringResource(R.string.memory_active_title)) {
-                ListItem(
-                    colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                    headlineContent = { Text(stringResource(R.string.memory_active_context)) },
-                    supportingContent = {
-                        Text(
-                            if (activeMemoryContent.isBlank()) stringResource(R.string.memory_active_empty)
-                            else activeMemoryContent.take(100) + if (activeMemoryContent.length > 100) "..." else ""
-                        )
-                    },
-                    leadingContent = { Icon(Icons.Default.Memory, null, tint = MaterialTheme.colorScheme.primary) },
-                    modifier = Modifier.clickable {
-                        showFileEditor = "ACTIVE_MEMORY"
-                        fileEditorContent = activeMemoryContent
-                    }
-                )
-            }
-
-            SettingsGroup(title = stringResource(R.string.memory_saved_title)) {
-                ListItem(
-                    colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                    headlineContent = { Text(stringResource(R.string.memory_add)) },
-                    supportingContent = { Text(stringResource(R.string.memory_add_desc)) },
-                    leadingContent = { Icon(Icons.Default.Add, null, tint = MaterialTheme.colorScheme.primary) },
-                    modifier = Modifier.clickable { showNewFileDialog = true }
-                )
-
-                if (memoryFiles.isEmpty()) {
-                    ListItem(
-                        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                        headlineContent = { Text(stringResource(R.string.memory_no_files), color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)) },
-                        supportingContent = { Text(stringResource(R.string.memory_create_hint)) }
-                    )
-                } else {
-                    memoryFiles.forEach { file ->
-                        var showFileMenu by remember { mutableStateOf(false) }
-                        val displayName = file.name.removeSuffix(".md")
-                        HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+            SettingsGroup(
+                title = stringResource(R.string.memory_access_title),
+                items = listOf(
+                    {
                         ListItem(
                             colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                            headlineContent = { Text(displayName, fontWeight = FontWeight.Medium) },
-                            supportingContent = if (file.description.isNotBlank()) {{ Text(file.description) }} else null,
-                            leadingContent = { Icon(Icons.Default.Description, null, tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f)) },
+                            headlineContent = { Text(stringResource(R.string.memory_access_saved)) },
+                            supportingContent = { Text(stringResource(R.string.memory_access_saved_desc)) },
+                            leadingContent = { Icon(Icons.Default.Description, null, tint = MaterialTheme.colorScheme.primary) },
                             trailingContent = {
-                                Box {
-                                    IconButton(onClick = { showFileMenu = true }) {
-                                        Icon(Icons.Default.MoreVert, stringResource(R.string.menu), tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
-                                    }
-                                    DropdownMenu(
-                                        expanded = showFileMenu,
-                                        onDismissRequest = { showFileMenu = false },
-                                        shape = RoundedCornerShape(12.dp)
-                                    ) {
-                                        DropdownMenuItem(
-                                            text = { Text(stringResource(R.string.provider_edit)) },
-                                            leadingIcon = { Icon(Icons.Default.Edit, null) },
-                                            onClick = {
-                                                showFileMenu = false
-                                                try {
-                                                    showFileEditor = file.name
-                                                    fileEditorContent = viewModel.memoryManager.readFile(file.name)
-                                                    fileEditorDesc = viewModel.memoryManager.getDescription(file.name)
-                                                } catch (_: Exception) {}
-                                            }
-                                        )
-                                        DropdownMenuItem(
-                                            text = { Text(stringResource(R.string.provider_delete), color = MaterialTheme.colorScheme.error) },
-                                            leadingIcon = { Icon(Icons.Default.Delete, null, tint = MaterialTheme.colorScheme.error) },
-                                            onClick = {
-                                                showFileMenu = false
-                                                showDeleteFileConfirm = file.name
-                                            }
-                                        )
-                                    }
-                                }
+                                Switch(checked = accessSavedMemories, onCheckedChange = { viewModel.setAccessSavedMemories(it) })
+                            },
+                            modifier = Modifier.clickable { viewModel.setAccessSavedMemories(!accessSavedMemories) }
+                        )
+                    },
+                    {
+                        ListItem(
+                            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                            headlineContent = { Text(stringResource(R.string.memory_access_active)) },
+                            supportingContent = { Text(stringResource(R.string.memory_access_active_desc)) },
+                            leadingContent = { Icon(Icons.Default.Memory, null, tint = MaterialTheme.colorScheme.primary) },
+                            trailingContent = {
+                                Switch(checked = accessActiveMemory, onCheckedChange = { viewModel.setAccessActiveMemory(it) })
+                            },
+                            modifier = Modifier.clickable { viewModel.setAccessActiveMemory(!accessActiveMemory) }
+                        )
+                    }
+                )
+            )
+
+            SettingsGroup(
+                title = stringResource(R.string.memory_active_title),
+                items = listOf(
+                    {
+                        ListItem(
+                            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                            headlineContent = { Text(stringResource(R.string.memory_active_context)) },
+                            supportingContent = {
+                                Text(
+                                    if (activeMemoryContent.isBlank()) stringResource(R.string.memory_active_empty)
+                                    else activeMemoryContent.take(100) + if (activeMemoryContent.length > 100) "..." else ""
+                                )
+                            },
+                            leadingContent = { Icon(Icons.Default.Memory, null, tint = MaterialTheme.colorScheme.primary) },
+                            modifier = Modifier.clickable {
+                                showFileEditor = "ACTIVE_MEMORY"
+                                fileEditorContent = activeMemoryContent
                             }
                         )
                     }
+                )
+            )
+
+            SettingsGroup(
+                title = stringResource(R.string.memory_saved_title),
+                items = buildList {
+                    add {
+                        ListItem(
+                            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                            headlineContent = { Text(stringResource(R.string.memory_add)) },
+                            supportingContent = { Text(stringResource(R.string.memory_add_desc)) },
+                            leadingContent = { Icon(Icons.Default.Add, null, tint = MaterialTheme.colorScheme.primary) },
+                            modifier = Modifier.clickable { showNewFileDialog = true }
+                        )
+                    }
+                    if (memoryFiles.isEmpty()) {
+                        add {
+                            ListItem(
+                                colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                                headlineContent = { Text(stringResource(R.string.memory_no_files), color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)) },
+                                supportingContent = { Text(stringResource(R.string.memory_create_hint)) }
+                            )
+                        }
+                    } else {
+                        memoryFiles.forEach { file ->
+                            add {
+                                var showFileMenu by remember { mutableStateOf(false) }
+                                val displayName = file.name.removeSuffix(".md")
+                                ListItem(
+                                    colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                                    headlineContent = { Text(displayName, fontWeight = FontWeight.Medium) },
+                                    supportingContent = if (file.description.isNotBlank()) {{ Text(file.description) }} else null,
+                                    leadingContent = { Icon(Icons.Default.Description, null, tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f)) },
+                                    trailingContent = {
+                                        Box {
+                                            IconButton(onClick = { showFileMenu = true }) {
+                                                Icon(Icons.Default.MoreVert, stringResource(R.string.menu), tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
+                                            }
+                                            DropdownMenu(
+                                                expanded = showFileMenu,
+                                                onDismissRequest = { showFileMenu = false },
+                                                shape = RoundedCornerShape(12.dp)
+                                            ) {
+                                                DropdownMenuItem(
+                                                    text = { Text(stringResource(R.string.provider_edit)) },
+                                                    leadingIcon = { Icon(Icons.Default.Edit, null) },
+                                                    onClick = {
+                                                        showFileMenu = false
+                                                        try {
+                                                            showFileEditor = file.name
+                                                            fileEditorContent = viewModel.memoryManager.readFile(file.name)
+                                                            fileEditorDesc = viewModel.memoryManager.getDescription(file.name)
+                                                        } catch (_: Exception) {}
+                                                    }
+                                                )
+                                                DropdownMenuItem(
+                                                    text = { Text(stringResource(R.string.provider_delete), color = MaterialTheme.colorScheme.error) },
+                                                    leadingIcon = { Icon(Icons.Default.Delete, null, tint = MaterialTheme.colorScheme.error) },
+                                                    onClick = {
+                                                        showFileMenu = false
+                                                        showDeleteFileConfirm = file.name
+                                                    }
+                                                )
+                                            }
+                                        }
+                                    }
+                                )
+                            }
+                        }
+                    }
                 }
-            }
+            )
         }
     }
 

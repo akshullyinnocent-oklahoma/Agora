@@ -54,35 +54,40 @@ fun SettingsTitleGenPage(viewModel: ChatViewModel, onBack: () -> Unit) {
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 16.dp, vertical = 16.dp)
         ) {
-            SettingsGroup(title = stringResource(R.string.settings_title_gen)) {
-                ListItem(
-                    colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                    headlineContent = { Text(stringResource(R.string.title_gen_auto)) },
-                    supportingContent = { Text(stringResource(R.string.title_gen_auto_desc)) },
-                    leadingContent = { Icon(Icons.Default.Edit, null, tint = MaterialTheme.colorScheme.primary) },
-                    trailingContent = {
-                        Switch(checked = titleGenEnabled, onCheckedChange = { viewModel.setTitleGenerationEnabled(it) })
-                    },
-                    modifier = Modifier.clickable { viewModel.setTitleGenerationEnabled(!titleGenEnabled) }
-                )
-
-                if (titleGenEnabled) {
-                    HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-                    ListItem(
-                        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                        headlineContent = { Text(stringResource(R.string.title_gen_model)) },
-                        supportingContent = {
-                            val displayName = if (titleGenModel == null) stringResource(R.string.title_gen_current_model) else {
-                                val alias = modelAliases[titleGenModel!!]
-                                alias ?: titleGenModel!!.substringAfter(":").removePrefix("models/")
-                            }
-                            Text(displayName)
-                        },
-                        leadingContent = { Icon(Icons.Default.Chat, null, tint = MaterialTheme.colorScheme.primary) },
-                        modifier = Modifier.clickable { showTitleModelDialog = true }
-                    )
+            SettingsGroup(
+                title = stringResource(R.string.settings_title_gen),
+                items = buildList {
+                    add {
+                        ListItem(
+                            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                            headlineContent = { Text(stringResource(R.string.title_gen_auto)) },
+                            supportingContent = { Text(stringResource(R.string.title_gen_auto_desc)) },
+                            leadingContent = { Icon(Icons.Default.Edit, null, tint = MaterialTheme.colorScheme.primary) },
+                            trailingContent = {
+                                Switch(checked = titleGenEnabled, onCheckedChange = { viewModel.setTitleGenerationEnabled(it) })
+                            },
+                            modifier = Modifier.clickable { viewModel.setTitleGenerationEnabled(!titleGenEnabled) }
+                        )
+                    }
+                    if (titleGenEnabled) {
+                        add {
+                            ListItem(
+                                colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                                headlineContent = { Text(stringResource(R.string.title_gen_model)) },
+                                supportingContent = {
+                                    val displayName = if (titleGenModel == null) stringResource(R.string.title_gen_current_model) else {
+                                        val alias = modelAliases[titleGenModel!!]
+                                        alias ?: titleGenModel!!.substringAfter(":").removePrefix("models/")
+                                    }
+                                    Text(displayName)
+                                },
+                                leadingContent = { Icon(Icons.Default.Chat, null, tint = MaterialTheme.colorScheme.primary) },
+                                modifier = Modifier.clickable { showTitleModelDialog = true }
+                            )
+                        }
+                    }
                 }
-            }
+            )
         }
     }
 

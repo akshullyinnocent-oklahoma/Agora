@@ -74,24 +74,24 @@ fun SettingsLanguagePage(viewModel: ChatViewModel, onBack: () -> Unit) {
                 }
             }
 
-            SettingsGroup(title = stringResource(R.string.language_title)) {
-                languages.forEach { lang ->
-                    ListItem(
-                        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                        headlineContent = { Text(lang.label, fontWeight = if (appLanguage == lang.code) FontWeight.Bold else FontWeight.Normal) },
-                        leadingContent = {
-                            RadioButton(
-                                selected = appLanguage == lang.code,
-                                onClick = { changeLanguage(lang.code) }
-                            )
-                        },
-                        modifier = Modifier.clickable { changeLanguage(lang.code) }
-                    )
-                    if (lang != languages.last()) {
-                        HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+            SettingsGroup(
+                title = stringResource(R.string.language_title),
+                items = languages.map { lang ->
+                    {
+                        ListItem(
+                            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                            headlineContent = { Text(lang.label, fontWeight = if (appLanguage == lang.code) FontWeight.Bold else FontWeight.Normal) },
+                            leadingContent = {
+                                RadioButton(
+                                    selected = appLanguage == lang.code,
+                                    onClick = { changeLanguage(lang.code) }
+                                )
+                            },
+                            modifier = Modifier.clickable { changeLanguage(lang.code) }
+                        )
                     }
                 }
-            }
+            )
         }
     }
 }

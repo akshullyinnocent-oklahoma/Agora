@@ -34,7 +34,7 @@ import com.newoether.agora.viewmodel.ChatViewModel
 fun SettingsGroup(
     title: String,
     modifier: Modifier = Modifier,
-    content: @Composable ColumnScope.() -> Unit
+    items: List<@Composable () -> Unit>
 ) {
     Column(modifier = modifier.fillMaxWidth().padding(bottom = 24.dp)) {
         Text(
@@ -43,13 +43,26 @@ fun SettingsGroup(
             color = MaterialTheme.colorScheme.primary,
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
         )
-        Surface(
-            shape = RoundedCornerShape(16.dp),
-            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Column(modifier = Modifier.padding(vertical = 4.dp)) {
-                content()
+        Column(modifier = Modifier.fillMaxWidth()) {
+            items.forEachIndexed { index, item ->
+                if (index > 0) {
+                    Spacer(modifier = Modifier.height(2.dp))
+                }
+                val isFirst = index == 0
+                val isLast = index == items.lastIndex
+                val shape = when {
+                    items.size == 1 -> RoundedCornerShape(24.dp)
+                    isFirst -> RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp, bottomStart = 3.dp, bottomEnd = 3.dp)
+                    isLast -> RoundedCornerShape(topStart = 3.dp, topEnd = 3.dp, bottomStart = 24.dp, bottomEnd = 24.dp)
+                    else -> RoundedCornerShape(3.dp)
+                }
+                Surface(
+                    shape = shape,
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+                    modifier = Modifier.fillMaxWidth().clip(shape)
+                ) {
+                    item()
+                }
             }
         }
     }

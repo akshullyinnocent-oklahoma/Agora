@@ -107,227 +107,260 @@ fun SettingsSearchPage(viewModel: ChatViewModel, onBack: () -> Unit) {
                 .clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) { fm.clearFocus() }
                 .padding(horizontal = 16.dp, vertical = 16.dp)
         ) {
-            SettingsGroup(title = stringResource(R.string.memory_access_title)) {
-                ListItem(
-                    colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                    headlineContent = { Text(stringResource(R.string.memory_access_past)) },
-                    supportingContent = { Text(stringResource(R.string.memory_access_past_desc)) },
-                    leadingContent = { Icon(Icons.Default.Chat, null, tint = MaterialTheme.colorScheme.primary) },
-                    trailingContent = {
-                        Switch(checked = accessPastConversations, onCheckedChange = { viewModel.setAccessPastConversations(it) })
-                    },
-                    modifier = Modifier.clickable { viewModel.setAccessPastConversations(!accessPastConversations) }
-                )
-            }
-
-            SettingsGroup(title = stringResource(R.string.auto_cache_title)) {
-                ListItem(
-                    colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                    headlineContent = { Text(stringResource(R.string.auto_cache)) },
-                    supportingContent = { Text(stringResource(R.string.auto_cache_desc)) },
-                    leadingContent = { Icon(Icons.Default.Cached, null, tint = MaterialTheme.colorScheme.primary) },
-                    trailingContent = {
-                        Switch(checked = autoCacheEnabled, onCheckedChange = { viewModel.setAutoCacheEnabled(it) })
-                    },
-                    modifier = Modifier.clickable { viewModel.setAutoCacheEnabled(!autoCacheEnabled) }
-                )
-            }
-
-            SettingsGroup(title = stringResource(R.string.search_methods_title)) {
-                ListItem(
-                    colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                    headlineContent = { Text(stringResource(R.string.model_search_method)) },
-                    supportingContent = { Text(stringResource(R.string.model_search_method_desc)) },
-                    leadingContent = { Icon(Icons.Default.AutoAwesome, null, tint = MaterialTheme.colorScheme.primary) }
-                )
-                searchMethods.forEach { method ->
-                    ListItem(
-                        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                        headlineContent = { Text(stringResource(method.labelRes)) },
-                        leadingContent = {
-                            RadioButton(
-                                selected = modelSearchMethod == method.key,
-                                onClick = { viewModel.setModelSearchMethod(method.key) }
-                            )
-                        },
-                        modifier = Modifier.clickable { viewModel.setModelSearchMethod(method.key) }
-                    )
-                }
-                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-                ListItem(
-                    colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                    headlineContent = { Text(stringResource(R.string.manual_search_method)) },
-                    supportingContent = { Text(stringResource(R.string.manual_search_method_desc)) },
-                    leadingContent = { Icon(Icons.Default.ManageSearch, null, tint = MaterialTheme.colorScheme.primary) }
-                )
-                searchMethods.forEach { method ->
-                    ListItem(
-                        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                        headlineContent = { Text(stringResource(method.labelRes)) },
-                        leadingContent = {
-                            RadioButton(
-                                selected = manualSearchMethod == method.key,
-                                onClick = { viewModel.setManualSearchMethod(method.key) }
-                            )
-                        },
-                        modifier = Modifier.clickable { viewModel.setManualSearchMethod(method.key) }
-                    )
-                }
-            }
-
-            SettingsGroup(title = stringResource(R.string.embedding_title)) {
-                if (embeddingModels.isEmpty()) {
-                    ListItem(
-                        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                        headlineContent = { Text(stringResource(R.string.no_embedding_models)) },
-                        leadingContent = { Icon(Icons.Default.Cloud, null, tint = MaterialTheme.colorScheme.primary) }
-                    )
-                } else {
-                    embeddingModels.forEach { model ->
-                        val isActive = model.id == activeEmbeddingModelId
-                        val progress = cachingProgress[model.id]
-                        val isCaching = progress != null
-                        val counts = cacheCounts[model.id]
-                        val allCached = counts != null && counts.second > 0 && counts.first >= counts.second
+            SettingsGroup(
+                title = stringResource(R.string.memory_access_title),
+                items = listOf(
+                    {
                         ListItem(
                             colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                            headlineContent = { Text(model.name) },
-                            supportingContent = {
-                                val typeLabel = if (model.type == com.newoether.agora.data.EmbeddingModelType.REMOTE)
-                                    stringResource(R.string.embedding_type_remote)
-                                else stringResource(R.string.embedding_type_local)
-                                val cacheLabel = if (isCaching) {
-                                    "${progress!!.second - progress!!.first} ${stringResource(R.string.not_cached)} (${progress!!.first}/${progress!!.second})"
-                                } else if (counts != null && counts.second > 0) {
-                                    val notCached = (counts.second - counts.first).coerceAtLeast(0)
-                                    if (notCached == 0) stringResource(R.string.cached)
-                                    else "${notCached} ${stringResource(R.string.not_cached)} (${counts.first}/${counts.second})"
-                                } else {
-                                    stringResource(R.string.not_cached)
-                                }
-                                Text("$typeLabel · $cacheLabel")
-                            },
-                            leadingContent = {
-                                RadioButton(
-                                    selected = isActive,
-                                    onClick = { viewModel.setActiveEmbeddingModel(model.id) }
-                                )
-                            },
+                            headlineContent = { Text(stringResource(R.string.memory_access_past)) },
+                            supportingContent = { Text(stringResource(R.string.memory_access_past_desc)) },
+                            leadingContent = { Icon(Icons.Default.Chat, null, tint = MaterialTheme.colorScheme.primary) },
                             trailingContent = {
-                                Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                                    if (!isCaching) {
-                                        TextButton(onClick = {
-                                            if (allCached) {
-                                                showRecacheConfirm = model.id
-                                            } else {
-                                                viewModel.cacheMessagesForModel(model.id)
-                                            }
-                                        }) { Text(if (allCached) stringResource(R.string.recache_action) else stringResource(R.string.cache_action)) }
-                                    }
-                                    if (isCaching) {
-                                        val ratio = progress!!.first.toFloat() / progress.second.toFloat()
-                                        CircularProgressIndicator(
-                                            progress = { ratio },
-                                            modifier = Modifier.size(24.dp),
-                                            strokeWidth = 2.dp
-                                        )
-                                    }
-                                    Box {
-                                        IconButton(onClick = { showMenuForModel = model.id }) {
-                                            Icon(Icons.Default.MoreVert, contentDescription = stringResource(R.string.options))
-                                        }
-                                        DropdownMenu(
-                                            expanded = showMenuForModel == model.id,
-                                            onDismissRequest = { showMenuForModel = null },
-                                            shape = RoundedCornerShape(12.dp)
-                                        ) {
-                                            DropdownMenuItem(
-                                                text = { Text(stringResource(R.string.rename)) },
-                                                leadingIcon = { Icon(Icons.Default.Edit, null) },
-                                                onClick = {
-                                                    showMenuForModel = null
-                                                    renameText = model.name
-                                                    showRenameDialog = model.id
-                                                }
-                                            )
-                                            DropdownMenuItem(
-                                                text = { Text(stringResource(R.string.delete), color = MaterialTheme.colorScheme.error) },
-                                                leadingIcon = { Icon(Icons.Default.Delete, null, tint = MaterialTheme.colorScheme.error) },
-                                                onClick = {
-                                                    showMenuForModel = null
-                                                    showDeleteDialog = model.id
-                                                }
-                                            )
-                                        }
-                                    }
-                                }
+                                Switch(checked = accessPastConversations, onCheckedChange = { viewModel.setAccessPastConversations(it) })
                             },
-                            modifier = Modifier.clickable { viewModel.setActiveEmbeddingModel(model.id) }
+                            modifier = Modifier.clickable { viewModel.setAccessPastConversations(!accessPastConversations) }
                         )
                     }
-                }
-                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    TextButton(onClick = {
-                        remoteName = ""
-                        remoteModelName = ""
-                        remoteBaseUrl = ""
-                        testStatus = null
-                        isTesting = false
-                        showRemoteDialog = true
-                    }) { Text(stringResource(R.string.add_remote_model)) }
-                    TextButton(onClick = {
-                        localName = ""
-                        localFilePath = ""
-                        showLocalDialog = true
-                    }) { Text(stringResource(R.string.add_local_model)) }
-                }
-            }
+                )
+            )
 
-            SettingsGroup(title = stringResource(R.string.advanced_title)) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 16.dp, bottom = 8.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-                        verticalAlignment = androidx.compose.ui.Alignment.Top
-                    ) {
-                        Icon(
-                            painter = painterResource(id = R.drawable.text_compare_24),
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.padding(top = 2.dp)
+            SettingsGroup(
+                title = stringResource(R.string.auto_cache_title),
+                items = listOf(
+                    {
+                        ListItem(
+                            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                            headlineContent = { Text(stringResource(R.string.auto_cache)) },
+                            supportingContent = { Text(stringResource(R.string.auto_cache_desc)) },
+                            leadingContent = { Icon(Icons.Default.Cached, null, tint = MaterialTheme.colorScheme.primary) },
+                            trailingContent = {
+                                Switch(checked = autoCacheEnabled, onCheckedChange = { viewModel.setAutoCacheEnabled(it) })
+                            },
+                            modifier = Modifier.clickable { viewModel.setAutoCacheEnabled(!autoCacheEnabled) }
                         )
-                        Spacer(modifier = Modifier.width(16.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = stringResource(R.string.rag_threshold_label),
-                                style = MaterialTheme.typography.bodyLarge,
-                                color = MaterialTheme.colorScheme.onSurface
+                    }
+                )
+            )
+
+            SettingsGroup(
+                title = stringResource(R.string.search_methods_title),
+                items = buildList {
+                    add {
+                        ListItem(
+                            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                            headlineContent = { Text(stringResource(R.string.model_search_method)) },
+                            supportingContent = { Text(stringResource(R.string.model_search_method_desc)) },
+                            leadingContent = { Icon(Icons.Default.AutoAwesome, null, tint = MaterialTheme.colorScheme.primary) }
+                        )
+                    }
+                    searchMethods.forEach { method ->
+                        add {
+                            ListItem(
+                                colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                                headlineContent = { Text(stringResource(method.labelRes)) },
+                                leadingContent = {
+                                    RadioButton(
+                                        selected = modelSearchMethod == method.key,
+                                        onClick = { viewModel.setModelSearchMethod(method.key) }
+                                    )
+                                },
+                                modifier = Modifier.clickable { viewModel.setModelSearchMethod(method.key) }
                             )
-                            Text(
-                                text = "≥ ${"%.2f".format(localThreshold)}",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(top = 4.dp)
+                        }
+                    }
+                    add {
+                        ListItem(
+                            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                            headlineContent = { Text(stringResource(R.string.manual_search_method)) },
+                            supportingContent = { Text(stringResource(R.string.manual_search_method_desc)) },
+                            leadingContent = { Icon(Icons.Default.ManageSearch, null, tint = MaterialTheme.colorScheme.primary) }
+                        )
+                    }
+                    searchMethods.forEach { method ->
+                        add {
+                            ListItem(
+                                colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                                headlineContent = { Text(stringResource(method.labelRes)) },
+                                leadingContent = {
+                                    RadioButton(
+                                        selected = manualSearchMethod == method.key,
+                                        onClick = { viewModel.setManualSearchMethod(method.key) }
+                                    )
+                                },
+                                modifier = Modifier.clickable { viewModel.setManualSearchMethod(method.key) }
                             )
-                            Slider(
-                                value = localThreshold,
-                                onValueChange = { localThreshold = it },
-                                onValueChangeFinished = { viewModel.setRagThreshold(localThreshold) },
-                                valueRange = 0f..1f,
-                                modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
-                            )
-                            Spacer(modifier = Modifier.height(12.dp))
                         }
                     }
                 }
-            }
+            )
+
+            SettingsGroup(
+                title = stringResource(R.string.embedding_title),
+                items = buildList {
+                    if (embeddingModels.isEmpty()) {
+                        add {
+                            ListItem(
+                                colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                                headlineContent = { Text(stringResource(R.string.no_embedding_models)) },
+                                leadingContent = { Icon(Icons.Default.Cloud, null, tint = MaterialTheme.colorScheme.primary) }
+                            )
+                        }
+                    } else {
+                        embeddingModels.forEach { model ->
+                            add {
+                                val isActive = model.id == activeEmbeddingModelId
+                                val progress = cachingProgress[model.id]
+                                val isCaching = progress != null
+                                val counts = cacheCounts[model.id]
+                                val allCached = counts != null && counts.second > 0 && counts.first >= counts.second
+                                ListItem(
+                                    colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                                    headlineContent = { Text(model.name) },
+                                    supportingContent = {
+                                        val typeLabel = if (model.type == com.newoether.agora.data.EmbeddingModelType.REMOTE)
+                                            stringResource(R.string.embedding_type_remote)
+                                        else stringResource(R.string.embedding_type_local)
+                                        val cacheLabel = if (isCaching) {
+                                            "${progress!!.second - progress!!.first} ${stringResource(R.string.not_cached)} (${progress!!.first}/${progress!!.second})"
+                                        } else if (counts != null && counts.second > 0) {
+                                            val notCached = (counts.second - counts.first).coerceAtLeast(0)
+                                            if (notCached == 0) stringResource(R.string.cached)
+                                            else "${notCached} ${stringResource(R.string.not_cached)} (${counts.first}/${counts.second})"
+                                        } else {
+                                            stringResource(R.string.not_cached)
+                                        }
+                                        Text("$typeLabel · $cacheLabel")
+                                    },
+                                    leadingContent = {
+                                        RadioButton(
+                                            selected = isActive,
+                                            onClick = { viewModel.setActiveEmbeddingModel(model.id) }
+                                        )
+                                    },
+                                    trailingContent = {
+                                        Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                                            if (!isCaching) {
+                                                TextButton(onClick = {
+                                                    if (allCached) {
+                                                        showRecacheConfirm = model.id
+                                                    } else {
+                                                        viewModel.cacheMessagesForModel(model.id)
+                                                    }
+                                                }) { Text(if (allCached) stringResource(R.string.recache_action) else stringResource(R.string.cache_action)) }
+                                            }
+                                            if (isCaching) {
+                                                val ratio = progress!!.first.toFloat() / progress.second.toFloat()
+                                                CircularProgressIndicator(
+                                                    progress = { ratio },
+                                                    modifier = Modifier.size(24.dp),
+                                                    strokeWidth = 2.dp
+                                                )
+                                            }
+                                            Box {
+                                                IconButton(onClick = { showMenuForModel = model.id }) {
+                                                    Icon(Icons.Default.MoreVert, contentDescription = stringResource(R.string.options))
+                                                }
+                                                DropdownMenu(
+                                                    expanded = showMenuForModel == model.id,
+                                                    onDismissRequest = { showMenuForModel = null },
+                                                    shape = RoundedCornerShape(12.dp)
+                                                ) {
+                                                    DropdownMenuItem(
+                                                        text = { Text(stringResource(R.string.rename)) },
+                                                        leadingIcon = { Icon(Icons.Default.Edit, null) },
+                                                        onClick = {
+                                                            showMenuForModel = null
+                                                            renameText = model.name
+                                                            showRenameDialog = model.id
+                                                        }
+                                                    )
+                                                    DropdownMenuItem(
+                                                        text = { Text(stringResource(R.string.delete), color = MaterialTheme.colorScheme.error) },
+                                                        leadingIcon = { Icon(Icons.Default.Delete, null, tint = MaterialTheme.colorScheme.error) },
+                                                        onClick = {
+                                                            showMenuForModel = null
+                                                            showDeleteDialog = model.id
+                                                        }
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    },
+                                    modifier = Modifier.clickable { viewModel.setActiveEmbeddingModel(model.id) }
+                                )
+                            }
+                        }
+                    }
+                    add {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 16.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            TextButton(onClick = {
+                                remoteName = ""
+                                remoteModelName = ""
+                                remoteBaseUrl = ""
+                                testStatus = null
+                                isTesting = false
+                                showRemoteDialog = true
+                            }) { Text(stringResource(R.string.add_remote_model)) }
+                            TextButton(onClick = {
+                                localName = ""
+                                localFilePath = ""
+                                showLocalDialog = true
+                            }) { Text(stringResource(R.string.add_local_model)) }
+                        }
+                    }
+                }
+            )
+
+            SettingsGroup(
+                title = stringResource(R.string.advanced_title),
+                items = listOf(
+                    {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 16.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = androidx.compose.ui.Alignment.Top
+                            ) {
+                                Icon(
+                                    painter = painterResource(id = R.drawable.text_compare_24),
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.padding(top = 2.dp)
+                                )
+                                Spacer(modifier = Modifier.width(16.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = stringResource(R.string.rag_threshold_label),
+                                        style = MaterialTheme.typography.bodyLarge,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                    Text(
+                                        text = "≥ ${"%.2f".format(localThreshold)}",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.padding(top = 4.dp)
+                                    )
+                                    Slider(
+                                        value = localThreshold,
+                                        onValueChange = { localThreshold = it },
+                                        onValueChangeFinished = { viewModel.setRagThreshold(localThreshold) },
+                                        valueRange = 0f..1f,
+                                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
+                                    )
+                                    Spacer(modifier = Modifier.height(12.dp))
+                                }
+                            }
+                        }
+                    }
+                )
+            )
         }
 
         if (showRemoteDialog) {
