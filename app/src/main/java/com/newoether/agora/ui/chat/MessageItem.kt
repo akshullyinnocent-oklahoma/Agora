@@ -28,6 +28,7 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.zIndex
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.MutatePriority
+import androidx.compose.ui.unit.Velocity
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.text.input.*
@@ -1365,77 +1366,73 @@ fun MessageItem(
         val PARTIAL = 0.45f
         val FULL = 0.92f
 
+        // ── Finite state machine ──
+        // Collapsed = 0, Half = PARTIAL, Full = FULL
+        // Full is only entered when animateTo(FULL) completes naturally.
+        val PHASE_COLLAPSED = 0; val PHASE_HALF = 1; val PHASE_FULL = 2
+        var phase by remember { mutableIntStateOf(PHASE_HALF) }
+
         var rawFraction by remember { mutableFloatStateOf(0f) }
         val visualFraction = remember { Animatable(0f) }
-        var isSnapping by remember { mutableStateOf(false) }
-        var snapAnimJob by remember { mutableStateOf<Job?>(null) }
+        var snapJob by remember { mutableStateOf<Job?>(null) }
 
-        val snapSpring = spring<Float>(
-            dampingRatio = 1.2f,
-            stiffness = 500f,
-            visibilityThreshold = 0.001f
-        )
-        val dismissSpring = spring<Float>(
-            dampingRatio = 1.2f,
-            stiffness = 550f,
-            visibilityThreshold = 0.001f
-        )
+        val snapSpring = spring<Float>(dampingRatio = 0.9f, stiffness = 350f, visibilityThreshold = 0.001f)
 
-        // Initial appearance
-        LaunchedEffect(Unit) {
-            isSnapping = true
-            snapAnimJob = coroutineScope.launch {
-                visualFraction.animateTo(PARTIAL, snapSpring)
-            }
-            snapAnimJob?.join()
-            rawFraction = PARTIAL
-            isSnapping = false
-        }
-
-        fun dismiss() {
-            if (visualFraction.value < 0.02f) {
-                showSegmentDetail = false
-                return
-            }
-            snapAnimJob = coroutineScope.launch {
-                isSnapping = true
-                visualFraction.animateTo(0f, dismissSpring)
-                showSegmentDetail = false
+        // ── Snap target: midline (0.5) × velocity direction ──
+        // velSign > 0 = upward (expanding), velSign < 0 = downward (collapsing)
+        fun snapTarget(pos: Float, velSign: Float): Float {
+            val goingUp = velSign >= 0f
+            return when {
+                pos > 0.5f && goingUp -> FULL      // upper half + up → full
+                pos > 0.5f && !goingUp -> PARTIAL  // upper half + down → half
+                pos <= 0.5f && goingUp -> PARTIAL  // lower half + up → half
+                else -> 0f                          // lower half + down → collapsed
             }
         }
 
-        // Debounced snap after drag ends
-        LaunchedEffect(rawFraction) {
-            if (isSnapping) return@LaunchedEffect
-            val fraction = rawFraction
-            delay(180)
-            if (fraction != rawFraction) return@LaunchedEffect
-            val target = when {
-                rawFraction > (PARTIAL + FULL) / 2f -> FULL
-                rawFraction > 0.15f -> PARTIAL
-                else -> 0f
-            }
-            if (abs(target - rawFraction) > 0.005f) {
-                isSnapping = true
-                snapAnimJob = coroutineScope.launch {
-                    if (target == 0f) {
-                        if (rawFraction < 0.02f) {
-                            showSegmentDetail = false
-                        } else {
-                            visualFraction.animateTo(0f, dismissSpring)
-                            showSegmentDetail = false
-                        }
-                    } else {
-                        visualFraction.animateTo(target, snapSpring)
-                        rawFraction = visualFraction.value
-                        isSnapping = false
-                    }
+        // ── Single animation entry point. Sets phase after animation completes. ──
+        fun animateTo(target: Float) {
+            snapJob?.cancel()
+            snapJob = coroutineScope.launch {
+                visualFraction.animateTo(target, snapSpring)
+                rawFraction = visualFraction.value
+                phase = when (target) {
+                    FULL -> PHASE_FULL
+                    PARTIAL -> PHASE_HALF
+                    else -> PHASE_COLLAPSED
                 }
-            } else if (target == 0f) {
-                showSegmentDetail = false
+                if (target == 0f) showSegmentDetail = false
             }
         }
 
+        fun dismiss() { animateTo(0f) }
+
+        // ── Grab: interrupt animation, sync raw to current visual position ──
+        fun grabSheet() {
+            if (snapJob?.isActive == true) {
+                snapJob?.cancel()
+                rawFraction = visualFraction.value
+            }
+        }
+
+        // ── Initial appearance ──
+        LaunchedEffect(Unit) {
+            animateTo(PARTIAL)
+            snapJob?.join()
+            rawFraction = PARTIAL
+        }
+
+        // ── Safety-net snap: if drag ends without fling (velocity ≈ 0) ──
+        LaunchedEffect(rawFraction) {
+            if (snapJob?.isActive == true) return@LaunchedEffect
+            val pos = rawFraction
+            delay(80)
+            if (pos != rawFraction || snapJob?.isActive == true) return@LaunchedEffect
+            val target = snapTarget(pos, 0f)
+            if (abs(target - pos) > 0.01f) animateTo(target)
+        }
+
+        // ── Dim: per-frame poll of visualFraction → native Window.dimAmount ──
         val dialogWindowRef = remember { mutableStateOf<android.view.Window?>(null) }
 
         LaunchedEffect(dialogWindowRef.value) {
@@ -1448,53 +1445,48 @@ fun MessageItem(
             }
         }
 
+        // ── NestedScrollConnection ──
+        // Half: content does NOT scroll — all delta goes to sheet expansion.
+        // Full: content scrolls normally. Exit Full ONLY when content at top
+        //       and finger still dragging down (source == Drag).
         val sheetScrollConnection = remember {
             object : NestedScrollConnection {
                 override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
-                    if (isSnapping) {
-                        snapAnimJob?.cancel()
-                        rawFraction = visualFraction.value
-                        isSnapping = false
-                    }
-                    if (rawFraction < FULL) {
+                    if (phase != PHASE_FULL) {
+                        grabSheet()
                         val delta = -available.y / screenHeightPx
                         rawFraction = (rawFraction + delta).coerceIn(0f, FULL)
+                        coroutineScope.launch { visualFraction.snapTo(rawFraction) }
+                        return available.copy(x = 0f)
+                    }
+                    return Offset.Zero // Full: let content scroll
+                }
+
+                override fun onPostScroll(
+                    consumed: Offset, available: Offset, source: NestedScrollSource
+                ): Offset {
+                    // Exit Full → Half: content at top + finger dragging down
+                    if (phase == PHASE_FULL
+                        && available.y > 0f
+                        && scrollState.value == 0
+                        && source == NestedScrollSource.Drag
+                    ) {
+                        phase = PHASE_HALF
+                        val delta = -available.y / screenHeightPx
+                        rawFraction = (FULL + delta).coerceIn(0f, FULL)
                         coroutineScope.launch { visualFraction.snapTo(rawFraction) }
                         return available.copy(x = 0f)
                     }
                     return Offset.Zero
                 }
 
-                override fun onPostScroll(
-                    consumed: Offset, available: Offset, source: NestedScrollSource
-                ): Offset {
-                    if (isSnapping) {
-                        snapAnimJob?.cancel()
-                        rawFraction = visualFraction.value
-                        isSnapping = false
+                override suspend fun onPreFling(available: Velocity): Velocity {
+                    if (phase != PHASE_FULL && available.y != 0f) {
+                        val velSign = if (available.y < 0f) 1f else -1f
+                        animateTo(snapTarget(rawFraction, velSign))
+                        return available
                     }
-                    if (rawFraction >= FULL) {
-                        if (available.y < 0f) {
-                            if (source == NestedScrollSource.Fling) {
-                                coroutineScope.launch {
-                                    scrollState.scroll(MutatePriority.UserInput) { }
-                                }
-                            }
-                            return available.copy(x = 0f)
-                        }
-                        if (available.y > 0f) {
-                            if (scrollState.value > 0) {
-                                return available.copy(x = 0f)
-                            }
-                            if (scrollState.value == 0) {
-                                val delta = -available.y / screenHeightPx
-                                rawFraction = (rawFraction + delta).coerceIn(0f, FULL)
-                                coroutineScope.launch { visualFraction.snapTo(rawFraction) }
-                                return available.copy(x = 0f)
-                            }
-                        }
-                    }
-                    return Offset.Zero
+                    return Velocity.Zero
                 }
             }
         }
@@ -1541,56 +1533,21 @@ fun MessageItem(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .pointerInput(Unit) {
-                                    var lastTime = 0L
-                                    var flingVelocity = 0f
+                                    var velEma = 0f
                                     detectVerticalDragGestures(
                                         onDragStart = {
-                                            lastTime = System.nanoTime()
-                                            flingVelocity = 0f
-                                            if (isSnapping) {
-                                                snapAnimJob?.cancel()
-                                                rawFraction = visualFraction.value
-                                                isSnapping = false
-                                            }
+                                            velEma = 0f
+                                            grabSheet()
                                         },
                                         onVerticalDrag = { change, dragAmount ->
                                             change.consume()
-                                            val now = System.nanoTime()
-                                            val dtSec = ((now - lastTime).coerceAtLeast(1_000_000L) / 1_000_000_000f)
-                                            if (dtSec < 0.2f) {
-                                                val instant = -dragAmount / screenHeightPx / dtSec
-                                                flingVelocity = flingVelocity * 0.6f + instant * 0.4f
-                                            }
-                                            lastTime = now
-                                            val delta = -dragAmount / screenHeightPx
-                                            rawFraction = (rawFraction + delta).coerceIn(0f, FULL)
-                                            // Kill velocity pushing into boundaries
-                                            if (rawFraction >= FULL && flingVelocity > 0f) flingVelocity = 0f
-                                            if (rawFraction <= 0f && flingVelocity < 0f) flingVelocity = 0f
+                                            velEma = velEma * 0.5f + (-dragAmount).coerceIn(-1f, 1f) * 0.5f
+                                            rawFraction = (rawFraction - dragAmount / screenHeightPx)
+                                                .coerceIn(0f, FULL)
                                             coroutineScope.launch { visualFraction.snapTo(rawFraction) }
                                         },
                                         onDragEnd = {
-                                            if (abs(flingVelocity) > 0.3f) {
-                                                val projected = (rawFraction + flingVelocity * 0.15f).coerceIn(0f, FULL)
-                                                val target = when {
-                                                    projected > (PARTIAL + FULL) / 2f -> FULL
-                                                    projected > 0.15f -> PARTIAL
-                                                    else -> 0f
-                                                }
-                                                if (abs(target - rawFraction) > 0.005f) {
-                                                    isSnapping = true
-                                                    snapAnimJob = coroutineScope.launch {
-                                                        if (target == 0f) {
-                                                            visualFraction.animateTo(0f, dismissSpring, initialVelocity = flingVelocity)
-                                                            showSegmentDetail = false
-                                                        } else {
-                                                            visualFraction.animateTo(target, snapSpring, initialVelocity = flingVelocity)
-                                                            rawFraction = visualFraction.value
-                                                            isSnapping = false
-                                                        }
-                                                    }
-                                                }
-                                            }
+                                            animateTo(snapTarget(rawFraction, velEma))
                                         }
                                     )
                                 }
