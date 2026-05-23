@@ -131,10 +131,7 @@ fun ChatApp(
     var bottomBarHeightPx by rememberSaveable { mutableFloatStateOf(0f) }
     val bottomBarHeight = with(density) { bottomBarHeightPx.toDp() }
     val drawerWidthPx = with(density) { drawerWidth.toPx() }
-    val offset = drawerState.offset.value
-    val drawerProgress = if (drawerWidthPx > 0f && !offset.isNaN()) {
-        (offset / drawerWidthPx).coerceIn(0f, 1f)
-    } else 0f
+    var drawerProgress by remember { mutableFloatStateOf(0f) }
     // Bottom offset to clear the Settings button in the drawer.
     var settingsButtonBottomDp by remember { mutableFloatStateOf(80f) }
     val targetSnackbarOffset = if (drawerProgress <= 0.5f) {
@@ -531,6 +528,12 @@ fun ChatApp(
         Box(
             modifier = Modifier
                 .fillMaxSize()
+                .onGloballyPositioned { coords ->
+                    val x = coords.positionInWindow().x
+                    if (!x.isNaN() && drawerWidthPx > 0f) {
+                        drawerProgress = (x / drawerWidthPx).coerceIn(0f, 1f)
+                    }
+                }
                 .pointerInput(Unit) { detectTapGestures { focusManager.clearFocus() } }
                 .onSizeChanged { viewportHeightPx = it.height }
         ) {
