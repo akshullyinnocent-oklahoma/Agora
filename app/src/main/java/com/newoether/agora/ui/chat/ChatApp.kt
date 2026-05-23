@@ -311,6 +311,12 @@ fun ChatApp(
                 drawerTonalElevation = 2.dp,
                 modifier = Modifier
                     .width(drawerWidth)
+                    .onGloballyPositioned { coords ->
+                        val x = coords.positionInWindow().x
+                        if (!x.isNaN() && drawerWidthPx > 0f) {
+                            drawerProgress = (1f + x / drawerWidthPx).coerceIn(0f, 1f)
+                        }
+                    }
                     .graphicsLayer {
                         clip = true
                     }
@@ -528,12 +534,6 @@ fun ChatApp(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .onGloballyPositioned { coords ->
-                    val x = coords.positionInWindow().x
-                    if (!x.isNaN() && drawerWidthPx > 0f) {
-                        drawerProgress = (x / drawerWidthPx).coerceIn(0f, 1f)
-                    }
-                }
                 .pointerInput(Unit) { detectTapGestures { focusManager.clearFocus() } }
                 .onSizeChanged { viewportHeightPx = it.height }
         ) {
