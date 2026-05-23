@@ -638,25 +638,38 @@ class GenerationManager(
             }.toString()
         }
         return try {
-            val body = buildJsonObject {
-                put("command", command)
-                put("timeout_ms", timeoutMs)
-                if (workdir.isNotBlank()) put("workdir", workdir)
-            }.toString()
-            val headers = mutableMapOf("Content-Type" to "application/json")
-            if (device.apiKey.isNotBlank()) headers["Authorization"] = "Bearer ${device.apiKey}"
-            val handle = com.newoether.agora.api.HttpClient.streamPost("$serverUrl/execute", body, headers)
+            val shellClient = com.newoether.agora.util.ShellClient(
+                serverUrl = serverUrl,
+                apiKey = device.apiKey,
+                cachedPublicKey = device.conchPublicKey
+            )
+            // Probe encryption support (fast, returns cached result if already probed)
+            shellClient.probeEncryption()
+
+            val prepared = shellClient.prepareRequest(command, timeoutMs, workdir)
+            val handle = com.newoether.agora.api.HttpClient.streamPost(
+                "${prepared.serverUrl}/execute", prepared.body, prepared.headers
+            )
             try {
                 val output = StringBuilder()
                 var exitCode: Int? = null
                 var errorMessage: String? = null
                 var currentEvent: String? = null
+                val aesKey = shellClient.getSessionKey()
                 while (true) {
                     val line = handle.readLine() ?: break
                     when {
                         line.startsWith("event: ") -> { currentEvent = line.substring(7).trim() }
                         line.startsWith("data: ") -> {
-                            val dataStr = line.substring(6).trim()
+                            var dataStr = line.substring(6).trim()
+                            if (aesKey != null) {
+                                try {
+                                    dataStr = shellClient.decryptSseData(dataStr)
+                                } catch (e: Exception) {
+                                    DebugLog.e("AgoraAPI", "SSE decryption failed: ${e.message}", e)
+                                    continue
+                                }
+                            }
                             val dataJson = try { Json.parseToJsonElement(dataStr).jsonObject } catch (_: Exception) { null }
                             if (dataJson == null) continue
                             when (currentEvent) {

@@ -37,7 +37,8 @@ data class ShellDeviceConfig(
     val description: String = "",
     val serverUrl: String = "",
     val apiKey: String = "",
-    val timeout: Int = 30
+    val timeout: Int = 30,
+    val conchPublicKey: String = ""
 )
 
 @Serializable
