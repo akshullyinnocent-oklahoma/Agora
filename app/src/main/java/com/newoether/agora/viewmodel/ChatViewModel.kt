@@ -73,6 +73,21 @@ class ChatViewModel(
     private val appContext: Context
 ) : AndroidViewModel(application) {
 
+    private val localProvider = LocalProvider(appContext, settingsManager)
+
+    private val builtInProviders = mapOf(
+        "Google" to GeminiProvider(),
+        "OpenAI" to OpenAiProvider(),
+        "Anthropic" to AnthropicProvider(),
+        "DeepSeek" to DeepSeekProvider(),
+        "Qwen" to QwenProvider(),
+        "Ollama" to OllamaProvider(),
+        "Open Router" to OpenRouterProvider(),
+        "Local" to localProvider
+    )
+
+    private val providers = builtInProviders.toMutableMap()
+
     init {
         viewModelScope.launch(Dispatchers.IO) {
             val models = settingsManager.embeddingModels.first()
@@ -143,20 +158,6 @@ class ChatViewModel(
     val listState = LazyListState()
     val messageHeights = androidx.compose.runtime.mutableStateMapOf<String, Int>()
 
-    private val localProvider = LocalProvider(appContext, settingsManager)
-
-    private val builtInProviders = mapOf(
-        "Google" to GeminiProvider(),
-        "OpenAI" to OpenAiProvider(),
-        "Anthropic" to AnthropicProvider(),
-        "DeepSeek" to DeepSeekProvider(),
-        "Qwen" to QwenProvider(),
-        "Ollama" to OllamaProvider(),
-        "Open Router" to OpenRouterProvider(),
-        "Local" to localProvider
-    )
-
-    private val providers = builtInProviders.toMutableMap()
 
     fun getProviderInstance(name: String): LlmProvider {
         return providers[name] ?: GeminiProvider()
