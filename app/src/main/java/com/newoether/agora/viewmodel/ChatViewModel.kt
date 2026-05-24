@@ -1325,6 +1325,9 @@ class ChatViewModel(
                     modelName = currentActiveModel.value
                 ))
             }
+            chatDao.getConversation(currentId)?.let { conv ->
+                chatDao.upsertConversation(conv.copy(lastUpdated = System.currentTimeMillis()))
+            }
             val resolved = buildEffectiveSystemPrompt(currentId)
             val config = GenerationConfig(
                 providerName = providerName,
@@ -1425,6 +1428,9 @@ class ChatViewModel(
                 text = "", thoughts = null, status = MessageStatus.SENDING, participant = Participant.MODEL, timestamp = startTime,
                 modelName = currentActiveModel.value
             ))
+            chatDao.getConversation(currentId)?.let { conv ->
+                chatDao.upsertConversation(conv.copy(lastUpdated = System.currentTimeMillis()))
+            }
             val resolved = buildEffectiveSystemPrompt(currentId)
             val config = GenerationConfig(
                 providerName = providerName,
@@ -1734,6 +1740,9 @@ class ChatViewModel(
                 text = "", thoughts = null, status = MessageStatus.SENDING, participant = Participant.MODEL, timestamp = startTime,
                 modelName = currentActiveModel.value
             ))
+            chatDao.getConversation(currentId)?.let { conv ->
+                chatDao.upsertConversation(conv.copy(lastUpdated = System.currentTimeMillis()))
+            }
             triggerScrollToMessage(userMessageId)
 
             val resolved = buildEffectiveSystemPrompt(currentId)
