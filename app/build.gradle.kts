@@ -119,3 +119,9 @@ dependencies {
     implementation(libs.okhttp)
     debugImplementation(libs.androidx.compose.ui.tooling)
 }
+
+tasks.whenTaskAdded {
+    if (name.contains("ArtProfile")) {
+        enabled = false
+    }
+}
