@@ -17,7 +17,7 @@ Binaries: https://github.com/newo-ether/Agora/releases/download/v%v/app-release.
 Builds:
   - versionName: 1.0.4
     versionCode: 4
-    commit: 1a1a4212bab85952fd04a578a344fc5f760a1ff1
+    commit: 6aef8452a7cc78d316c29fec1937739da93b04b9
     subdir: app
     submodules: true
     gradle:
