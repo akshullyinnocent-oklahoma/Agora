@@ -3,6 +3,9 @@ project("agora_llama")
 
 set(LLAMA_CPP_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../../../thirdparty/llama.cpp" CACHE PATH "llama.cpp source directory")
 
+# Resolve to canonical absolute paths (required for -ffile-prefix-map matching)
+get_filename_component(LLAMA_CPP_DIR "${LLAMA_CPP_DIR}" REALPATH)
+
 # Reproducible build: deterministic source paths, no debug info, no .comment section
 add_compile_options(
     -ffile-prefix-map=${CMAKE_SOURCE_DIR}=.
