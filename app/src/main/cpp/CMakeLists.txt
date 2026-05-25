@@ -14,6 +14,11 @@ add_compile_options(
     -fno-ident
 )
 
+# Reproducible build: pin build info so it's independent of git state
+# (F-Droid CI may not have git access to llama.cpp submodule)
+set(LLAMA_BUILD_NUMBER 0)
+set(LLAMA_BUILD_COMMIT "unknown")
+
 # Build llama.cpp as a static library
 set(LLAMA_BUILD_EXAMPLES OFF CACHE BOOL "")
 set(LLAMA_BUILD_TESTS OFF CACHE BOOL "")
@@ -21,6 +26,11 @@ set(LLAMA_BUILD_SERVER OFF CACHE BOOL "")
 set(BUILD_SHARED_LIBS OFF CACHE BOOL "")
 set(GGML_OPENMP OFF CACHE BOOL "" FORCE)
 add_subdirectory(${LLAMA_CPP_DIR} ${CMAKE_CURRENT_BINARY_DIR}/llama)
+
+# Reproducible build: override ggml git commit embedded as #define
+# ggml/CMakeLists.txt runs git rev-parse unconditionally and embeds
+# the hash via target_compile_definitions(ggml-base PRIVATE GGML_COMMIT=...)
+target_compile_definitions(ggml-base PRIVATE GGML_COMMIT="unknown")
 
 # Build our JNI wrapper as a shared library
 add_library(agora_llama SHARED llama_jni.cpp llama_chat_jni.cpp)
