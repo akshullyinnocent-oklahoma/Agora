@@ -83,7 +83,6 @@ abstract class BaseOpenAiProvider : LlmProvider {
         try {
             val requestBodyJson = json.encodeToString(OpenAiChatRequest.serializer(), request)
             DebugLog.d("AgoraAPI", "[$name] REQ → $baseUrl/chat/completions | model=${config.modelId} | msgs=${apiMessages.size} | tools=${config.tools?.size ?: 0}")
-            DebugLog.d("AgoraAPI", "[$name] BODY: ${requestBodyJson.take(4000)}")
 
             val headers = mutableMapOf("Content-Type" to "application/json")
             if (config.apiKey.isNotEmpty()) headers["Authorization"] = "Bearer ${config.apiKey}"

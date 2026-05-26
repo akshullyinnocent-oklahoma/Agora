@@ -25,3 +25,4 @@ build_output.txt
 
 # Personal tooling
 /.gemini/
+build.ps1

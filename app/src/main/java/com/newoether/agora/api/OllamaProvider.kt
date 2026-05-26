@@ -85,7 +85,7 @@ class OllamaProvider : LlmProvider {
                 val thinkingContent = msg.segments?.lastOrNull { it.type == "thought" }?.content
                 if (!toolSegs.isNullOrEmpty()) {
                     val toolCalls = toolSegs.map { seg ->
-                        val tid = buildToolCallId(seg.toolName ?: "", seg.toolArgs ?: "{}")
+                        val tid = seg.toolCallId ?: buildToolCallId(seg.toolName ?: "", seg.toolArgs ?: "{}")
                         val argsObj = try { json.parseToJsonElement(seg.toolArgs ?: "{}") as? JsonObject } catch (_: Exception) { JsonObject(emptyMap()) }
                         OpenAiToolCall(
                             id = tid,
@@ -100,7 +100,7 @@ class OllamaProvider : LlmProvider {
                         toolCalls = toolCalls
                     ))
                 } else if (msg.toolCall != null) {
-                    val toolId = buildToolCallId(msg.toolCall!!.toolName, msg.toolCall!!.arguments)
+                    val toolId = msg.toolCall!!.toolCallId ?: buildToolCallId(msg.toolCall!!.toolName, msg.toolCall!!.arguments)
                     val argsObj = try { json.parseToJsonElement(msg.toolCall!!.arguments) as? JsonObject } catch (_: Exception) { JsonObject(emptyMap()) }
                     entries.add(OllamaMessage(
                         role = "assistant",

@@ -1122,6 +1122,106 @@ class GenerationManager(
         return result.ifEmpty { null }
     }
 
+    private suspend fun buildApiPath(
+        parentId: String?,
+        conversationId: String,
+        isRegenerate: Boolean,
+        replaceMessageId: String?,
+        config: GenerationConfig,
+        ctx: GenerationContext
+    ): Pair<List<ChatMessage>, ProviderConfig> {
+        val dbMessages = chatDao.getMessagesForConversation(conversationId).first()
+        val pathEntities = mutableListOf<MessageEntity>()
+        var currId: String? = parentId
+        while (currId != null) {
+            val msg = dbMessages.find { it.id == currId } ?: break
+            pathEntities.add(0, msg)
+            currId = msg.parentId
+        }
+        // Inject tool call chains that are children of messages in the ancestor path.
+        val expanded = mutableListOf<MessageEntity>()
+        for (entity in pathEntities) {
+            val toolChildren = dbMessages
+                .filter { it.parentId == entity.id && it.id.startsWith(Constants.TOOL_MSG_PREFIX) }
+                .sortedBy { it.timestamp }
+            if (toolChildren.isEmpty()) {
+                expanded.add(entity)
+            } else {
+                for (toolMsg in toolChildren) {
+                    expanded.add(toolMsg)
+                    val pending = mutableListOf(toolMsg)
+                    var safety = 0
+                    while (pending.isNotEmpty() && safety < 100) {
+                        val current = pending.removeAt(0)
+                        val children = dbMessages
+                            .filter { it.parentId == current.id && (it.id.startsWith(Constants.RESULT_MSG_PREFIX) || it.id.startsWith(Constants.TOOL_MSG_PREFIX)) }
+                            .sortedBy { it.timestamp }
+                        for (child in children) {
+                            val isResult = child.id.startsWith(Constants.RESULT_MSG_PREFIX)
+                            if (isResult) {
+                                // Traverse through RESULT_MSG for nested tool chains,
+                                // but don't add to expanded — tool results already live
+                                // inside TOOL_MSG segments.
+                                pending.add(child)
+                            } else if (child !in expanded) {
+                                expanded.add(child)
+                                pending.add(child)
+                            }
+                        }
+                        safety++
+                    }
+                }
+                expanded.add(entity.copy(toolCallJson = null))
+            }
+        }
+        val currentPath = expanded.map {
+            val segs = it.toolCallJson?.let { json -> try { Json.decodeFromString<List<MessageSegment>>(json) } catch (_: Exception) { null } }
+            val toolCall = segs?.lastOrNull { s -> s.type == "tool" }?.let { s ->
+                ToolCallData(s.toolName ?: "", s.toolArgs ?: "{}", s.toolResult ?: "", s.toolCallId)
+            }
+            val meta = it.attachmentMeta?.let { json -> try { Json.decodeFromString<com.newoether.agora.model.AttachmentMeta>(json) } catch (_: Exception) { null } }
+            val combinedText = if (meta != null && it.participant == Participant.USER) {
+                val fileContent = meta.items.mapNotNull { item ->
+                    val content = item.textContent
+                    if (content != null) {
+                        val label = item.fileName ?: "file"
+                        "\n\n--- File: $label ---\n$content"
+                    } else null
+                }.joinToString("")
+                it.text + fileContent
+            } else it.text
+            ChatMessage(id = it.id, parentId = it.parentId, text = combinedText, images = it.images, thoughts = it.thoughts, thoughtTitle = it.thoughtTitle, tokenCount = it.tokenCount, status = it.status, participant = it.participant, timestamp = it.timestamp, thoughtTimeMs = it.thoughtTimeMs, segments = segs, toolCall = toolCall)
+        }.filter { it.participant != Participant.ERROR }
+            .let { path ->
+                if (isRegenerate && replaceMessageId != null) {
+                    val oldIdx = path.indexOfFirst { it.id == replaceMessageId }
+                    if (oldIdx >= 0) path.take(oldIdx) else path
+                } else path
+            }
+
+        val memoryTools = buildMemoryTools(ctx)
+        val webSearchTool = buildWebSearchTool(ctx)
+        val ragTool = buildRagTool(ctx)
+        val shellTool = buildShellTool(ctx)
+        val fileTool = buildFileTool(ctx)
+        val allTools = memoryTools + webSearchTool + ragTool + shellTool + fileTool
+        val providerConfig = ProviderConfig(
+            apiKey = config.apiKey,
+            modelId = config.modelId,
+            systemPrompt = config.effectiveSystemPrompt,
+            maxContextWindow = config.maxContextWindow,
+            codeExecutionEnabled = config.codeExecutionEnabled,
+            googleSearchEnabled = config.googleSearchEnabled,
+            thinkingEnabled = config.thinkingEnabled,
+            thinkingLevel = config.thinkingLevel,
+            baseUrl = config.baseUrl,
+            tools = allTools,
+            userPrepend = config.userPrepend,
+            userPostpend = config.userPostpend
+        )
+        return Pair(currentPath, providerConfig)
+    }
+
     suspend fun generate(
         conversationId: String,
         modelMessageId: String,
@@ -1162,94 +1262,7 @@ class GenerationManager(
         var toolPath = emptyList<ChatMessage>()
 
         try {
-            val dbMessages = chatDao.getMessagesForConversation(conversationId).first()
-            val pathEntities = mutableListOf<MessageEntity>()
-            var currId: String? = parentId
-            while (currId != null) {
-                val msg = dbMessages.find { it.id == currId } ?: break
-                pathEntities.add(0, msg)
-                currId = msg.parentId
-            }
-            // Inject tool call chains that are children of messages in the ancestor path.
-            // Tool messages are children of model messages; reorder so the API sees
-            // assistant(tool_use) → user(tool_result) → assistant(text) instead of
-            // invalid consecutive assistant messages.
-            val expanded = mutableListOf<MessageEntity>()
-            for (entity in pathEntities) {
-                val toolChildren = dbMessages
-                    .filter { it.parentId == entity.id && it.id.startsWith(Constants.TOOL_MSG_PREFIX) }
-                    .sortedBy { it.timestamp }
-                if (toolChildren.isEmpty()) {
-                    expanded.add(entity)
-                } else {
-                    for (toolMsg in toolChildren) {
-                        expanded.add(toolMsg)
-                        val pending = mutableListOf(toolMsg)
-                        var safety = 0
-                        while (pending.isNotEmpty() && safety < 100) {
-                            val current = pending.removeAt(0)
-                            val children = dbMessages
-                                .filter { it.parentId == current.id && (it.id.startsWith(Constants.RESULT_MSG_PREFIX) || it.id.startsWith(Constants.TOOL_MSG_PREFIX)) }
-                                .sortedBy { it.timestamp }
-                            for (child in children) {
-                                if (child !in expanded) {
-                                    expanded.add(child)
-                                    pending.add(child)
-                                }
-                            }
-                            safety++
-                        }
-                    }
-                    // Add entity without tool data so it serializes as plain text,
-                    // avoiding a second assistant message with tool_use.
-                    expanded.add(entity.copy(toolCallJson = null))
-                }
-            }
-            val currentPath = expanded.map {
-                val segs = it.toolCallJson?.let { json -> try { Json.decodeFromString<List<MessageSegment>>(json) } catch (_: Exception) { null } }
-                val toolCall = segs?.lastOrNull { s -> s.type == "tool" }?.let { s ->
-                    ToolCallData(s.toolName ?: "", s.toolArgs ?: "{}", s.toolResult ?: "")
-                }
-                val meta = it.attachmentMeta?.let { json -> try { Json.decodeFromString<com.newoether.agora.model.AttachmentMeta>(json) } catch (_: Exception) { null } }
-                val combinedText = if (meta != null && it.participant == Participant.USER) {
-                    val fileContent = meta.items.mapNotNull { item ->
-                        val content = item.textContent
-                        if (content != null) {
-                            val label = item.fileName ?: "file"
-                            "\n\n--- File: $label ---\n$content"
-                        } else null
-                    }.joinToString("")
-                    it.text + fileContent
-                } else it.text
-                ChatMessage(id = it.id, parentId = it.parentId, text = combinedText, images = it.images, thoughts = it.thoughts, thoughtTitle = it.thoughtTitle, tokenCount = it.tokenCount, status = it.status, participant = it.participant, timestamp = it.timestamp, thoughtTimeMs = it.thoughtTimeMs, segments = segs, toolCall = toolCall)
-            }.filter { it.participant != Participant.ERROR }
-                .let { path ->
-                    if (isRegenerate && replaceMessageId != null) {
-                        val oldIdx = path.indexOfFirst { it.id == replaceMessageId }
-                        if (oldIdx >= 0) path.take(oldIdx) else path
-                    } else path
-                }
-
-            val memoryTools = buildMemoryTools(ctx)
-            val webSearchTool = buildWebSearchTool(ctx)
-            val ragTool = buildRagTool(ctx)
-            val shellTool = buildShellTool(ctx)
-            val fileTool = buildFileTool(ctx)
-            val allTools = memoryTools + webSearchTool + ragTool + shellTool + fileTool
-            val providerConfig = ProviderConfig(
-                apiKey = config.apiKey,
-                modelId = config.modelId,
-                systemPrompt = config.effectiveSystemPrompt,
-                maxContextWindow = config.maxContextWindow,
-                codeExecutionEnabled = config.codeExecutionEnabled,
-                googleSearchEnabled = config.googleSearchEnabled,
-                thinkingEnabled = config.thinkingEnabled,
-                thinkingLevel = config.thinkingLevel,
-                baseUrl = config.baseUrl,
-                tools = allTools,
-                userPrepend = config.userPrepend,
-                userPostpend = config.userPostpend
-            )
+            val (currentPath, providerConfig) = buildApiPath(parentId, conversationId, isRegenerate, replaceMessageId, config, ctx)
 
             var toolCallData: ToolCallData? = null
             var toolCallDataList: List<ToolCallData> = emptyList()
@@ -1257,8 +1270,17 @@ class GenerationManager(
 
             var lastEmitMs = 0L
 
-            val apiPath = applyUserTemplate(currentPath, config.userPrepend, config.userPostpend)
-            provider.generateResponse(apiPath, providerConfig).collect { event ->
+            fun modelMessage() = ChatMessage(
+                id = modelMessageId, parentId = parentId,
+                text = totalText, thoughts = totalThoughts.ifBlank { null },
+                thoughtTitle = totalThoughtTitle, tokenCount = totalTokenCount,
+                status = currentStatus, participant = Participant.MODEL,
+                timestamp = startTime, thoughtTimeMs = totalThoughtTimeMs,
+                modelName = modelName, toolCall = toolCallData,
+                segments = buildLiveSegments(segments, currentThoughtBuf, currentThoughtSignature)
+            )
+
+            suspend fun handleStreamEvent(event: StreamEvent) {
                 when (event) {
                     is StreamEvent.TextChunk -> {
                         if (currentStatus == MessageStatus.THINKING) {
@@ -1309,7 +1331,6 @@ class GenerationManager(
                         }
                     }
                     is StreamEvent.ToolCallRequest -> {
-                        // End current thinking block
                         if (currentThoughtBuf.isNotEmpty()) {
                             segments.add(MessageSegment(type = "thought", content = currentThoughtBuf.toString(), signature = currentThoughtSignature))
                             currentThoughtBuf = StringBuilder()
@@ -1320,47 +1341,25 @@ class GenerationManager(
                             currentThoughtStartMs = null
                         }
                         totalThoughtTimeMs = cumulativeThoughtMs
-                        // Add pending tool segment (no result yet)
                         val ts = MessageSegment(type = "tool", toolName = event.name, toolArgs = event.arguments, toolResult = null, toolCallId = event.id, signature = event.signature)
                         segments.add(ts)
-                        // Emit "tool started"
                         currentStatus = MessageStatus.TOOL_CALLING
-                        onStreamUpdate(ChatMessage(
-                            id = modelMessageId, parentId = parentId,
-                            text = totalText, thoughts = totalThoughts.ifBlank { null },
-                            thoughtTitle = totalThoughtTitle, tokenCount = totalTokenCount,
-                            status = currentStatus, participant = Participant.MODEL,
-                            timestamp = startTime, thoughtTimeMs = totalThoughtTimeMs,
-                            modelName = modelName, toolCall = toolCallData,
-                            segments = buildLiveSegments(segments, currentThoughtBuf, currentThoughtSignature)
-                        ))
+                        onStreamUpdate(modelMessage())
                         lastEmitMs = System.currentTimeMillis()
-                        // Execute tool
                         val result = executeTool(event.name, event.arguments, ctx)
-                        // Update segment with result
                         val idx = segments.indexOfLast { it.toolCallId == event.id }
                         if (idx >= 0) {
                             segments[idx] = segments[idx].copy(toolResult = result)
                             roundToolSegments.add(segments[idx])
                         }
-                        val tcd = ToolCallData(event.name, event.arguments, result, event.signature)
+                        val tcd = ToolCallData(event.name, event.arguments, result, event.signature, event.id)
                         if (toolCallData == null) toolCallData = tcd
                         toolCallDataList = toolCallDataList + tcd
                         currentStatus = MessageStatus.SENDING
-                        // Emit "tool completed"
-                        onStreamUpdate(ChatMessage(
-                            id = modelMessageId, parentId = parentId,
-                            text = totalText, thoughts = totalThoughts.ifBlank { null },
-                            thoughtTitle = totalThoughtTitle, tokenCount = totalTokenCount,
-                            status = currentStatus, participant = Participant.MODEL,
-                            timestamp = startTime, thoughtTimeMs = totalThoughtTimeMs,
-                            modelName = modelName, toolCall = toolCallData,
-                            segments = buildLiveSegments(segments, currentThoughtBuf, currentThoughtSignature)
-                        ))
+                        onStreamUpdate(modelMessage())
                         lastEmitMs = System.currentTimeMillis()
                     }
                     is StreamEvent.ToolCallsRequest -> {
-                        // End current thinking block
                         if (currentThoughtBuf.isNotEmpty()) {
                             segments.add(MessageSegment(type = "thought", content = currentThoughtBuf.toString(), signature = currentThoughtSignature))
                             currentThoughtBuf = StringBuilder()
@@ -1371,23 +1370,12 @@ class GenerationManager(
                             currentThoughtStartMs = null
                         }
                         totalThoughtTimeMs = cumulativeThoughtMs
-                        // Add pending tool segments (no results yet)
                         event.calls.forEach { call ->
                             segments.add(MessageSegment(type = "tool", toolName = call.name, toolArgs = call.arguments, toolResult = null, toolCallId = call.id, signature = call.signature))
                         }
-                        // Emit "tools started"
                         currentStatus = MessageStatus.TOOL_CALLING
-                        onStreamUpdate(ChatMessage(
-                            id = modelMessageId, parentId = parentId,
-                            text = totalText, thoughts = totalThoughts.ifBlank { null },
-                            thoughtTitle = totalThoughtTitle, tokenCount = totalTokenCount,
-                            status = currentStatus, participant = Participant.MODEL,
-                            timestamp = startTime, thoughtTimeMs = totalThoughtTimeMs,
-                            modelName = modelName, toolCall = toolCallData,
-                            segments = buildLiveSegments(segments, currentThoughtBuf, currentThoughtSignature)
-                        ))
+                        onStreamUpdate(modelMessage())
                         lastEmitMs = System.currentTimeMillis()
-                        // Execute tools and update segments with results
                         val tcds = event.calls.map { call ->
                             val result = executeTool(call.name, call.arguments, ctx)
                             val idx = segments.indexOfLast { it.toolCallId == call.id }
@@ -1395,21 +1383,12 @@ class GenerationManager(
                                 segments[idx] = segments[idx].copy(toolResult = result)
                                 roundToolSegments.add(segments[idx])
                             }
-                            ToolCallData(call.name, call.arguments, result, call.signature)
+                            ToolCallData(call.name, call.arguments, result, call.signature, call.id)
                         }
                         toolCallData = tcds.firstOrNull()
                         toolCallDataList = tcds
                         currentStatus = MessageStatus.SENDING
-                        // Emit "tools completed"
-                        onStreamUpdate(ChatMessage(
-                            id = modelMessageId, parentId = parentId,
-                            text = totalText, thoughts = totalThoughts.ifBlank { null },
-                            thoughtTitle = totalThoughtTitle, tokenCount = totalTokenCount,
-                            status = currentStatus, participant = Participant.MODEL,
-                            timestamp = startTime, thoughtTimeMs = totalThoughtTimeMs,
-                            modelName = modelName, toolCall = toolCallData,
-                            segments = buildLiveSegments(segments, currentThoughtBuf, currentThoughtSignature)
-                        ))
+                        onStreamUpdate(modelMessage())
                         lastEmitMs = System.currentTimeMillis()
                     }
                 }
@@ -1417,40 +1396,17 @@ class GenerationManager(
                 val now = System.currentTimeMillis()
                 val isSignificant = event is StreamEvent.Error
                 if (now - lastEmitMs >= 500 || isSignificant) {
-                    onStreamUpdate(ChatMessage(
-                        id = modelMessageId,
-                        parentId = parentId,
-                        text = totalText,
-                        thoughts = totalThoughts.ifBlank { null },
-                        thoughtTitle = totalThoughtTitle,
-                        tokenCount = totalTokenCount,
-                        status = currentStatus,
-                        participant = Participant.MODEL,
-                        timestamp = startTime,
-                        thoughtTimeMs = totalThoughtTimeMs,
-                        modelName = modelName,
-                        toolCall = toolCallData,
-                        segments = buildLiveSegments(segments, currentThoughtBuf, currentThoughtSignature)
-                    ))
+                    onStreamUpdate(modelMessage())
                     lastEmitMs = now
                 }
             }
+
+            val apiPath = applyUserTemplate(currentPath, config.userPrepend, config.userPostpend)
+            provider.generateResponse(apiPath, providerConfig).collect { event ->
+                handleStreamEvent(event)
+            }
             // Always emit final state after collection completes
-            onStreamUpdate(ChatMessage(
-                id = modelMessageId,
-                parentId = parentId,
-                text = totalText,
-                thoughts = totalThoughts.ifBlank { null },
-                thoughtTitle = totalThoughtTitle,
-                tokenCount = totalTokenCount,
-                status = currentStatus,
-                participant = Participant.MODEL,
-                timestamp = startTime,
-                thoughtTimeMs = totalThoughtTimeMs,
-                modelName = modelName,
-                toolCall = toolCallData,
-                segments = buildLiveSegments(segments, currentThoughtBuf, currentThoughtSignature)
-            ))
+            onStreamUpdate(modelMessage())
 
             // Multi-tool loop
             var toolRound = 0
@@ -1467,7 +1423,7 @@ class GenerationManager(
                 val toolMsgSegs = txedSegments.ifEmpty { null }
                 val tcds = toolCallDataList
                 val allSegmentsJson = Json.encodeToString(toolMsgSegs ?: tcds.map { tc ->
-                    MessageSegment(type = "tool", toolName = tc.toolName, toolArgs = tc.arguments, toolResult = tc.result, signature = tc.signature)
+                    MessageSegment(type = "tool", toolName = tc.toolName, toolArgs = tc.arguments, toolResult = tc.result, signature = tc.signature, toolCallId = tc.toolCallId)
                 })
                 val resultMsgs = tcds.map { tcData ->
                     val rid = "${Constants.RESULT_MSG_PREFIX}${UUID.randomUUID()}"
@@ -1513,191 +1469,10 @@ class GenerationManager(
 
                 val apiToolPath = applyUserTemplate(toolPath, config.userPrepend, config.userPostpend)
                 provider.generateResponse(apiToolPath, providerConfig).collect { event ->
-                    when (event) {
-                        is StreamEvent.TextChunk -> {
-                            if (currentStatus == MessageStatus.THINKING) {
-                                if (currentThoughtStartMs != null) {
-                                    cumulativeThoughtMs += System.currentTimeMillis() - currentThoughtStartMs!!
-                                    currentThoughtStartMs = null
-                                }
-                                totalThoughtTimeMs = cumulativeThoughtMs
-                                if (currentThoughtBuf.isNotEmpty()) {
-                                    segments.add(MessageSegment(type = "thought", content = currentThoughtBuf.toString(), signature = currentThoughtSignature))
-                                    currentThoughtBuf = StringBuilder()
-                                    currentThoughtSignature = null
-                                }
-                                totalText += event.text.trimStart()
-                            } else {
-                                totalText += event.text
-                            }
-                            currentStatus = MessageStatus.SENDING
-                        }
-                        is StreamEvent.ThoughtChunk -> {
-                            currentStatus = MessageStatus.THINKING
-                            if (currentThoughtStartMs == null) {
-                                currentThoughtStartMs = System.currentTimeMillis()
-                            }
-                            if (totalThoughts.isEmpty()) totalThoughts = "Thinking..."
-                            if (event.thought.isNotEmpty()) {
-                                currentThoughtBuf.append(event.thought)
-                                if (totalThoughts == "Thinking...") totalThoughts = event.thought
-                                else totalThoughts += event.thought
-                            }
-                            if (event.title != null) totalThoughtTitle = event.title
-                            if (event.signature != null) currentThoughtSignature = event.signature
-                        }
-                        is StreamEvent.UsageUpdate -> {
-                            if (event.tokenCount > 0) totalTokenCount = event.tokenCount
-                        }
-                        is StreamEvent.Error -> {
-                            if (toolCallData == null && toolCallDataList.isEmpty()) {
-                                totalText = event.message
-                                currentStatus = MessageStatus.ERROR
-                            }
-                        }
-                        is StreamEvent.ToolCallRequest -> {
-                            // End current thinking block
-                            if (currentThoughtBuf.isNotEmpty()) {
-                                segments.add(MessageSegment(type = "thought", content = currentThoughtBuf.toString(), signature = currentThoughtSignature))
-                                currentThoughtBuf = StringBuilder()
-                                currentThoughtSignature = null
-                            }
-                            if (currentThoughtStartMs != null) {
-                                cumulativeThoughtMs += System.currentTimeMillis() - currentThoughtStartMs!!
-                                currentThoughtStartMs = null
-                            }
-                            totalThoughtTimeMs = cumulativeThoughtMs
-                            // Add pending tool segment (no result yet)
-                            val ts = MessageSegment(type = "tool", toolName = event.name, toolArgs = event.arguments, toolResult = null, toolCallId = event.id, signature = event.signature)
-                            segments.add(ts)
-                            // Emit "tool started"
-                            currentStatus = MessageStatus.TOOL_CALLING
-                            onStreamUpdate(ChatMessage(
-                                id = modelMessageId, parentId = parentId,
-                                text = totalText, thoughts = totalThoughts.ifBlank { null },
-                                thoughtTitle = totalThoughtTitle, tokenCount = totalTokenCount,
-                                status = currentStatus, participant = Participant.MODEL,
-                                timestamp = startTime, thoughtTimeMs = totalThoughtTimeMs,
-                                modelName = modelName, toolCall = toolCallData,
-                                segments = buildLiveSegments(segments, currentThoughtBuf, currentThoughtSignature)
-                            ))
-                            lastEmitMs = System.currentTimeMillis()
-                            // Execute tool
-                            val result = executeTool(event.name, event.arguments, ctx)
-                            // Update segment with result
-                            val idx = segments.indexOfLast { it.toolCallId == event.id }
-                            if (idx >= 0) {
-                                segments[idx] = segments[idx].copy(toolResult = result)
-                                roundToolSegments.add(segments[idx])
-                            }
-                            val tcd = ToolCallData(event.name, event.arguments, result, event.signature)
-                            if (toolCallData == null) toolCallData = tcd
-                            toolCallDataList = toolCallDataList + tcd
-                            currentStatus = MessageStatus.SENDING
-                            // Emit "tool completed"
-                            onStreamUpdate(ChatMessage(
-                                id = modelMessageId, parentId = parentId,
-                                text = totalText, thoughts = totalThoughts.ifBlank { null },
-                                thoughtTitle = totalThoughtTitle, tokenCount = totalTokenCount,
-                                status = currentStatus, participant = Participant.MODEL,
-                                timestamp = startTime, thoughtTimeMs = totalThoughtTimeMs,
-                                modelName = modelName, toolCall = toolCallData,
-                                segments = buildLiveSegments(segments, currentThoughtBuf, currentThoughtSignature)
-                            ))
-                            lastEmitMs = System.currentTimeMillis()
-                        }
-                        is StreamEvent.ToolCallsRequest -> {
-                            // End current thinking block
-                            if (currentThoughtBuf.isNotEmpty()) {
-                                segments.add(MessageSegment(type = "thought", content = currentThoughtBuf.toString(), signature = currentThoughtSignature))
-                                currentThoughtBuf = StringBuilder()
-                                currentThoughtSignature = null
-                            }
-                            if (currentThoughtStartMs != null) {
-                                cumulativeThoughtMs += System.currentTimeMillis() - currentThoughtStartMs!!
-                                currentThoughtStartMs = null
-                            }
-                            totalThoughtTimeMs = cumulativeThoughtMs
-                            // Add pending tool segments (no results yet)
-                            event.calls.forEach { call ->
-                                segments.add(MessageSegment(type = "tool", toolName = call.name, toolArgs = call.arguments, toolResult = null, toolCallId = call.id, signature = call.signature))
-                            }
-                            // Emit "tools started"
-                            currentStatus = MessageStatus.TOOL_CALLING
-                            onStreamUpdate(ChatMessage(
-                                id = modelMessageId, parentId = parentId,
-                                text = totalText, thoughts = totalThoughts.ifBlank { null },
-                                thoughtTitle = totalThoughtTitle, tokenCount = totalTokenCount,
-                                status = currentStatus, participant = Participant.MODEL,
-                                timestamp = startTime, thoughtTimeMs = totalThoughtTimeMs,
-                                modelName = modelName, toolCall = toolCallData,
-                                segments = buildLiveSegments(segments, currentThoughtBuf, currentThoughtSignature)
-                            ))
-                            lastEmitMs = System.currentTimeMillis()
-                            // Execute tools and update segments with results
-                            val tcds = event.calls.map { call ->
-                                val result = executeTool(call.name, call.arguments, ctx)
-                                val idx = segments.indexOfLast { it.toolCallId == call.id }
-                                if (idx >= 0) {
-                                    segments[idx] = segments[idx].copy(toolResult = result)
-                                    roundToolSegments.add(segments[idx])
-                                }
-                                ToolCallData(call.name, call.arguments, result, call.signature)
-                            }
-                            toolCallData = tcds.firstOrNull()
-                            toolCallDataList = tcds
-                            currentStatus = MessageStatus.SENDING
-                            // Emit "tools completed"
-                            onStreamUpdate(ChatMessage(
-                                id = modelMessageId, parentId = parentId,
-                                text = totalText, thoughts = totalThoughts.ifBlank { null },
-                                thoughtTitle = totalThoughtTitle, tokenCount = totalTokenCount,
-                                status = currentStatus, participant = Participant.MODEL,
-                                timestamp = startTime, thoughtTimeMs = totalThoughtTimeMs,
-                                modelName = modelName, toolCall = toolCallData,
-                                segments = buildLiveSegments(segments, currentThoughtBuf, currentThoughtSignature)
-                            ))
-                            lastEmitMs = System.currentTimeMillis()
-                        }
-                    }
-
-                    val now = System.currentTimeMillis()
-                    val isSignificant = event is StreamEvent.Error
-                    if (now - lastEmitMs >= 500 || isSignificant) {
-                        onStreamUpdate(ChatMessage(
-                            id = modelMessageId,
-                            parentId = parentId,
-                            text = totalText,
-                            thoughts = totalThoughts.ifBlank { null },
-                            thoughtTitle = totalThoughtTitle,
-                            tokenCount = totalTokenCount,
-                            status = currentStatus,
-                            participant = Participant.MODEL,
-                            timestamp = startTime,
-                            thoughtTimeMs = totalThoughtTimeMs,
-                            modelName = modelName,
-                            toolCall = toolCallData,
-                            segments = buildLiveSegments(segments, currentThoughtBuf, currentThoughtSignature)
-                        ))
-                        lastEmitMs = now
-                    }
+                    handleStreamEvent(event)
                 }
                 // Always emit final state after tool round completes
-                onStreamUpdate(ChatMessage(
-                    id = modelMessageId,
-                    parentId = parentId,
-                    text = totalText,
-                    thoughts = totalThoughts.ifBlank { null },
-                    thoughtTitle = totalThoughtTitle,
-                    tokenCount = totalTokenCount,
-                    status = currentStatus,
-                    participant = Participant.MODEL,
-                    timestamp = startTime,
-                    thoughtTimeMs = totalThoughtTimeMs,
-                    modelName = modelName,
-                    toolCall = toolCallData,
-                    segments = buildLiveSegments(segments, currentThoughtBuf, currentThoughtSignature)
-                ))
+                onStreamUpdate(modelMessage())
             }
 
             if (!currentCoroutineContext().isActive) {
@@ -1714,7 +1489,7 @@ class GenerationManager(
                             participant = msg.participant, timestamp = System.currentTimeMillis(),
                             toolCallJson = msg.segments?.let { Json.encodeToString(it) }
                                 ?: msg.toolCall?.let { Json.encodeToString(listOf(
-                                    MessageSegment(type = "tool", toolName = it.toolName, toolArgs = it.arguments, toolResult = it.result, signature = it.signature)
+                                    MessageSegment(type = "tool", toolName = it.toolName, toolArgs = it.arguments, toolResult = it.result, signature = it.signature, toolCallId = it.toolCallId)
                                 )) }
                         ))
                     }

@@ -9,7 +9,8 @@ data class ToolCallData(
     val toolName: String,
     val arguments: String,
     val result: String,
-    val signature: String? = null
+    val signature: String? = null,
+    val toolCallId: String? = null
 )
 
 @Serializable

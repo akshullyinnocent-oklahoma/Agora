@@ -1778,53 +1778,28 @@ class ChatViewModel(
                 shellEnabled = shellEnabled.value,
                 shellDevices = shellDevices.value
             )
-            val maxRetries = 3
-            var attempt = 0
-
-            while (attempt < maxRetries && currentCoroutineContext().isActive) {
-                attempt++
-
-                if (attempt > 1) {
-                    delay(2000)
-                    _streamingMessage.value = ChatMessage(
-                        id = modelMessageId,
-                        parentId = userMessageId,
-                        text = "Sending... (Retry ${attempt - 1}/$maxRetries)",
-                        status = MessageStatus.SENDING,
-                        participant = Participant.MODEL,
-                        timestamp = System.currentTimeMillis(),
-                        modelName = currentActiveModel.value
+            try {
+                withTimeout(120_000L) {
+                    generationManager.generate(
+                        conversationId = currentId,
+                        modelMessageId = modelMessageId,
+                        startTime = startTime,
+                        isRegenerate = false,
+                        replaceMessageId = null,
+                        modelName = currentActiveModel.value,
+                        config = config,
+                        ctx = genCtx,
+                        generationJob = generationJob,
+                        onStreamUpdate = { _streamingMessage.value = it },
+                        onLoadingChange = { _isLoading.value = it },
+                        onGeneratingIdChange = { _generatingInConversationId.value = it },
+                        onStreamClear = { val msg = _streamingMessage.value; if (msg?.status != MessageStatus.STOPPED) { if (msg != null) { _allMessages.update { it.map { m -> if (m.id == msg.id) msg else m } } }; _streamingMessage.value = null }; val id = activeEmbeddingModelId.value; if (id.isNotEmpty()) cacheMessagesForModel(id, silent = true) }
                     )
                 }
-
-                try {
-                    withTimeout(120_000L) {
-                        generationManager.generate(
-                            conversationId = currentId,
-                            modelMessageId = modelMessageId,
-                            startTime = startTime,
-                            isRegenerate = false,
-                            replaceMessageId = null,
-                            modelName = currentActiveModel.value,
-                            config = config,
-                            ctx = genCtx,
-                            generationJob = generationJob,
-                            onStreamUpdate = { _streamingMessage.value = it },
-                            onLoadingChange = { _isLoading.value = it },
-                            onGeneratingIdChange = { _generatingInConversationId.value = it },
-                            onStreamClear = { val msg = _streamingMessage.value; if (msg?.status != MessageStatus.STOPPED) { if (msg != null) { _allMessages.update { it.map { m -> if (m.id == msg.id) msg else m } } }; _streamingMessage.value = null }; val id = activeEmbeddingModelId.value; if (id.isNotEmpty()) cacheMessagesForModel(id, silent = true) }
-                        )
-                    }
-
-                    val finalMsg = _allMessages.value.find { it.id == modelMessageId }
-                    if (finalMsg?.status == MessageStatus.SUCCESS) break
-                } catch (_: TimeoutCancellationException) {
-                    // Retry on timeout
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (_: Exception) {
-                    // Retry on other exceptions
-                }
+            } catch (_: TimeoutCancellationException) {
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
             }
 
             val lastMsg = _allMessages.value.find { it.id == modelMessageId }

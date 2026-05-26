@@ -10,15 +10,11 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.text.InlineTextContent
 import androidx.compose.foundation.text.appendInlineContent
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Size
@@ -41,6 +37,7 @@ import com.mikepenz.markdown.annotator.annotatorSettings
 import com.mikepenz.markdown.annotator.buildMarkdownAnnotatedString
 import com.mikepenz.markdown.model.ImageData
 import com.mikepenz.markdown.model.ImageTransformer
+import com.mikepenz.markdown.model.ImageWidth
 import com.mikepenz.markdown.model.PlaceholderConfig
 import com.mikepenz.markdown.model.ReferenceLinkHandlerImpl
 import ru.noties.jlatexmath.JLatexMathDrawable
@@ -291,7 +288,14 @@ class LatexImageTransformer(
         )
     }
 
-    override fun placeholderConfig(density: Density, containerSize: Size, intrinsicImageSize: Size): PlaceholderConfig {
+    override fun placeholderConfig(
+        link: String,
+        density: Density,
+        containerSize: Size,
+        imageWidth: ImageWidth,
+        imageSize: Size,
+        imageSizeChanged: ((link: String, Size) -> Unit)?
+    ): PlaceholderConfig {
         return PlaceholderConfig(size = Size(60f, 22f), verticalAlign = PlaceholderVerticalAlign.Center)
     }
 }

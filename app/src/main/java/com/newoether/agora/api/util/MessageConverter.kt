@@ -40,6 +40,7 @@ fun convertToOpenAiMessages(
     includeImages: Boolean = true
 ): List<OpenAiMessage> {
     val apiMessages = mutableListOf<OpenAiMessage>()
+    val emittedToolResults = mutableSetOf<String>()
 
     if (!systemPrompt.isNullOrBlank()) {
         apiMessages.add(
@@ -59,7 +60,7 @@ fun convertToOpenAiMessages(
             val thoughtContent = msg.segments?.lastOrNull { it.type == "thought" }?.content
             if (!toolSegs.isNullOrEmpty()) {
                 val toolCalls = toolSegs.map { seg ->
-                    val tid = buildToolCallId(seg.toolName ?: "", seg.toolArgs ?: "{}")
+                    val tid = seg.toolCallId ?: buildToolCallId(seg.toolName ?: "", seg.toolArgs ?: "{}")
                     OpenAiRequestToolCall(
                         id = tid,
                         function = OpenAiRequestFunction(name = seg.toolName ?: "", arguments = seg.toolArgs ?: "{}")
@@ -71,9 +72,23 @@ fun convertToOpenAiMessages(
                     toolCalls = toolCalls,
                     reasoningContent = thoughtContent?.ifEmpty { null }
                 ))
+                for (seg in toolSegs) {
+                    val result = seg.toolResult
+                    if (!result.isNullOrEmpty()) {
+                        val toolId = seg.toolCallId ?: buildToolCallId(seg.toolName ?: "", seg.toolArgs ?: "{}")
+                        if (toolId !in emittedToolResults) {
+                            emittedToolResults.add(toolId)
+                            entries.add(OpenAiMessage(
+                                role = "tool",
+                                content = listOf(OpenAiContentPart(type = "text", text = result)),
+                                toolCallId = toolId
+                            ))
+                        }
+                    }
+                }
             } else if (msg.toolCall != null) {
                 val tc = msg.toolCall!!
-                val toolId = buildToolCallId(tc.toolName, tc.arguments)
+                val toolId = tc.toolCallId ?: buildToolCallId(tc.toolName, tc.arguments)
                 entries.add(OpenAiMessage(
                     role = "assistant",
                     content = listOf(OpenAiContentPart(type = "text", text = " ")),
@@ -83,6 +98,14 @@ fun convertToOpenAiMessages(
                     )),
                     reasoningContent = thoughtContent?.ifEmpty { null }
                 ))
+                if (tc.result.isNotEmpty() && toolId !in emittedToolResults) {
+                    emittedToolResults.add(toolId)
+                    entries.add(OpenAiMessage(
+                        role = "tool",
+                        content = listOf(OpenAiContentPart(type = "text", text = tc.result)),
+                        toolCallId = toolId
+                    ))
+                }
             }
             return@flatMap entries
         }
@@ -92,21 +115,27 @@ fun convertToOpenAiMessages(
             val toolSegs = msg.segments?.filter { it.type == "tool" }
             if (!toolSegs.isNullOrEmpty()) {
                 for (seg in toolSegs) {
-                    val toolId = buildToolCallId(seg.toolName ?: "", seg.toolArgs ?: "{}")
-                    entries.add(OpenAiMessage(
-                        role = "tool",
-                        content = listOf(OpenAiContentPart(type = "text", text = seg.toolResult ?: "")),
-                        toolCallId = toolId
-                    ))
+                    val toolId = seg.toolCallId ?: buildToolCallId(seg.toolName ?: "", seg.toolArgs ?: "{}")
+                    if (toolId !in emittedToolResults) {
+                        emittedToolResults.add(toolId)
+                        entries.add(OpenAiMessage(
+                            role = "tool",
+                            content = listOf(OpenAiContentPart(type = "text", text = seg.toolResult ?: "")),
+                            toolCallId = toolId
+                        ))
+                    }
                 }
             } else if (msg.toolCall != null) {
                 val tc = msg.toolCall!!
-                val toolId = buildToolCallId(tc.toolName, tc.arguments)
-                entries.add(OpenAiMessage(
-                    role = "tool",
-                    content = listOf(OpenAiContentPart(type = "text", text = tc.result)),
-                    toolCallId = toolId
-                ))
+                val toolId = tc.toolCallId ?: buildToolCallId(tc.toolName, tc.arguments)
+                if (toolId !in emittedToolResults) {
+                    emittedToolResults.add(toolId)
+                    entries.add(OpenAiMessage(
+                        role = "tool",
+                        content = listOf(OpenAiContentPart(type = "text", text = tc.result)),
+                        toolCallId = toolId
+                    ))
+                }
             }
             return@flatMap entries
         }

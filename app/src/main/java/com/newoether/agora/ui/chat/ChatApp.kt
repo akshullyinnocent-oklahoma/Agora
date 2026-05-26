@@ -63,6 +63,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.newoether.agora.R
 import com.newoether.agora.data.local.MessageEntity
 import com.newoether.agora.model.Participant
@@ -462,7 +463,7 @@ fun ChatApp(
                                                     showMenu = true
                                                 }
                                             ),
-                                        color = if (isSelected) MaterialTheme.colorScheme.surfaceContainer else Color.Transparent,
+                                        color = if (isSelected) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent,
                                         shape = CircleShape
                                     ) {
                                         Text(
@@ -579,88 +580,70 @@ fun ChatApp(
                                     .fillMaxWidth()
                                     .statusBarsPadding()
                                     .padding(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 8.dp)
-                                    .height(52.dp),
+                                    .height(56.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 val currentTitle = if (isNewChatMode) stringResource(R.string.app_name) else conversations.find { it.id == currentConversationId }?.title ?: stringResource(R.string.app_name)
 
-                                // Merged drawer + title capsule
+                                // Unified top capsule: menu + title + actions
                                 Surface(
                                     shape = RoundedCornerShape(50),
                                     color = MaterialTheme.colorScheme.surface,
                                     tonalElevation = 2.dp,
                                     shadowElevation = 4.dp,
-                                    modifier = Modifier.fillMaxHeight()
+                                    modifier = Modifier.fillMaxHeight().fillMaxWidth()
                                 ) {
                                     Row(
                                         modifier = Modifier.fillMaxHeight(),
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
+                                        Spacer(modifier = Modifier.width(10.dp))
                                         IconButton(
                                             onClick = { focusManager.clearFocus(); scope.launch { drawerState.open() } },
-                                            modifier = Modifier.fillMaxHeight().aspectRatio(1f)
+                                            modifier = Modifier.size(44.dp)
                                         ) {
-                                            Icon(Icons.Default.Menu, contentDescription = stringResource(R.string.menu), modifier = Modifier.size(24.dp))
+                                            Icon(Icons.Default.Menu, contentDescription = stringResource(R.string.menu), modifier = Modifier.size(22.dp))
                                         }
-                                        Spacer(modifier = Modifier.width(4.dp))
-                                        Box(
-                                            modifier = Modifier.padding(end = 16.dp).padding(vertical = 8.dp),
-                                            contentAlignment = Alignment.CenterStart
-                                        ) {
-                                            if (isNewChatMode) {
+                                        Spacer(modifier = Modifier.width(5.dp))
+                                        if (isNewChatMode) {
+                                            Text(
+                                                text = currentTitle,
+                                                fontWeight = FontWeight.Bold,
+                                                style = MaterialTheme.typography.titleSmall.copy(fontSize = 20.sp),
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis,
+                                                modifier = Modifier.weight(1f)
+                                            )
+                                        } else {
+                                            Column(modifier = Modifier.weight(1f)) {
                                                 Text(
                                                     text = currentTitle,
                                                     fontWeight = FontWeight.Bold,
-                                                    style = MaterialTheme.typography.titleLarge,
+                                                    style = if (totalTokens > 0) MaterialTheme.typography.titleSmall else MaterialTheme.typography.titleSmall.copy(fontSize = 16.sp),
                                                     maxLines = 1,
                                                     overflow = TextOverflow.Ellipsis
                                                 )
-                                            } else {
-                                                Column {
+                                                if (totalTokens > 0) {
                                                     Text(
-                                                        text = currentTitle,
-                                                        fontWeight = FontWeight.Bold,
-                                                        style = MaterialTheme.typography.titleSmall,
-                                                        maxLines = 1,
-                                                        overflow = TextOverflow.Ellipsis
+                                                        text = stringResource(R.string.total_tokens, totalTokens),
+                                                        style = MaterialTheme.typography.labelSmall,
+                                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                                        maxLines = 1
                                                     )
-                                                    if (totalTokens > 0) {
-                                                        Text(
-                                                            text = stringResource(R.string.total_tokens, totalTokens),
-                                                            style = MaterialTheme.typography.labelSmall,
-                                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                                                        )
-                                                    }
                                                 }
                                             }
                                         }
-                                    }
-                                }
-
-                                Spacer(modifier = Modifier.weight(1f))
-
-                                // Actions capsule - fills row height
-                                Surface(
-                                    shape = RoundedCornerShape(50),
-                                    color = MaterialTheme.colorScheme.surface,
-                                    tonalElevation = 2.dp,
-                                    shadowElevation = 4.dp,
-                                    modifier = Modifier.fillMaxHeight()
-                                ) {
-                                    Row(
-                                        modifier = Modifier.fillMaxHeight(),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        IconButton(onClick = { showPromptDialog = true }, modifier = Modifier.fillMaxHeight().aspectRatio(1f)) {
-                                            Icon(Icons.Default.Psychology, contentDescription = stringResource(R.string.system_prompt), modifier = Modifier.size(24.dp))
+                                        IconButton(onClick = { showPromptDialog = true }, modifier = Modifier.size(44.dp)) {
+                                            Icon(Icons.Default.Psychology, contentDescription = stringResource(R.string.system_prompt), modifier = Modifier.size(22.dp))
                                         }
                                         IconButton(onClick = {
                                             isExpanded = false
                                             viewModel.createNewChat()
                                             inputFocusRequester.requestFocus()
-                                        }, modifier = Modifier.fillMaxHeight().aspectRatio(1f)) {
-                                            Icon(Icons.Default.Add, contentDescription = stringResource(R.string.new_chat), modifier = Modifier.size(24.dp))
+                                        }, modifier = Modifier.size(44.dp)) {
+                                            Icon(Icons.Default.Add, contentDescription = stringResource(R.string.new_chat), modifier = Modifier.size(22.dp))
                                         }
+                                        Spacer(modifier = Modifier.width(10.dp))
                                     }
                                 }
                             }

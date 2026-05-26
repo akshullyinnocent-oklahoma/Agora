@@ -135,7 +135,7 @@ class AnthropicProvider : LlmProvider {
                 val toolSegs = msg.segments?.filter { it.type == "tool" }
                 if (!toolSegs.isNullOrEmpty()) {
                     val toolUseBlocks = toolSegs.map { seg ->
-                        val toolId = buildToolCallId(seg.toolName ?: "", seg.toolArgs ?: "{}", "tool_")
+                        val toolId = seg.toolCallId ?: buildToolCallId(seg.toolName ?: "", seg.toolArgs ?: "{}", "tool_")
                         AnthropicContentPart(
                             type = "tool_use",
                             id = toolId,
@@ -146,7 +146,7 @@ class AnthropicProvider : LlmProvider {
                     entries.add(AnthropicMessage(role = "assistant", content = toolUseBlocks))
                 } else if (msg.toolCall != null) {
                     val tc = msg.toolCall!!
-                    val toolId = buildToolCallId(tc.toolName, tc.arguments, "tool_")
+                    val toolId = tc.toolCallId ?: buildToolCallId(tc.toolName, tc.arguments, "tool_")
                     entries.add(AnthropicMessage(
                         role = "assistant",
                         content = listOf(AnthropicContentPart(
@@ -165,7 +165,7 @@ class AnthropicProvider : LlmProvider {
                 val toolSegs = msg.segments?.filter { it.type == "tool" }
                 if (!toolSegs.isNullOrEmpty()) {
                     val toolResultBlocks = toolSegs.map { seg ->
-                        val toolId = buildToolCallId(seg.toolName ?: "", seg.toolArgs ?: "{}", "tool_")
+                        val toolId = seg.toolCallId ?: buildToolCallId(seg.toolName ?: "", seg.toolArgs ?: "{}", "tool_")
                         AnthropicContentPart(
                             type = "tool_result",
                             toolUseId = toolId,
@@ -175,7 +175,7 @@ class AnthropicProvider : LlmProvider {
                     entries.add(AnthropicMessage(role = "user", content = toolResultBlocks))
                 } else if (msg.toolCall != null) {
                     val tc = msg.toolCall!!
-                    val toolId = buildToolCallId(tc.toolName, tc.arguments, "tool_")
+                    val toolId = tc.toolCallId ?: buildToolCallId(tc.toolName, tc.arguments, "tool_")
                     entries.add(AnthropicMessage(
                         role = "user",
                         content = listOf(AnthropicContentPart(
