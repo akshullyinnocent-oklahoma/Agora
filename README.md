@@ -12,9 +12,7 @@
 
 ---
 
-Official LLM apps are often heavily restricted, wrapping capable AI models in sanitized, linear interfaces. **Agora is different.**
-
-Agora is a fully open-source, BYOK (Bring Your Own Key) Android client for power users. It connects directly to 8+ AI providers with no intermediary servers or tracking, supports non-linear conversation branching, runs local models on-device, and controls remote machines through an encrypted agent protocol. Built with Jetpack Compose and Kotlin coroutines.
+**Agora** — a BYOK Android client for AI power users. Connect to 8+ providers with your own keys, branch conversations non-linearly, run models locally via llama.cpp, and control remote machines through encrypted shell. Everything stored on-device, nothing logged elsewhere. Open source, MIT licensed.
 
 ## Screenshots
 
