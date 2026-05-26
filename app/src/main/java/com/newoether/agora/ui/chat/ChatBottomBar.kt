@@ -473,7 +473,7 @@ fun ChatBottomBar(
         }
 
         Row(modifier = Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.shadow(4.dp, RoundedCornerShape(100), clip = false).background(MaterialTheme.colorScheme.surfaceColorAtElevation(8.dp), RoundedCornerShape(100)).padding(horizontal = 8.dp, vertical = 2.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.height(46.dp).shadow(4.dp, RoundedCornerShape(100), clip = false).background(MaterialTheme.colorScheme.surfaceColorAtElevation(8.dp), RoundedCornerShape(100)).padding(horizontal = 8.dp, vertical = 4.dp)) {
                 var showAddMenu by remember { mutableStateOf(false) }
                 var lastAddDismissTime by remember { mutableLongStateOf(0L) }
                 ExposedDropdownMenuBox(
@@ -489,9 +489,9 @@ fun ChatBottomBar(
                                 showAddMenu = true
                             }
                         },
-                        modifier = Modifier.size(32.dp).menuAnchor(type = ExposedDropdownMenuAnchorType.PrimaryNotEditable, enabled = true)
+                        modifier = Modifier.size(26.dp).menuAnchor(type = ExposedDropdownMenuAnchorType.PrimaryNotEditable, enabled = true)
                     ) {
-                        Icon(Icons.Default.Add, stringResource(R.string.add_attachment), modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Icon(Icons.Default.Add, stringResource(R.string.add_attachment), modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
 
                     ExposedDropdownMenu(
@@ -567,7 +567,7 @@ fun ChatBottomBar(
                     onExpandedChange = { }
                 ) {
                     TextButton(
-                        onClick = { 
+                        onClick = {
                             val now = System.currentTimeMillis()
                             if (activeMenu == "model") {
                                 activeMenu = null
@@ -575,12 +575,12 @@ fun ChatBottomBar(
                                 activeMenu = "model"
                             }
                         },
-                        modifier = Modifier.widthIn(max = 160.dp).menuAnchor(type = ExposedDropdownMenuAnchorType.PrimaryNotEditable, enabled = true),
-                        contentPadding = PaddingValues(start = 12.dp, end = 8.dp)
-                    ) { 
+                        modifier = Modifier.height(38.dp).widthIn(max = 160.dp).menuAnchor(type = ExposedDropdownMenuAnchorType.PrimaryNotEditable, enabled = true),
+                        contentPadding = PaddingValues(8.dp)
+                    ) {
                         Text(
                             displayText, 
-                            style = MaterialTheme.typography.labelLarge, 
+                            style = MaterialTheme.typography.labelMedium.copy(fontSize = 13.sp),
                             maxLines = 1, 
                             overflow = TextOverflow.Ellipsis, 
                             color = if (isModelValid) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
@@ -639,9 +639,9 @@ fun ChatBottomBar(
                                 activeMenu = "tools"
                             }
                         }, 
-                        modifier = Modifier.size(32.dp).menuAnchor(type = ExposedDropdownMenuAnchorType.PrimaryNotEditable, enabled = true)
+                        modifier = Modifier.size(26.dp).menuAnchor(type = ExposedDropdownMenuAnchorType.PrimaryNotEditable, enabled = true)
                     ) {
-                        Icon(Icons.Default.MoreVert, stringResource(R.string.tools), modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Icon(Icons.Default.MoreVert, stringResource(R.string.tools), modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     
                     ExposedDropdownMenu(
@@ -824,7 +824,7 @@ fun ChatBottomBar(
                 },
                 containerColor = if (isActionable) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
                 contentColor = if (isActionable) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(48.dp),
+                modifier = Modifier.size(46.dp),
                 shape = CircleShape,
                 elevation = FloatingActionButtonDefaults.elevation(0.dp, 0.dp, 0.dp, 0.dp)
             ) {

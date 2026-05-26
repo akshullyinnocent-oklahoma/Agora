@@ -569,8 +569,8 @@ fun ChatApp(
                             .defaultMinSize(minHeight = 180.dp)
                             .background(
                                 Brush.verticalGradient(
-                                    0.0f to MaterialTheme.colorScheme.background.copy(alpha = 1.0f),
-                                    0.6f to MaterialTheme.colorScheme.background.copy(alpha = 0.98f),
+                                    0.0f to MaterialTheme.colorScheme.background.copy(alpha = 0.98f),
+                                    0.6f to MaterialTheme.colorScheme.background.copy(alpha = 0.80f),
                                     1.0f to Color.Transparent
                                 )
                             )
@@ -580,7 +580,7 @@ fun ChatApp(
                                     .fillMaxWidth()
                                     .statusBarsPadding()
                                     .padding(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 8.dp)
-                                    .height(48.dp),
+                                    .height(52.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 val currentTitle = if (isNewChatMode) stringResource(R.string.app_name) else conversations.find { it.id == currentConversationId }?.title ?: stringResource(R.string.app_name)

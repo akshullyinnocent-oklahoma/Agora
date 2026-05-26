@@ -61,6 +61,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
@@ -1100,7 +1101,23 @@ fun MessageItem(
                                                         fontWeight = FontWeight.SemiBold
                                                     )
                                                     Box {
-                                                        SelectionContainer {
+                                                        if (!isStreaming) {
+                                                            SelectionContainer {
+                                                                RecomposeSafeMarkdown(
+                                                                    content = seg.content,
+                                                                    isStreaming = isStreaming
+                                                                ) { text ->
+                                                                    Markdown(
+                                                                        content = text.escapeThinkTags(),
+                                                                        modifier = Modifier.fillMaxWidth(),
+                                                                        colors = customMarkdownColors,
+                                                                        typography = thoughtTypography,
+                                                                        padding = thoughtMarkdownPadding,
+                                                                        components = customMarkdownComponents
+                                                                    )
+                                                                }
+                                                            }
+                                                        } else {
                                                             RecomposeSafeMarkdown(
                                                                 content = seg.content,
                                                                 isStreaming = isStreaming
@@ -1115,18 +1132,7 @@ fun MessageItem(
                                                                 )
                                                             }
                                                         }
-                                                        if (isStreaming) {
-                                                            Box(
-                                                                modifier = Modifier
-                                                                    .matchParentSize()
-                                                                    .combinedClickable(
-                                                                        interactionSource = remember { MutableInteractionSource() },
-                                                                        indication = null,
-                                                                        onClick = { },
-                                                                        onLongClick = { }
-                                                                    )
-                                                            )
-                                                        }
+
                                                     }
                                                 }
                                             } else if (seg.type == "tool") {
@@ -1271,12 +1277,9 @@ fun MessageItem(
                                         Box(
                                             modifier = Modifier
                                                 .matchParentSize()
-                                                .combinedClickable(
-                                                    interactionSource = remember { MutableInteractionSource() },
-                                                    indication = null,
-                                                    onClick = { },
-                                                    onLongClick = { }
-                                                )
+                                                .pointerInput(Unit) {
+                                                    detectTapGestures(onLongPress = { })
+                                                }
                                         )
                                     }
                                 }
