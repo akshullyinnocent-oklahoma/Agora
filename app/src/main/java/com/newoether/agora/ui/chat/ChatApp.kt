@@ -569,8 +569,8 @@ fun ChatApp(
                             .defaultMinSize(minHeight = 180.dp)
                             .background(
                                 Brush.verticalGradient(
-                                    0.0f to MaterialTheme.colorScheme.background.copy(alpha = 0.98f),
-                                    0.6f to MaterialTheme.colorScheme.background.copy(alpha = 0.95f),
+                                    0.0f to MaterialTheme.colorScheme.background.copy(alpha = 1.0f),
+                                    0.6f to MaterialTheme.colorScheme.background.copy(alpha = 0.98f),
                                     1.0f to Color.Transparent
                                 )
                             )
@@ -580,24 +580,24 @@ fun ChatApp(
                                     .fillMaxWidth()
                                     .statusBarsPadding()
                                     .padding(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 8.dp)
-                                    .height(56.dp),
+                                    .height(48.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 val currentTitle = if (isNewChatMode) stringResource(R.string.app_name) else conversations.find { it.id == currentConversationId }?.title ?: stringResource(R.string.app_name)
 
-                                // Unified top capsule: menu + title + actions
+                                // Title capsule: menu + title
                                 Surface(
                                     shape = RoundedCornerShape(50),
                                     color = MaterialTheme.colorScheme.surface,
                                     tonalElevation = 2.dp,
                                     shadowElevation = 4.dp,
-                                    modifier = Modifier.fillMaxHeight().fillMaxWidth()
+                                    modifier = Modifier.fillMaxHeight().widthIn(max = 260.dp)
                                 ) {
                                     Row(
                                         modifier = Modifier.fillMaxHeight(),
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        Spacer(modifier = Modifier.width(10.dp))
+                                        Spacer(modifier = Modifier.width(5.dp))
                                         IconButton(
                                             onClick = { focusManager.clearFocus(); scope.launch { drawerState.open() } },
                                             modifier = Modifier.size(44.dp)
@@ -611,11 +611,10 @@ fun ChatApp(
                                                 fontWeight = FontWeight.Bold,
                                                 style = MaterialTheme.typography.titleSmall.copy(fontSize = 20.sp),
                                                 maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis,
-                                                modifier = Modifier.weight(1f)
+                                                overflow = TextOverflow.Ellipsis
                                             )
                                         } else {
-                                            Column(modifier = Modifier.weight(1f)) {
+                                            Column {
                                                 Text(
                                                     text = currentTitle,
                                                     fontWeight = FontWeight.Bold,
@@ -626,13 +625,32 @@ fun ChatApp(
                                                 if (totalTokens > 0) {
                                                     Text(
                                                         text = stringResource(R.string.total_tokens, totalTokens),
-                                                        style = MaterialTheme.typography.labelSmall,
+                                                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
                                                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                                                         maxLines = 1
                                                     )
                                                 }
                                             }
                                         }
+                                        Spacer(modifier = Modifier.width(20.dp))
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.weight(1f))
+
+                                // Actions capsule: system prompt + new chat
+                                Surface(
+                                    shape = RoundedCornerShape(50),
+                                    color = MaterialTheme.colorScheme.surface,
+                                    tonalElevation = 2.dp,
+                                    shadowElevation = 4.dp,
+                                    modifier = Modifier.fillMaxHeight()
+                                ) {
+                                    Row(
+                                        modifier = Modifier.fillMaxHeight(),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Spacer(modifier = Modifier.width(5.dp))
                                         IconButton(onClick = { showPromptDialog = true }, modifier = Modifier.size(44.dp)) {
                                             Icon(Icons.Default.Psychology, contentDescription = stringResource(R.string.system_prompt), modifier = Modifier.size(22.dp))
                                         }
@@ -643,7 +661,7 @@ fun ChatApp(
                                         }, modifier = Modifier.size(44.dp)) {
                                             Icon(Icons.Default.Add, contentDescription = stringResource(R.string.new_chat), modifier = Modifier.size(22.dp))
                                         }
-                                        Spacer(modifier = Modifier.width(10.dp))
+                                        Spacer(modifier = Modifier.width(5.dp))
                                     }
                                 }
                             }

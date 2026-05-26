@@ -271,7 +271,7 @@ class AnthropicProvider : LlmProvider {
             messages = apiMessages,
             system = config.systemPrompt,
             thinking = thinking,
-            maxTokens = if (thinking != null) 2048 else 4096,
+            maxTokens = if (thinking != null) maxOf(thinking.budgetTokens + 1024, 4096) else 4096,
             tools = anthropicTools
         )
 
