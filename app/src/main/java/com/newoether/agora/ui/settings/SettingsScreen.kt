@@ -61,7 +61,7 @@ fun SettingsGroup(
                     shape = shape,
                     color = MaterialTheme.colorScheme.surface,
                     tonalElevation = 1.dp,
-                    shadowElevation = 8.dp,
+                    shadowElevation = 4.dp,
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     item()
@@ -261,10 +261,9 @@ fun SettingsScreen(viewModel: ChatViewModel, onBack: () -> Unit) {
                                             shape = shape,
                                             color = MaterialTheme.colorScheme.surface,
                                             tonalElevation = 1.dp,
-                                            shadowElevation = 8.dp,
+                                            shadowElevation = 4.dp,
                                             modifier = Modifier
                                                 .fillMaxWidth()
-                                                .clip(shape)
                                                 .clickable { selectedCategory = cat.key }
                                         ) {
                                             Row(
