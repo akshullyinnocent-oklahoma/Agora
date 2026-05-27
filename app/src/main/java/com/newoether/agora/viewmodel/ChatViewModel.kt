@@ -270,6 +270,8 @@ class ChatViewModel(
     val colorScheme = settingsManager.colorScheme.stateIn(viewModelScope, SharingStarted.Eagerly, "DEFAULT")
     val dynamicColor = settingsManager.dynamicColor.stateIn(viewModelScope, SharingStarted.Eagerly, true)
     val schemeStyle = settingsManager.schemeStyle.stateIn(viewModelScope, SharingStarted.Eagerly, "TONAL_SPOT")
+    val searchContextWindow = settingsManager.searchContextWindow.stateIn(viewModelScope, SharingStarted.Eagerly, 8)
+    val searchMatchLimit = settingsManager.searchMatchLimit.stateIn(viewModelScope, SharingStarted.Eagerly, 10)
     val ragThreshold = settingsManager.ragThreshold.stateIn(viewModelScope, SharingStarted.Eagerly, 0.5f)
 
         val conversations: StateFlow<List<ChatConversation>> = chatDao.getAllConversations()
@@ -1047,6 +1049,8 @@ class ChatViewModel(
             settingsManager.saveShellDevices(shellDevices.value.filter { it.id != deviceId })
         }
     }
+    fun setSearchMatchLimit(n: Int) { viewModelScope.launch { settingsManager.saveSearchMatchLimit(n) } }
+    fun setSearchContextWindow(n: Int) { viewModelScope.launch { settingsManager.saveSearchContextWindow(n) } }
     fun setRagThreshold(threshold: Float) { viewModelScope.launch { settingsManager.saveRagThreshold(threshold) } }
     suspend fun testRemoteEmbedding(modelName: String, baseUrl: String): String? {
         val apiKey = resolveEmbeddingApiKey() ?: return "No API key configured"
@@ -1349,6 +1353,7 @@ class ChatViewModel(
             )
 
             val genCtx = com.newoether.agora.viewmodel.GenerationContext(
+                conversationId = currentId,
                 accessSavedMemories = accessSavedMemories.value,
                 accessActiveMemory = accessActiveMemory.value,
                 accessPastConversations = accessPastConversations.value,
@@ -1356,6 +1361,8 @@ class ChatViewModel(
                 activeEmbeddingConfig = activeEmbeddingModel.value,
                 embeddingApiKey = resolveEmbeddingApiKey() ?: "",
                 ragThreshold = ragThreshold.value,
+                searchMatchLimit = searchMatchLimit.value,
+                searchContextWindow = searchContextWindow.value,
                 webSearchEnabled = webSearchEnabled.value,
                 webSearchApiKeys = webSearchApiKeys.value,
                 webSearchProvider = webSearchProvider.value,
@@ -1452,6 +1459,7 @@ class ChatViewModel(
             )
 
             val genCtx = com.newoether.agora.viewmodel.GenerationContext(
+                conversationId = currentId,
                 accessSavedMemories = accessSavedMemories.value,
                 accessActiveMemory = accessActiveMemory.value,
                 accessPastConversations = accessPastConversations.value,
@@ -1459,6 +1467,8 @@ class ChatViewModel(
                 activeEmbeddingConfig = activeEmbeddingModel.value,
                 embeddingApiKey = resolveEmbeddingApiKey() ?: "",
                 ragThreshold = ragThreshold.value,
+                searchMatchLimit = searchMatchLimit.value,
+                searchContextWindow = searchContextWindow.value,
                 webSearchEnabled = webSearchEnabled.value,
                 webSearchApiKeys = webSearchApiKeys.value,
                 webSearchProvider = webSearchProvider.value,
@@ -1766,6 +1776,7 @@ class ChatViewModel(
             )
 
             val genCtx = com.newoether.agora.viewmodel.GenerationContext(
+                conversationId = currentId,
                 accessSavedMemories = accessSavedMemories.value,
                 accessActiveMemory = accessActiveMemory.value,
                 accessPastConversations = accessPastConversations.value,
@@ -1773,6 +1784,8 @@ class ChatViewModel(
                 activeEmbeddingConfig = activeEmbeddingModel.value,
                 embeddingApiKey = resolveEmbeddingApiKey() ?: "",
                 ragThreshold = ragThreshold.value,
+                searchMatchLimit = searchMatchLimit.value,
+                searchContextWindow = searchContextWindow.value,
                 webSearchEnabled = webSearchEnabled.value,
                 webSearchApiKeys = webSearchApiKeys.value,
                 webSearchProvider = webSearchProvider.value,

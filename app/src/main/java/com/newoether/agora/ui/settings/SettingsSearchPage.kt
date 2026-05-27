@@ -55,6 +55,8 @@ fun SettingsSearchPage(viewModel: ChatViewModel, onBack: () -> Unit) {
     val activeEmbeddingModelId by viewModel.activeEmbeddingModelId.collectAsState()
     val cachingProgress by viewModel.cachingProgress.collectAsState()
     val cacheCounts by viewModel.cacheCounts.collectAsState()
+    val searchContextWindow by viewModel.searchContextWindow.collectAsState()
+    val searchMatchLimit by viewModel.searchMatchLimit.collectAsState()
     val ragThreshold by viewModel.ragThreshold.collectAsState()
 
     LaunchedEffect(Unit) { viewModel.loadCacheCounts() }
@@ -311,6 +313,86 @@ fun SettingsSearchPage(viewModel: ChatViewModel, onBack: () -> Unit) {
             SettingsGroup(
                 title = stringResource(R.string.advanced_title),
                 items = listOf(
+                    {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 16.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = androidx.compose.ui.Alignment.Top
+                            ) {
+                                Icon(
+                                    painter = painterResource(id = R.drawable.text_compare_24),
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.padding(top = 2.dp)
+                                )
+                                Spacer(modifier = Modifier.width(16.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = "Context messages per search hit",
+                                        style = MaterialTheme.typography.bodyLarge,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                    Text(
+                                        text = "$searchContextWindow messages",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.padding(top = 4.dp)
+                                    )
+                                    Slider(
+                                        value = searchContextWindow.toFloat(),
+                                        onValueChange = { viewModel.setSearchContextWindow(it.toInt()) },
+                                        valueRange = 4f..32f,
+                                        steps = 6,
+                                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
+                                    )
+                                }
+                            }
+                        }
+                    },
+                    {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 16.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = androidx.compose.ui.Alignment.Top
+                            ) {
+                                Icon(
+                                    painter = painterResource(id = R.drawable.text_compare_24),
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.padding(top = 2.dp)
+                                )
+                                Spacer(modifier = Modifier.width(16.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = "Max search results",
+                                        style = MaterialTheme.typography.bodyLarge,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                    Text(
+                                        text = "$searchMatchLimit hits",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.padding(top = 4.dp)
+                                    )
+                                    Slider(
+                                        value = searchMatchLimit.toFloat(),
+                                        onValueChange = { viewModel.setSearchMatchLimit(it.toInt()) },
+                                        valueRange = 5f..30f,
+                                        steps = 4,
+                                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
+                                    )
+                                }
+                            }
+                        }
+                    },
                     {
                         Column(
                             modifier = Modifier

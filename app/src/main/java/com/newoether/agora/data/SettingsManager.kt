@@ -4,6 +4,7 @@ import android.content.Context
 import com.newoether.agora.util.DebugLog
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
@@ -93,6 +94,8 @@ class SettingsManager(private val context: Context) {
         val WEB_SEARCH_PROVIDER = stringPreferencesKey("web_search_provider")
         val WEB_SEARCH_API_KEYS_JSON = stringPreferencesKey("web_search_api_keys_json")
         val WEB_SEARCH_BASE_URL = stringPreferencesKey("web_search_base_url")
+        val SEARCH_CONTEXT_WINDOW = intPreferencesKey("search_context_window")
+        val SEARCH_MATCH_LIMIT = intPreferencesKey("search_match_limit")
         val RAG_THRESHOLD = stringPreferencesKey("rag_threshold")
         val AUTO_CACHE_ENABLED = booleanPreferencesKey("auto_cache_enabled")
         val LOCAL_CHAT_MODELS_JSON = stringPreferencesKey("local_chat_models_json")
@@ -175,6 +178,8 @@ class SettingsManager(private val context: Context) {
         try { json.decodeFromString<Map<String, String>>(jsonStr) } catch (e: Exception) { DebugLog.e("SettingsManager", "Failed to decode webSearchApiKeys", e); emptyMap() }
     }
     val webSearchBaseUrl: Flow<String> = context.dataStore.data.map { it[WEB_SEARCH_BASE_URL] ?: "" }
+    val searchContextWindow: Flow<Int> = context.dataStore.data.map { it[SEARCH_CONTEXT_WINDOW] ?: 8 }
+    val searchMatchLimit: Flow<Int> = context.dataStore.data.map { it[SEARCH_MATCH_LIMIT] ?: 10 }
     val ragThreshold: Flow<Float> = context.dataStore.data.map { it[RAG_THRESHOLD]?.toFloatOrNull() ?: 0.5f }
     val autoCacheEnabled: Flow<Boolean> = context.dataStore.data.map { it[AUTO_CACHE_ENABLED] ?: true }
     val localChatModels: Flow<List<LocalChatModelConfig>> = context.dataStore.data.map { pref ->
@@ -334,6 +339,12 @@ class SettingsManager(private val context: Context) {
 
     suspend fun saveWebSearchBaseUrl(url: String) {
         context.dataStore.edit { it[WEB_SEARCH_BASE_URL] = url }
+    }
+    suspend fun saveSearchMatchLimit(n: Int) {
+        context.dataStore.edit { it[SEARCH_MATCH_LIMIT] = n }
+    }
+    suspend fun saveSearchContextWindow(n: Int) {
+        context.dataStore.edit { it[SEARCH_CONTEXT_WINDOW] = n }
     }
     suspend fun saveRagThreshold(threshold: Float) {
         context.dataStore.edit { it[RAG_THRESHOLD] = threshold.toString() }

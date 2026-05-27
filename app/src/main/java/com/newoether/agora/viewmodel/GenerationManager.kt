@@ -62,6 +62,7 @@ data class GenerationConfig(
 )
 
 data class GenerationContext(
+    val conversationId: String? = null,
     val accessSavedMemories: Boolean = true,
     val accessActiveMemory: Boolean = true,
     val accessPastConversations: Boolean = true,
@@ -69,6 +70,8 @@ data class GenerationContext(
     val activeEmbeddingConfig: com.newoether.agora.data.EmbeddingModelConfig? = null,
     val embeddingApiKey: String = "",
     val ragThreshold: Float = 0.5f,
+    val searchMatchLimit: Int = 10,
+    val searchContextWindow: Int = 8,
     val webSearchEnabled: Boolean = false,
     val webSearchApiKeys: Map<String, String> = emptyMap(),
     val webSearchProvider: String = "brave",
@@ -399,35 +402,133 @@ class GenerationManager(
         )
     }
 
+    private data class SearchWindow(
+        val conversationId: String,
+        val conversationTitle: String,
+        val messages: List<MessageEntity>,
+        val topScore: Float,
+        val matchCount: Int
+    )
+
     private suspend fun executeSearchConversations(arguments: String, ctx: GenerationContext): String {
         val argsStr = arguments.ifBlank { "{}" }
         val args = Json.decodeFromString<Map<String, kotlinx.serialization.json.JsonElement>>(argsStr)
         val query = (args["query"] as? kotlinx.serialization.json.JsonPrimitive)?.content
             ?: return buildJsonObject { put("type", "search_conversations"); put("error", "no_query") }.toString()
-        val limit = ((args["limit"] as? kotlinx.serialization.json.JsonPrimitive)?.content?.toIntOrNull() ?: 10).coerceIn(1, 20)
+        val limit = ((args["limit"] as? kotlinx.serialization.json.JsonPrimitive)?.content?.toIntOrNull() ?: ctx.searchMatchLimit).coerceIn(1, 30)
+        val n = ((args["context_window"] as? kotlinx.serialization.json.JsonPrimitive)?.content?.toIntOrNull() ?: ctx.searchContextWindow).coerceIn(4, 32)
+        val halfN = n / 2
+        val maxWindowSize = n * 3
+        val totalCap = 200
 
         return try {
-            val results: List<com.newoether.agora.data.local.MessageEntity> = if (ctx.modelSearchMethod == "rag" && ctx.activeEmbeddingConfig != null) {
-                semanticSearch(query, limit, ctx).map { it.first }
+            // Step 1: Search — normalize to List<Pair<MessageEntity, Float>>
+            val scoredResults: List<Pair<MessageEntity, Float>> = if (ctx.modelSearchMethod == "rag" && ctx.activeEmbeddingConfig != null) {
+                semanticSearch(query, limit, ctx)
+                    .filter { it.second >= ctx.ragThreshold }
             } else {
-                chatDao.searchMessages(query, limit)
+                chatDao.searchMessages(query, limit).map { it to 1.0f }
             }
-            if (results.isEmpty())
+            if (scoredResults.isEmpty())
                 return buildJsonObject { put("type", "search_conversations"); put("query", query); put("error", "no_results") }.toString()
 
-            val grouped = results.groupBy { it.conversationId }
-            val titles = mutableMapOf<String, String>()
-            for (convId in grouped.keys.take(5)) {
-                titles[convId] = chatDao.getConversation(convId)?.title ?: ""
+            // Exclude current conversation
+            val currentConvId = ctx.conversationId
+            val scoreByMessageId = scoredResults.associate { it.first.id to it.second }
+            val matchesByConv = scoredResults.filter { it.first.conversationId != currentConvId }
+                .groupBy({ it.first.conversationId }, { it.first.id })
+            if (matchesByConv.isEmpty())
+                return buildJsonObject { put("type", "search_conversations"); put("query", query); put("error", "no_results") }.toString()
+
+            // Step 2-4: For each conversation, build branch, expand windows, merge
+            val allWindows = mutableListOf<SearchWindow>()
+
+            for ((convId, matchIds) in matchesByConv) {
+                val conversation = chatDao.getConversation(convId) ?: continue
+                val allMsgs = chatDao.getMessagesForConversation(convId).first()
+                    .filter { it.participant in listOf(Participant.USER, Participant.MODEL) && it.text.isNotEmpty() }
+
+                // Build selected branch as indexed list
+                val branch = buildSelectedBranch(allMsgs, conversation.selectedBranchesJson)
+                val indexMap = branch.withIndex().associate { (i, m) -> m.id to i }
+
+                // For each match, expand window N/2 before and N/2 after
+                val windows = mutableListOf<Pair<IntRange, Float>>() // (range, score)
+                for (matchId in matchIds) {
+                    val centerIdx = indexMap[matchId] ?: continue
+                    val score = scoreByMessageId[matchId] ?: 1.0f
+                    val before = halfN.coerceAtMost(centerIdx)
+                    val after = halfN.coerceAtMost(branch.size - 1 - centerIdx)
+                    // Asymmetric fill
+                    val extraBefore = (halfN - before).coerceAtMost(branch.size - 1 - centerIdx - after)
+                    val extraAfter = (halfN - after - extraBefore).coerceAtMost(centerIdx - before)
+                    val start = (centerIdx - before - extraAfter).coerceAtLeast(0)
+                    val end = (centerIdx + after + extraBefore).coerceAtMost(branch.size - 1)
+                    windows.add((start..end) to score)
+                }
+
+                // Merge overlapping windows within this conversation
+                val sorted = windows.sortedByDescending { it.second }
+                val merged = mutableListOf<Pair<IntRange, Float>>()
+                for ((range, score) in sorted) {
+                    var mergedRange = range
+                    val overlapIdx = merged.indexOfFirst { (existing, _) ->
+                        mergedRange.first <= existing.last + 1 && existing.first <= mergedRange.last + 1
+                    }
+                    if (overlapIdx >= 0) {
+                        val (existing, existingScore) = merged[overlapIdx]
+                        mergedRange = (minOf(mergedRange.first, existing.first)..maxOf(mergedRange.last, existing.last))
+                        merged[overlapIdx] = mergedRange to maxOf(score, existingScore)
+                    } else {
+                        merged.add(mergedRange to score)
+                    }
+                }
+
+                // Convert to SearchWindow, apply cap
+                for ((range, score) in merged) {
+                    var cappedRange = range
+                    if (range.last - range.first + 1 > maxWindowSize) {
+                        // Find the highest-scoring match in this window and center on it
+                        val centerId = matchIds.maxByOrNull { scoreByMessageId[it] ?: 0f }
+                        val centerIdx = centerId?.let { indexMap[it] } ?: (range.first + range.last) / 2
+                        cappedRange = ((centerIdx - halfN).coerceAtLeast(range.first)..(centerIdx + halfN).coerceAtMost(range.last))
+                    }
+                    val windowMsgs = cappedRange.map { branch[it] }
+                    allWindows.add(SearchWindow(
+                        conversationId = convId,
+                        conversationTitle = conversation.title,
+                        messages = windowMsgs,
+                        topScore = score,
+                        matchCount = matchIds.count { it in branch.subList(range.first, range.last + 1).map { m -> m.id } }
+                    ))
+                }
             }
 
+            // Step 5: Sort by topScore desc, cap total messages
+            val finalWindows = mutableListOf<SearchWindow>()
+            var totalMessages = 0
+            for (window in allWindows.sortedByDescending { it.topScore }) {
+                if (totalMessages >= totalCap) break
+                val available = totalCap - totalMessages
+                if (window.messages.size > available) {
+                    finalWindows.add(window.copy(messages = window.messages.take(available)))
+                    totalMessages = totalCap
+                } else {
+                    finalWindows.add(window)
+                    totalMessages += window.messages.size
+                }
+            }
+
+            // Step 6: Format output
             val resultArray = buildJsonArray {
-                for ((convId, messages) in grouped.entries.take(5)) {
-                    val title = titles[convId] ?: ""
+                for (window in finalWindows) {
                     add(buildJsonObject {
-                        put("title", title)
+                        put("title", window.conversationTitle)
+                        put("conversation_id", window.conversationId)
+                        put("top_score", window.topScore)
+                        put("match_count", window.matchCount)
                         putJsonArray("messages") {
-                            for (msg in messages.take(3)) {
+                            for (msg in window.messages) {
                                 add(buildJsonObject {
                                     put("participant", msg.participant.name)
                                     put("text", msg.text)
@@ -450,6 +551,40 @@ class GenerationManager(
                 put("message", e.message ?: "")
             }.toString()
         }
+    }
+
+    /**
+     * Reconstruct the user-selected message branch for a conversation.
+     * Uses selectedBranchesJson (Map<parentId → childId>) to walk from root to leaf.
+     */
+    private fun buildSelectedBranch(
+        allMessages: List<MessageEntity>,
+        selectedBranchesJson: String?
+    ): List<MessageEntity> {
+        val selections: Map<String?, String> = try {
+            val raw = Json.decodeFromString<Map<String, String>>(selectedBranchesJson ?: "{}")
+            raw.mapKeys { if (it.key == "null") null else it.key }
+        } catch (_: Exception) { emptyMap() }
+
+        val byParent = allMessages.groupBy { it.parentId }
+        val path = mutableListOf<MessageEntity>()
+        var parentId: String? = null
+        while (true) {
+            val siblings = byParent[parentId] ?: break
+            if (siblings.isEmpty()) break
+            val selectedId = selections[parentId]
+            val visible = siblings.filter {
+                !it.id.startsWith(Constants.TOOL_MSG_PREFIX) && !it.id.startsWith(Constants.RESULT_MSG_PREFIX)
+            }
+            val chosen = if (visible.isNotEmpty()) {
+                visible.find { it.id == selectedId } ?: visible.last()
+            } else {
+                siblings.find { it.id == selectedId } ?: siblings.last()
+            }
+            path.add(chosen)
+            parentId = chosen.id
+        }
+        return path
     }
 
     suspend fun semanticSearch(query: String, limit: Int, ctx: GenerationContext): List<Pair<com.newoether.agora.data.local.MessageEntity, Float>> = withContext(Dispatchers.IO) {
