@@ -114,9 +114,13 @@ fun parseLatexSpans(text: String): List<LatexSpan> {
         if (remaining.startsWith("$$")) {
             val end = remaining.indexOf("$$", 2)
             if (end >= 0) {
-                if (buf.isNotEmpty()) { spans.add(LatexSpan(false, buf.toString())); buf.clear() }
                 val latex = remaining.substring(2, end).trim()
-                if (latex.isNotBlank()) spans.add(LatexSpan(true, latex, true))
+                if (latex.isNotBlank() && latex.none { it.code > 127 }) {
+                    if (buf.isNotEmpty()) { spans.add(LatexSpan(false, buf.toString())); buf.clear() }
+                    spans.add(LatexSpan(true, latex, true))
+                } else if (latex.isNotBlank()) {
+                    buf.append(remaining.substring(0, end + 2))
+                }
                 i += end + 2
                 continue
             }
@@ -126,9 +130,13 @@ fun parseLatexSpans(text: String): List<LatexSpan> {
         if (remaining.startsWith("\\[")) {
             val end = remaining.indexOf("\\]", 2)
             if (end >= 0) {
-                if (buf.isNotEmpty()) { spans.add(LatexSpan(false, buf.toString())); buf.clear() }
                 val latex = remaining.substring(2, end).trim()
-                if (latex.isNotBlank()) spans.add(LatexSpan(true, latex, true))
+                if (latex.isNotBlank() && latex.none { it.code > 127 }) {
+                    if (buf.isNotEmpty()) { spans.add(LatexSpan(false, buf.toString())); buf.clear() }
+                    spans.add(LatexSpan(true, latex, true))
+                } else if (latex.isNotBlank()) {
+                    buf.append(remaining.substring(0, end + 2))
+                }
                 i += end + 2
                 continue
             }
@@ -138,9 +146,13 @@ fun parseLatexSpans(text: String): List<LatexSpan> {
         if (remaining.startsWith("\\(")) {
             val end = remaining.indexOf("\\)", 2)
             if (end >= 0) {
-                if (buf.isNotEmpty()) { spans.add(LatexSpan(false, buf.toString())); buf.clear() }
                 val latex = remaining.substring(2, end).trim()
-                if (latex.isNotBlank()) spans.add(LatexSpan(true, latex, false))
+                if (latex.isNotBlank() && latex.none { it.code > 127 }) {
+                    if (buf.isNotEmpty()) { spans.add(LatexSpan(false, buf.toString())); buf.clear() }
+                    spans.add(LatexSpan(true, latex, false))
+                } else if (latex.isNotBlank()) {
+                    buf.append(remaining.substring(0, end + 2))
+                }
                 i += end + 2
                 continue
             }
@@ -160,9 +172,13 @@ fun parseLatexSpans(text: String): List<LatexSpan> {
                 val end = remaining.indexOf('$', 1)
                 val closingOk = end >= 0 && (end == remaining.length - 1 || remaining[end - 1] != '\\')
                 if (closingOk) {
-                    if (buf.isNotEmpty()) { spans.add(LatexSpan(false, buf.toString())); buf.clear() }
                     val latex = remaining.substring(1, end).trim()
-                    if (latex.isNotBlank()) spans.add(LatexSpan(true, latex, false))
+                    if (latex.isNotBlank() && latex.none { it.code > 127 }) {
+                        if (buf.isNotEmpty()) { spans.add(LatexSpan(false, buf.toString())); buf.clear() }
+                        spans.add(LatexSpan(true, latex, false))
+                    } else if (latex.isNotBlank()) {
+                        buf.append(remaining.substring(0, end + 1))
+                    }
                     i += end + 1
                     continue
                 }
