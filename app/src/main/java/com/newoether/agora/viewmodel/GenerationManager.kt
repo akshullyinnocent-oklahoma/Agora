@@ -484,17 +484,19 @@ class GenerationManager(
                     }
                 }
 
+                // Only consider matches that are actually on the selected branch
+                val branchMatchIds = matchIds.filter { it in indexMap }.toSet()
+
                 // Convert to SearchWindow, apply cap
                 for ((range, score) in merged) {
                     var cappedRange = range
                     if (range.last - range.first + 1 > maxWindowSize) {
-                        // Find the highest-scoring match in this window and center on it
-                        val centerId = matchIds.maxByOrNull { scoreByMessageId[it] ?: 0f }
-                        val centerIdx = centerId?.let { indexMap[it] } ?: (range.first + range.last) / 2
+                        val centerId = branchMatchIds.maxByOrNull { scoreByMessageId[it] ?: 0f }
+                        val centerIdx = if (centerId != null) indexMap[centerId]!! else (range.first + range.last) / 2
                         cappedRange = ((centerIdx - halfN).coerceAtLeast(range.first)..(centerIdx + halfN).coerceAtMost(range.last))
                     }
                     val windowMsgIds = branch.subList(cappedRange.first, cappedRange.last + 1).map { it.id }.toSet()
-                    val matchedInWindow = matchIds.count { it in windowMsgIds }
+                    val matchedInWindow = branchMatchIds.count { it in windowMsgIds }
                     allWindows.add(SearchWindow(
                         conversationId = convId,
                         conversationTitle = conversation.title,
