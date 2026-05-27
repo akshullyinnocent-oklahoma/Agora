@@ -1222,7 +1222,16 @@ fun MessageItem(
                                                 Column {
                                                     paragraphs.forEachIndexed { paraIdx, paragraph ->
                                                         if (paraIdx > 0) Spacer(Modifier.height(8.dp))
-                                                        val paraSpans = remember(paragraph) { parseLatexSpans(paragraph) }
+                                                        val paraSpans = remember(paragraph) {
+                                                            val spans = parseLatexSpans(paragraph)
+                                                            val soloInline = spans.count { it.isLatex } == 1 &&
+                                                                spans.all { s -> s.isLatex || s.content.isBlank() }
+                                                            if (soloInline) {
+                                                                spans.map { s -> if (s.isLatex && !s.display) s.copy(display = true) else s }
+                                                            } else {
+                                                                spans
+                                                            }
+                                                        }
                                                         if (paraSpans.all { !it.isLatex }) {
                                                             Markdown(
                                                                 content = paragraph.escapeThinkTags(),

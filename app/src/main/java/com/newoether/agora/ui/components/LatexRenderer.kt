@@ -48,6 +48,8 @@ data class LatexSpan(
     val display: Boolean = false
 )
 
+private val dollarAmountPattern = Regex("""\$\d+(?!\$)(?!\w)""")
+
 fun parseLatexSpans(text: String): List<LatexSpan> {
     val spans = mutableListOf<LatexSpan>()
     val buf = StringBuilder()
@@ -117,6 +119,12 @@ fun parseLatexSpans(text: String): List<LatexSpan> {
             val nextChar = if (remaining.length > 1) remaining[1] else ' '
             val prevChar = if (i > 0) text[i - 1] else ' '
             if (prevChar != '\\') {
+                // $<digits> followed by non-$ non-word → dollar amount, not math
+                if (dollarAmountPattern.find(remaining)?.range?.first == 0) {
+                    buf.append('$')
+                    i++
+                    continue
+                }
                 val end = remaining.indexOf('$', 1)
                 val closingOk = end >= 0 && (end == remaining.length - 1 || remaining[end - 1] != '\\')
                 if (closingOk) {
@@ -403,8 +411,13 @@ fun LatexAwareText(
         val ic = buildMap<String, InlineTextContent> {
             entries.forEach { entry ->
                 if (entry.bitmap != null) {
-                    val pw = with(density) { maxOf(entry.bitmap.width.toSp().value, 24f) }
-                    val ph = with(density) { maxOf(entry.bitmap.height.toSp().value, 16f) }
+                    val rawW = with(density) { entry.bitmap.width.toSp().value }
+                    val rawH = with(density) { entry.bitmap.height.toSp().value }
+                    val maxH = if (textStyle.lineHeight.isSp) textStyle.lineHeight.value
+                               else textStyle.fontSize.value * 1.4f
+                    val scale = if (rawH > maxH) maxH / rawH else 1f
+                    val pw = maxOf(rawW * scale, 24f)
+                    val ph = maxOf(rawH * scale, 16f)
                     put(entry.tag, InlineTextContent(
                         Placeholder(width = pw.sp, height = ph.sp, placeholderVerticalAlign = PlaceholderVerticalAlign.Center)
                     ) { _ ->
