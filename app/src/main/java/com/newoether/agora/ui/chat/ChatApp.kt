@@ -4,7 +4,6 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.ExperimentalAnimationApi
-import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateDpAsState
@@ -133,16 +132,41 @@ fun ChatApp(
     var showDeleteConfirmDialog by remember { mutableStateOf<String?>(null) }
     var showPromptDialog by remember { mutableStateOf(false) }
     var isExpanded by remember { mutableStateOf(false) }
-    val outerSpacerHeightPx = remember { Animatable(0f) }
+    var outerSpacerStartNanos by remember { mutableLongStateOf(0L) }
+    var outerSpacerTickNanos by remember { mutableLongStateOf(0L) }
+    val spacerDurationMs = 400f
+    val spacerEasing = remember { CubicBezierEasing(0.15f, 0.5f, 0.25f, 1.0f) }
+
+    // Start timing synchronously on the first expand frame; never reset
+    if (isExpanded && outerSpacerStartNanos == 0L) {
+        outerSpacerStartNanos = System.nanoTime()
+    }
+    if (!isExpanded) {
+        outerSpacerStartNanos = 0L
+        outerSpacerTickNanos = 0L
+    }
+
+    val spacerElapsedMs = if (outerSpacerStartNanos > 0L) {
+        val tick = if (outerSpacerTickNanos > 0L) outerSpacerTickNanos else outerSpacerStartNanos
+        ((tick - outerSpacerStartNanos) / 1_000_000f).coerceIn(0f, spacerDurationMs)
+    } else 0f
+
+    val isExpandAnimating = outerSpacerStartNanos > 0L && spacerElapsedMs < spacerDurationMs
 
     LaunchedEffect(isExpanded) {
         if (isExpanded) {
-            outerSpacerHeightPx.snapTo(with(density) { 44.dp.toPx() })
-            outerSpacerHeightPx.animateTo(0f, tween(250))
-        } else {
-            outerSpacerHeightPx.snapTo(0f)
+            while (true) {
+                outerSpacerTickNanos = System.nanoTime()
+                if ((outerSpacerTickNanos - outerSpacerStartNanos) / 1_000_000f >= spacerDurationMs) break
+                delay(16L)
+            }
         }
     }
+
+    val outerSpacerHeightPx: Float = if (outerSpacerStartNanos > 0L) {
+        val easedFraction = spacerEasing.transform(spacerElapsedMs / spacerDurationMs)
+        with(density) { 44.dp.toPx() } * (1f - easedFraction)
+    } else 0f
 
     val configuration = LocalConfiguration.current
     val drawerWidth = configuration.screenWidthDp.dp * 0.8f
@@ -813,8 +837,8 @@ fun ChatApp(
                 color = Color.Transparent
             ) {
                 Column {
-                    if (outerSpacerHeightPx.value > 0f) {
-                        Spacer(modifier = Modifier.height(with(density) { outerSpacerHeightPx.value.toDp() }))
+                    if (outerSpacerHeightPx > 0f) {
+                        Spacer(modifier = Modifier.height(with(density) { outerSpacerHeightPx.toDp() }))
                     }
                     Surface(
                         modifier = Modifier
@@ -867,6 +891,7 @@ fun ChatApp(
                         textFieldState = textFieldState,
                         focusRequester = inputFocusRequester,
                         isExpanded = isExpanded,
+                        isExpandAnimating = isExpandAnimating,
                         onCollapse = { isExpanded = false },
                         onExpand = { isExpanded = true }
                     )
