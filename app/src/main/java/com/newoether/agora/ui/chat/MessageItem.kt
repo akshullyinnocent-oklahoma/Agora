@@ -1109,7 +1109,7 @@ fun MessageItem(
                                                                     isStreaming = isStreaming
                                                                 ) { text ->
                                                                     Markdown(
-                                                                        content = text.escapeThinkTags(),
+                                                                        content = text.escapeForMarkdown(),
                                                                         modifier = Modifier.fillMaxWidth(),
                                                                         colors = customMarkdownColors,
                                                                         typography = thoughtTypography,
@@ -1124,7 +1124,7 @@ fun MessageItem(
                                                                 isStreaming = isStreaming
                                                             ) { text ->
                                                                 Markdown(
-                                                                    content = text.escapeThinkTags(),
+                                                                    content = text.escapeForMarkdown(),
                                                                     modifier = Modifier.fillMaxWidth(),
                                                                     colors = customMarkdownColors,
                                                                     typography = thoughtTypography,
@@ -1209,7 +1209,7 @@ fun MessageItem(
                                             val spans = remember(text) { parseLatexSpans(text) }
                                             if (spans.all { !it.isLatex }) {
                                                 Markdown(
-                                                    content = text.escapeThinkTags(),
+                                                    content = text.escapeForMarkdown(),
                                                     modifier = Modifier.fillMaxWidth(),
                                                     colors = customMarkdownColors,
                                                     typography = customTypography,
@@ -1234,7 +1234,7 @@ fun MessageItem(
                                                         }
                                                         if (paraSpans.all { !it.isLatex }) {
                                                             Markdown(
-                                                                content = paragraph.escapeThinkTags(),
+                                                                content = paragraph.escapeForMarkdown(),
                                                                 modifier = Modifier.fillMaxWidth(),
                                                                 typography = customTypography,
                                                                 padding = customMarkdownPadding,
@@ -1729,6 +1729,6 @@ private fun RecomposeSafeMarkdown(
     }
 }
 
-private fun String.escapeThinkTags(): String =
-    replace("<think>", "<​think>").replace("</think>", "</​think>")
+private fun String.escapeForMarkdown(): String =
+    replace("<think>", "<​think>").replace("</think>", "</​think>").replace("$", "\\$")
 
