@@ -1148,13 +1148,13 @@ fun MessageItem(
                                                     Text(
                                                         toolDisplayName(seg.toolName),
                                                         style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
-                                                        color = if (isToolError) MaterialTheme.colorScheme.error.copy(alpha = 0.8f) else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
                                                         fontWeight = FontWeight.SemiBold
                                                     )
                                                     Text(
                                                         text = toolSummary(seg),
                                                         style = MaterialTheme.typography.bodySmall.copy(fontSize = 10.sp, lineHeight = 13.sp),
-                                                        color = if (isToolError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
+                                                        color = MaterialTheme.colorScheme.onSurfaceVariant
                                                     )
                                                 }
                                             }

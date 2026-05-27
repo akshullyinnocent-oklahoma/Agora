@@ -84,7 +84,7 @@ fun SettingsModelsPage(viewModel: ChatViewModel, onBack: () -> Unit) {
                             headlineContent = {
                                 Text(
                                     if (enabledModels.isEmpty()) stringResource(R.string.models_no_models) else activeDisplayName,
-                                    color = if (enabledModels.isEmpty()) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
+                                    color = if (enabledModels.isEmpty()) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f) else MaterialTheme.colorScheme.onSurface
                                 )
                             },
                             supportingContent = if (enabledModels.isNotEmpty()) {
