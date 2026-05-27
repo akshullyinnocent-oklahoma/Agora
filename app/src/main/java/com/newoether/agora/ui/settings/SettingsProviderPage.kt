@@ -16,6 +16,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
@@ -138,7 +139,7 @@ fun SettingsProviderPage(viewModel: ChatViewModel, onBack: () -> Unit) {
                                 IconButton(onClick = { showProviderMenu = true }, modifier = Modifier.size(24.dp)) {
                                     Icon(Icons.Default.MoreVert, contentDescription = stringResource(R.string.options), modifier = Modifier.size(18.dp))
                                 }
-                                DropdownMenu(expanded = showProviderMenu, onDismissRequest = { showProviderMenu = false }, containerColor = MaterialTheme.colorScheme.surfaceContainer, shape = RoundedCornerShape(12.dp)) {
+                                DropdownMenu(expanded = showProviderMenu, onDismissRequest = { showProviderMenu = false }, containerColor = MaterialTheme.colorScheme.surfaceContainer, tonalElevation = 16.dp, shape = RoundedCornerShape(12.dp)) {
                                     DropdownMenuItem(text = { Text(stringResource(R.string.rename)) }, leadingIcon = { Icon(Icons.Default.Edit, null) }, onClick = { showProviderMenu = false; showRenameProvider = true })
                                     DropdownMenuItem(text = { Text(stringResource(R.string.delete), color = MaterialTheme.colorScheme.error) }, leadingIcon = { Icon(Icons.Default.Delete, null, tint = MaterialTheme.colorScheme.error) }, onClick = { showProviderMenu = false; showDeleteProvider = true })
                                 }
@@ -186,6 +187,7 @@ fun SettingsProviderPage(viewModel: ChatViewModel, onBack: () -> Unit) {
                                         }
                                         DropdownMenu(
                                             containerColor = MaterialTheme.colorScheme.surfaceContainer,
+                                            tonalElevation = 16.dp,
                                             expanded = showMenu,
                                             onDismissRequest = { showMenu = false },
                                             shape = RoundedCornerShape(12.dp)
@@ -312,7 +314,7 @@ fun SettingsProviderPage(viewModel: ChatViewModel, onBack: () -> Unit) {
                                         IconButton(onClick = { showMenu = true }, modifier = Modifier.size(24.dp)) {
                                             Icon(Icons.Default.MoreVert, contentDescription = stringResource(R.string.options), modifier = Modifier.size(18.dp))
                                         }
-                                        DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }, containerColor = MaterialTheme.colorScheme.surfaceContainer, shape = RoundedCornerShape(12.dp)) {
+                                        DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }, containerColor = MaterialTheme.colorScheme.surfaceContainer, tonalElevation = 16.dp, shape = RoundedCornerShape(12.dp)) {
                                             DropdownMenuItem(text = { Text(stringResource(R.string.provider_edit)) }, leadingIcon = { Icon(Icons.Default.Edit, null) }, onClick = { showMenu = false; showKeyDialog = entry })
                                             DropdownMenuItem(text = { Text(stringResource(R.string.provider_delete), color = MaterialTheme.colorScheme.error) }, leadingIcon = { Icon(Icons.Default.Delete, null, tint = MaterialTheme.colorScheme.error) }, onClick = { showMenu = false; showDeleteKeyConfirm = entry })
                                         }
@@ -732,11 +734,12 @@ fun SettingsProviderPage(viewModel: ChatViewModel, onBack: () -> Unit) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     if (isConfigured) {
                                         Text(
-                                            "• ",
+                                            "•",
                                             color = MaterialTheme.colorScheme.primary,
                                             style = MaterialTheme.typography.titleLarge,
                                             fontWeight = FontWeight.Black
                                         )
+                                        Spacer(modifier = Modifier.width(5.dp))
                                     }
                                     Text(p)
                                     if (isCustom) {

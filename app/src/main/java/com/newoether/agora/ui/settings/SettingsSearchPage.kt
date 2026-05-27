@@ -257,6 +257,7 @@ fun SettingsSearchPage(viewModel: ChatViewModel, onBack: () -> Unit) {
                                                 }
                                                 DropdownMenu(
                                                     containerColor = MaterialTheme.colorScheme.surfaceContainer,
+                                                    tonalElevation = 16.dp,
                                                     expanded = showMenuForModel == model.id,
                                                     onDismissRequest = { showMenuForModel = null },
                                                     shape = RoundedCornerShape(12.dp)

@@ -314,7 +314,7 @@ fun ChatApp(
             ModalDrawerSheet(
                 drawerShape = RoundedCornerShape(topEnd = 24.dp, bottomEnd = 24.dp),
                 drawerContainerColor = MaterialTheme.colorScheme.surface,
-                drawerTonalElevation = 2.dp,
+                drawerTonalElevation = 1.dp,
                 modifier = Modifier
                     .width(drawerWidth)
                     .onGloballyPositioned { coords ->
@@ -477,6 +477,7 @@ fun ChatApp(
 
                                     DropdownMenu(
                                         containerColor = MaterialTheme.colorScheme.surfaceContainer,
+                                        tonalElevation = 16.dp,
                                         expanded = showMenu,
                                         onDismissRequest = { showMenu = false },
                                         offset = pressOffset,
@@ -821,8 +822,8 @@ fun ChatApp(
                         .imePadding()
                         .padding(8.dp),
                     color = MaterialTheme.colorScheme.surface,
-                    tonalElevation = 4.dp,
-                    shadowElevation = 0.dp,
+                    tonalElevation = 2.dp,
+                    shadowElevation = 8.dp,
                     shape = RoundedCornerShape(28.dp)
                 ) {
                     Box(

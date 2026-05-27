@@ -32,6 +32,7 @@ import androidx.compose.ui.unit.dp
 import com.newoether.agora.R
 import com.newoether.agora.util.noOpBringIntoView
 import com.newoether.agora.viewmodel.ChatViewModel
+import kotlin.math.min
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -90,7 +91,7 @@ fun SettingsModelsPage(viewModel: ChatViewModel, onBack: () -> Unit) {
                                 { Text(providerName, style = MaterialTheme.typography.bodySmall) }
                             } else null,
                             leadingContent = { Icon(Icons.Default.Chat, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
-                            modifier = Modifier.clickable(enabled = enabledModels.isNotEmpty()) { showActiveModelDialog = true }
+                            modifier = Modifier.heightIn(min = 66.dp).clickable(enabled = enabledModels.isNotEmpty()) { showActiveModelDialog = true }
                         )
                     }
                 )

@@ -53,14 +53,15 @@ fun SettingsGroup(
                 val isLast = index == items.lastIndex
                 val shape = when {
                     items.size == 1 -> RoundedCornerShape(24.dp)
-                    isFirst -> RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp, bottomStart = 3.dp, bottomEnd = 3.dp)
-                    isLast -> RoundedCornerShape(topStart = 3.dp, topEnd = 3.dp, bottomStart = 24.dp, bottomEnd = 24.dp)
-                    else -> RoundedCornerShape(3.dp)
+                    isFirst -> RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp, bottomStart = 5.dp, bottomEnd = 5.dp)
+                    isLast -> RoundedCornerShape(topStart = 5.dp, topEnd = 5.dp, bottomStart = 24.dp, bottomEnd = 24.dp)
+                    else -> RoundedCornerShape(5.dp)
                 }
                 Surface(
                     shape = shape,
                     color = MaterialTheme.colorScheme.surface,
-                    tonalElevation = 2.dp,
+                    tonalElevation = 1.dp,
+                    shadowElevation = 8.dp,
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     item()
@@ -252,14 +253,15 @@ fun SettingsScreen(viewModel: ChatViewModel, onBack: () -> Unit) {
                                         val isLast = index == group.items.lastIndex
                                         val shape = when {
                                             group.items.size == 1 -> RoundedCornerShape(24.dp)
-                                            isFirst -> RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp, bottomStart = 3.dp, bottomEnd = 3.dp)
-                                            isLast -> RoundedCornerShape(topStart = 3.dp, topEnd = 3.dp, bottomStart = 24.dp, bottomEnd = 24.dp)
-                                            else -> RoundedCornerShape(3.dp)
+                                            isFirst -> RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp, bottomStart = 5.dp, bottomEnd = 5.dp)
+                                            isLast -> RoundedCornerShape(topStart = 5.dp, topEnd = 5.dp, bottomStart = 24.dp, bottomEnd = 24.dp)
+                                            else -> RoundedCornerShape(5.dp)
                                         }
                                         Surface(
                                             shape = shape,
                                             color = MaterialTheme.colorScheme.surface,
-                                            tonalElevation = 2.dp,
+                                            tonalElevation = 1.dp,
+                                            shadowElevation = 8.dp,
                                             modifier = Modifier
                                                 .fillMaxWidth()
                                                 .clip(shape)

@@ -462,7 +462,7 @@
     <string name="about_source_code">源代码</string>
     <string name="about_version">版本</string>
     <string name="about_rating">评价应用</string>
-    <string name="about_rating_desc">这个项目由一个人独立开发。我真的很感谢你的反馈。</string>
+    <string name="about_rating_desc">这个项目由一个人独立开发。真诚地感谢您的反馈。</string>
     <string name="rating_title">评价 Agora</string>
     <string name="rating_star">%1$d 星</string>
     <string name="rating_your_name">您的姓名（可选）</string>

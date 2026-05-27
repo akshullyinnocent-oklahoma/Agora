@@ -1,6 +1,7 @@
 package com.newoether.agora.ui.settings
 
 import android.annotation.SuppressLint
+import android.view.Surface
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.animateContentSize
@@ -162,7 +163,9 @@ fun SystemPromptEditorPage(
                 onValueChange = { title = it; titleError = false },
                 label = { Text(stringResource(R.string.prompts_title_hint)) },
                 isError = titleError,
-                supportingText = if (titleError) {{ Text(stringResource(R.string.template_title_required)) }} else null,
+                supportingText = if (titleError) {
+                    { Text(stringResource(R.string.template_title_required)) }
+                } else null,
                 shape = RoundedCornerShape(16.dp),
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true
@@ -223,8 +226,6 @@ fun SystemPromptEditorPage(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            HorizontalDivider()
-
             Spacer(modifier = Modifier.height(12.dp))
 
             // Tab content
@@ -256,7 +257,12 @@ fun SystemPromptEditorPage(
                         val item = currentItems[i]
 
                         InsertBetweenButton(
-                            onInsertText = { currentItems.add(i, PromptTemplateItem(type = PromptItemType.CUSTOM, value = "")) },
+                            onInsertText = {
+                                currentItems.add(
+                                    i,
+                                    PromptTemplateItem(type = PromptItemType.CUSTOM, value = "")
+                                )
+                            },
                             onInsertVariable = { insertAtIndex = i; showVariablePicker = true }
                         )
 
@@ -264,14 +270,37 @@ fun SystemPromptEditorPage(
                             item = item,
                             onChange = { updated -> currentItems[i] = updated },
                             onDelete = { currentItems.removeAt(i) },
-                            onMoveUp = if (i > 0) {{ val moved = currentItems.removeAt(i); currentItems.add(i - 1, moved) }} else null,
-                            onMoveDown = if (i < currentItems.lastIndex) {{ val moved = currentItems.removeAt(i); currentItems.add(i + 1, moved) }} else null
+                            onMoveUp = if (i > 0) {
+                                {
+                                    val moved = currentItems.removeAt(i); currentItems.add(
+                                    i - 1,
+                                    moved
+                                )
+                                }
+                            } else null,
+                            onMoveDown = if (i < currentItems.lastIndex) {
+                                {
+                                    val moved = currentItems.removeAt(i); currentItems.add(
+                                    i + 1,
+                                    moved
+                                )
+                                }
+                            } else null
                         )
                     }
 
                     InsertBetweenButton(
-                        onInsertText = { currentItems.add(PromptTemplateItem(type = PromptItemType.CUSTOM, value = "")) },
-                        onInsertVariable = { insertAtIndex = currentItems.size; showVariablePicker = true }
+                        onInsertText = {
+                            currentItems.add(
+                                PromptTemplateItem(
+                                    type = PromptItemType.CUSTOM,
+                                    value = ""
+                                )
+                            )
+                        },
+                        onInsertVariable = {
+                            insertAtIndex = currentItems.size; showVariablePicker = true
+                        }
                     )
 
                     Spacer(modifier = Modifier.height(4.dp))
@@ -281,7 +310,6 @@ fun SystemPromptEditorPage(
             Spacer(modifier = Modifier.height(12.dp))
 
             // Preview
-            HorizontalDivider()
             Spacer(modifier = Modifier.height(12.dp))
             Text(
                 text = stringResource(R.string.template_preview),
@@ -289,8 +317,10 @@ fun SystemPromptEditorPage(
                 fontWeight = FontWeight.Bold
             )
             Spacer(modifier = Modifier.height(6.dp))
-            ElevatedCard(
+            Surface(
                 shape = RoundedCornerShape(16.dp),
+                color = MaterialTheme.colorScheme.surfaceContainer,
+                tonalElevation = 8.dp,
                 modifier = Modifier.fillMaxWidth().animateContentSize(tween(200))
             ) {
                 val previewText = PredefinedVariables.compile(
@@ -314,7 +344,7 @@ fun SystemPromptEditorPage(
         ModalBottomSheet(
             onDismissRequest = { showVariablePicker = false; insertAtIndex = -1 },
             shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp),
-            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+            containerColor = MaterialTheme.colorScheme.surfaceContainer
         ) {
             Text(
                 text = stringResource(R.string.template_variable_picker_title),
@@ -377,6 +407,7 @@ private fun InsertBetweenButton(
             }
             DropdownMenu(
                 containerColor = MaterialTheme.colorScheme.surfaceContainer,
+                tonalElevation = 16.dp,
                 expanded = expanded,
                 onDismissRequest = { expanded = false },
                 shape = RoundedCornerShape(12.dp)
@@ -440,7 +471,8 @@ private fun TemplateItemRow(
             PromptItemType.PREDEFINED -> {
                 Surface(
                     shape = RoundedCornerShape(16.dp),
-                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+                    color = MaterialTheme.colorScheme.surfaceContainer,
+                    tonalElevation = 8.dp,
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Row(

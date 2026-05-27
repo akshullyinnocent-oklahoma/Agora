@@ -64,6 +64,7 @@ fun RatingForm(
             fontWeight = FontWeight.Bold,
             modifier = Modifier.padding(bottom = 4.dp)
         )
+        Spacer(modifier = Modifier.height(6.dp))
         Text(
             text = stringResource(R.string.about_rating_desc),
             style = MaterialTheme.typography.bodyMedium,
