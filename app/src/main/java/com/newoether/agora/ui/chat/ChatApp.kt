@@ -67,6 +67,7 @@ import androidx.compose.ui.unit.sp
 import com.newoether.agora.R
 import com.newoether.agora.data.local.MessageEntity
 import com.newoether.agora.model.Participant
+import com.newoether.agora.ui.components.AnimatedBlobBackground
 import com.newoether.agora.ui.components.TypewriterText
 import com.newoether.agora.viewmodel.ChatViewModel
 import kotlinx.coroutines.cancel
@@ -548,18 +549,7 @@ fun ChatApp(
                 .pointerInput(Unit) { detectTapGestures { focusManager.clearFocus() } }
                 .onSizeChanged { viewportHeightPx = it.height }
         ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(
-                        Brush.verticalGradient(
-                            listOf(
-                                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.08f),
-                                MaterialTheme.colorScheme.background
-                            )
-                        )
-                    )
-            )
+            AnimatedBlobBackground()
 
             Scaffold(
                 containerColor = Color.Transparent,
