@@ -4,7 +4,7 @@ import com.newoether.agora.util.DebugLog
 import com.newoether.agora.model.ChatMessage
 import com.newoether.agora.model.Participant
 import com.newoether.agora.api.util.buildToolCallId
-import com.newoether.agora.api.util.limitContext
+import com.newoether.agora.api.util.prepareMessages
 import com.newoether.agora.util.Constants
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.currentCoroutineContext
@@ -125,160 +125,40 @@ class AnthropicProvider : LlmProvider {
         val baseUrl = config.baseUrl?.trimEnd('/') ?: "https://api.anthropic.com/v1"
         val modelName = config.modelId
 
-        val limitedPath = limitContext(messages, config.maxContextWindow)
+        val validatedPath = prepareMessages(messages, config.maxContextWindow)
 
-        val apiMessages = limitedPath.flatMap { msg ->
-            val entries = mutableListOf<AnthropicMessage>()
-
-            // tool_ messages: assistant turn with tool_use blocks from segments
-            if (msg.id.startsWith(Constants.TOOL_MSG_PREFIX)) {
-                val toolSegs = msg.segments?.filter { it.type == "tool" }
-                if (!toolSegs.isNullOrEmpty()) {
-                    val toolUseBlocks = toolSegs.map { seg ->
-                        val toolId = seg.toolCallId ?: buildToolCallId(seg.toolName ?: "", seg.toolArgs ?: "{}", "tool_")
-                        AnthropicContentPart(
-                            type = "tool_use",
-                            id = toolId,
-                            name = seg.toolName ?: "",
-                            input = try { json.parseToJsonElement(seg.toolArgs ?: "{}") as? JsonObject ?: JsonObject(emptyMap()) } catch (_: Exception) { JsonObject(emptyMap()) }
-                        )
+        // Convert ChatMessages to Anthropic API format.
+        // Consecutive result_ messages are batched into a single user message
+        // because Anthropic requires all tool_results for a batched assistant
+        // tool_use to be in the single immediately-following user message.
+        val apiMessages = buildList {
+            var i = 0
+            while (i < validatedPath.size) {
+                val msg = validatedPath[i]
+                when {
+                    msg.id.startsWith(Constants.TOOL_MSG_PREFIX) -> {
+                        add(buildAssistantToolUse(msg))
+                        i++
+                        // Batch all immediately following result_ messages into one user message
+                        if (i < validatedPath.size && validatedPath[i].id.startsWith(Constants.RESULT_MSG_PREFIX)) {
+                            val resultBlocks = mutableListOf<AnthropicContentPart>()
+                            while (i < validatedPath.size && validatedPath[i].id.startsWith(Constants.RESULT_MSG_PREFIX)) {
+                                resultBlocks.addAll(buildToolResultBlocks(validatedPath[i]))
+                                i++
+                            }
+                            add(AnthropicMessage(role = "user", content = resultBlocks))
+                        }
                     }
-                    entries.add(AnthropicMessage(role = "assistant", content = toolUseBlocks))
-                } else if (msg.toolCall != null) {
-                    val tc = msg.toolCall!!
-                    val toolId = tc.toolCallId ?: buildToolCallId(tc.toolName, tc.arguments, "tool_")
-                    entries.add(AnthropicMessage(
-                        role = "assistant",
-                        content = listOf(AnthropicContentPart(
-                            type = "tool_use",
-                            id = toolId,
-                            name = tc.toolName,
-                            input = try { json.parseToJsonElement(tc.arguments) as? JsonObject ?: JsonObject(emptyMap()) } catch (_: Exception) { JsonObject(emptyMap()) }
-                        ))
-                    ))
-                }
-                return@flatMap entries
-            }
-
-            // result_ messages carry the tool_result (handle segments for multi-tool, toolCall for single)
-            if (msg.id.startsWith(Constants.RESULT_MSG_PREFIX)) {
-                val toolSegs = msg.segments?.filter { it.type == "tool" }
-                if (!toolSegs.isNullOrEmpty()) {
-                    val toolResultBlocks = toolSegs.map { seg ->
-                        val toolId = seg.toolCallId ?: buildToolCallId(seg.toolName ?: "", seg.toolArgs ?: "{}", "tool_")
-                        AnthropicContentPart(
-                            type = "tool_result",
-                            toolUseId = toolId,
-                            content = seg.toolResult ?: ""
-                        )
+                    msg.id.startsWith(Constants.RESULT_MSG_PREFIX) -> {
+                        // Orphan result_ — should not occur after validateToolMessages, but drop defensively
+                        i++
                     }
-                    entries.add(AnthropicMessage(role = "user", content = toolResultBlocks))
-                } else if (msg.toolCall != null) {
-                    val tc = msg.toolCall!!
-                    val toolId = tc.toolCallId ?: buildToolCallId(tc.toolName, tc.arguments, "tool_")
-                    entries.add(AnthropicMessage(
-                        role = "user",
-                        content = listOf(AnthropicContentPart(
-                            type = "tool_result",
-                            toolUseId = toolId,
-                            content = tc.result
-                        ))
-                    ))
-                }
-                return@flatMap entries
-            }
-
-            val parts = mutableListOf<AnthropicContentPart>()
-
-            // Add images
-            for (imagePath in msg.images) {
-                val encoded = com.newoether.agora.api.util.encodeImageToBase64(imagePath)
-                if (encoded != null) {
-                    val (mimeType, base64) = encoded
-                    parts.add(AnthropicContentPart(
-                        type = "image",
-                        source = AnthropicImageSource(mediaType = mimeType, data = base64)
-                    ))
+                    else -> {
+                        add(buildNormalMessage(msg))
+                        i++
+                    }
                 }
             }
-
-            // Thinking blocks omitted from history: Anthropic requires a valid signature
-            // for every thinking block sent back in a multi-turn request. Signatures are
-            // available during streaming but may not survive segment reconstruction, so
-            // omitting thinking blocks is safer than risking a 400 signature mismatch.
-
-            if (msg.text.isNotEmpty()) {
-                parts.add(AnthropicContentPart(type = "text", text = msg.text))
-            }
-            if (parts.isEmpty()) parts.add(AnthropicContentPart(type = "text", text = "Continue"))
-
-            val role = when {
-                msg.participant == Participant.USER -> "user"
-                else -> "assistant"
-            }
-            entries.add(AnthropicMessage(role = role, content = parts))
-            entries
-        }
-
-        // Fix tool_use / tool_result pairing before sending to Anthropic.
-        // Two classes of problem exist:
-        //   1. Orphaned blocks: a tool_use with no following tool_result, or vice versa.
-        //      Caused by limitContext truncation or user interrupting a tool round.
-        //   2. ID mismatches: a tool_result whose tool_use_id does not match any
-        //      tool_use in the preceding assistant message. Caused by legacy data
-        //      where result_ messages were persisted without toolCallId.
-        //
-        // Pass 1 — fix ID mismatches by matching on position within the message.
-        // Pass 2 — strip orphaned blocks (tool_use with no next tool_result, and
-        //           tool_result with no preceding tool_use).
-        val cleanedMessages = apiMessages.toMutableList()
-
-        // Pass 1: fix tool_result IDs
-        for (i in 0 until cleanedMessages.size) {
-            val msg = cleanedMessages[i]
-            if (msg.role != "user" || msg.content.none { it.type == "tool_result" }) continue
-            if (i == 0) continue
-            val prev = cleanedMessages[i - 1]
-            if (prev.role != "assistant") continue
-            val useBlocks = prev.content.filter { it.type == "tool_use" }
-            if (useBlocks.isEmpty()) continue
-            val useIds = useBlocks.mapNotNull { it.id }
-            val resultBlocks = msg.content.filter { it.type == "tool_result" }
-            val fixed = msg.content.map { part ->
-                if (part.type != "tool_result" || part.toolUseId in useIds) return@map part
-                val idx = resultBlocks.indexOf(part)
-                if (idx in useIds.indices) {
-                    val candidate = useIds[idx]
-                    val alreadyUsed = resultBlocks.any { it !== part && it.toolUseId == candidate }
-                    if (alreadyUsed) part else part.copy(toolUseId = candidate)
-                } else part
-            }
-            if (fixed != msg.content) cleanedMessages[i] = msg.copy(content = fixed)
-        }
-
-        // Pass 2: strip orphaned blocks
-        var i = 0
-        while (i < cleanedMessages.size) {
-            val msg = cleanedMessages[i]
-            if (msg.role == "assistant" && msg.content.any { it.type == "tool_use" }) {
-                val nextHasResult = i + 1 < cleanedMessages.size &&
-                    cleanedMessages[i + 1].content.any { it.type == "tool_result" }
-                if (!nextHasResult) {
-                    val nonTool = msg.content.filter { it.type != "tool_use" }
-                    if (nonTool.isEmpty()) { cleanedMessages.removeAt(i); continue }
-                    else cleanedMessages[i] = msg.copy(content = nonTool)
-                }
-            }
-            if (msg.role == "user" && msg.content.any { it.type == "tool_result" }) {
-                val prevHasUse = i > 0 && cleanedMessages[i - 1].role == "assistant" &&
-                    cleanedMessages[i - 1].content.any { it.type == "tool_use" }
-                if (!prevHasUse) {
-                    val nonResult = msg.content.filter { it.type != "tool_result" }
-                    if (nonResult.isEmpty()) { cleanedMessages.removeAt(i); continue }
-                    else cleanedMessages[i] = msg.copy(content = nonResult)
-                }
-            }
-            i++
         }
 
         // Claude thinking logic - all Claude models support thinking except the 3 legacy ones
@@ -329,7 +209,7 @@ class AnthropicProvider : LlmProvider {
 
         val requestBody = AnthropicRequest(
             model = modelName,
-            messages = cleanedMessages,
+            messages = apiMessages,
             system = config.systemPrompt,
             thinking = thinking,
             maxTokens = if (thinking != null) maxOf(thinking.budgetTokens + 1024, 4096) else 4096,
@@ -342,7 +222,7 @@ class AnthropicProvider : LlmProvider {
             headers["x-api-key"] = config.apiKey
             headers["anthropic-version"] = "2023-06-01"
             val requestBodyJson = json.encodeToString(AnthropicRequest.serializer(), requestBody)
-            DebugLog.d("AgoraAPI", "[Anthropic] REQ → $baseUrl/messages | model=$modelName | msgs=${cleanedMessages.size} | thinking=${thinking != null} | tools=${anthropicTools?.size ?: 0}")
+            DebugLog.d("AgoraAPI", "[Anthropic] REQ → $baseUrl/messages | model=$modelName | msgs=${apiMessages.size} | thinking=${thinking != null} | tools=${anthropicTools?.size ?: 0}")
             DebugLog.d("AgoraAPI", "[Anthropic] BODY: ${requestBodyJson.take(4000)}")
             val handle = HttpClient.streamPost(url, requestBodyJson, headers)
             try {
@@ -454,6 +334,62 @@ class AnthropicProvider : LlmProvider {
             }
         }
     }.flowOn(Dispatchers.IO)
+
+    // ── Message conversion helpers ──
+
+    private fun buildAssistantToolUse(msg: ChatMessage): AnthropicMessage {
+        val toolSegs = msg.segments?.filter { it.type == "tool" }
+        if (!toolSegs.isNullOrEmpty()) {
+            val blocks = toolSegs.map { seg -> buildToolUseBlock(seg.toolCallId, seg.toolName, seg.toolArgs) }
+            return AnthropicMessage(role = "assistant", content = blocks)
+        }
+        val tc = msg.toolCall ?: return AnthropicMessage(role = "assistant", content = listOf(
+            AnthropicContentPart(type = "text", text = "Continue")
+        ))
+        val block = buildToolUseBlock(tc.toolCallId, tc.toolName, tc.arguments)
+        return AnthropicMessage(role = "assistant", content = listOf(block))
+    }
+
+    private fun buildToolUseBlock(id: String?, name: String?, args: String?): AnthropicContentPart {
+        val toolId = id ?: buildToolCallId(name ?: "", args ?: "{}", "tool_")
+        val input = try {
+            json.parseToJsonElement(args ?: "{}") as? JsonObject ?: JsonObject(emptyMap())
+        } catch (_: Exception) { JsonObject(emptyMap()) }
+        return AnthropicContentPart(type = "tool_use", id = toolId, name = name ?: "", input = input)
+    }
+
+    private fun buildToolResultBlocks(msg: ChatMessage): List<AnthropicContentPart> {
+        val toolSegs = msg.segments?.filter { it.type == "tool" }
+        if (!toolSegs.isNullOrEmpty()) {
+            return toolSegs.map { seg ->
+                val toolId = seg.toolCallId ?: buildToolCallId(seg.toolName ?: "", seg.toolArgs ?: "{}", "tool_")
+                AnthropicContentPart(type = "tool_result", toolUseId = toolId, content = seg.toolResult ?: "")
+            }
+        }
+        val tc = msg.toolCall ?: return emptyList()
+        val toolId = tc.toolCallId ?: buildToolCallId(tc.toolName, tc.arguments, "tool_")
+        return listOf(AnthropicContentPart(type = "tool_result", toolUseId = toolId, content = tc.result))
+    }
+
+    private fun buildNormalMessage(msg: ChatMessage): AnthropicMessage {
+        val parts = mutableListOf<AnthropicContentPart>()
+        for (imagePath in msg.images) {
+            val encoded = com.newoether.agora.api.util.encodeImageToBase64(imagePath)
+            if (encoded != null) {
+                val (mimeType, base64) = encoded
+                parts.add(AnthropicContentPart(
+                    type = "image",
+                    source = AnthropicImageSource(mediaType = mimeType, data = base64)
+                ))
+            }
+        }
+        if (msg.text.isNotEmpty()) {
+            parts.add(AnthropicContentPart(type = "text", text = msg.text))
+        }
+        if (parts.isEmpty()) parts.add(AnthropicContentPart(type = "text", text = "Continue"))
+        val role = if (msg.participant == Participant.USER) "user" else "assistant"
+        return AnthropicMessage(role = role, content = parts)
+    }
 
     override suspend fun fetchModels(apiKey: String, baseUrl: String?): List<String> = kotlinx.coroutines.withContext(Dispatchers.IO) {
         try {

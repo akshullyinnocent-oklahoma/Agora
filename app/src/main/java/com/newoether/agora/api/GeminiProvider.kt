@@ -2,7 +2,7 @@ package com.newoether.agora.api
 
 import com.newoether.agora.util.DebugLog
 import com.newoether.agora.model.ChatMessage
-import com.newoether.agora.api.util.limitContext
+import com.newoether.agora.api.util.prepareMessages
 import com.newoether.agora.model.Participant
 import com.newoether.agora.util.Constants
 import kotlinx.coroutines.Dispatchers
@@ -20,6 +20,7 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import java.io.File
+import java.util.UUID
 
 @Serializable
 internal data class ApiGenerateContentRequest(
@@ -150,10 +151,9 @@ class GeminiProvider : LlmProvider {
         val cleanModelName = config.modelId.removePrefix("models/")
         
         // Context windowing
-        val limitedPath = limitContext(messages, config.maxContextWindow)
+        val validatedPath = prepareMessages(messages, config.maxContextWindow)
 
-
-        val apiContents = limitedPath.flatMap { msg ->
+        val apiContents = validatedPath.flatMap { msg ->
             val entries = mutableListOf<ApiRequestContent>()
 
             // tool_ messages: model turn with functionCall(s)
@@ -244,31 +244,6 @@ class GeminiProvider : LlmProvider {
             entries
         }
 
-        // Strip functionCall parts that lack a following functionResponse.
-        // Gemini may reject orphaned functionCalls in multi-turn history, and
-        // limitContext / buildApiPath can produce them when tool chains are
-        // truncated or result_ messages are missing.
-        val cleanedContents = apiContents.toMutableList()
-        var ci = 0
-        while (ci < cleanedContents.size) {
-            val content = cleanedContents[ci]
-            if (content.role == "model" && content.parts.any { it.functionCall != null }) {
-                val nextHasFunctionResponse = ci + 1 < cleanedContents.size &&
-                    cleanedContents[ci + 1].role == "user" &&
-                    cleanedContents[ci + 1].parts.any { it.functionResponse != null }
-                if (!nextHasFunctionResponse) {
-                    val nonFc = content.parts.filter { it.functionCall == null }
-                    if (nonFc.isEmpty()) {
-                        cleanedContents.removeAt(ci)
-                        continue
-                    } else {
-                        cleanedContents[ci] = content.copy(parts = nonFc)
-                    }
-                }
-            }
-            ci++
-        }
-
         val systemInstruction = if (!config.systemPrompt.isNullOrBlank()) {
             ApiRequestContent(parts = listOf(ApiRequestPart(text = config.systemPrompt)))
         } else null
@@ -332,7 +307,7 @@ class GeminiProvider : LlmProvider {
         } else null
 
         val requestBody = ApiGenerateContentRequest(
-            contents = cleanedContents,
+            contents = apiContents,
             systemInstruction = systemInstruction,
             tools = if (tools.isNotEmpty()) tools else null,
             toolConfig = toolConfig,
@@ -352,7 +327,7 @@ class GeminiProvider : LlmProvider {
                 "x-goog-api-key" to config.apiKey
             )
             val requestJson = json.encodeToString(ApiGenerateContentRequest.serializer(), requestBody)
-            DebugLog.d("AgoraAPI", "[Gemini] REQ → $finalUrlString | model=$cleanModelName | msgs=${cleanedContents.size} | thinking=${config.thinkingEnabled} | tools=${tools.size}")
+            DebugLog.d("AgoraAPI", "[Gemini] REQ → $finalUrlString | model=$cleanModelName | msgs=${apiContents.size} | thinking=${config.thinkingEnabled} | tools=${tools.size}")
             DebugLog.d("AgoraAPI", "[Gemini] BODY: ${requestJson.take(4000)}")
             val handle = HttpClient.streamPost(finalUrlString, requestJson, headers)
             try {
@@ -433,7 +408,7 @@ class GeminiProvider : LlmProvider {
                                         part.functionCall?.let { fc ->
                                             val argsJson = fc.args?.let { Json.encodeToString(JsonObject.serializer(), it) } ?: "{}"
                                             val sig = fc.thoughtSignature ?: currentThoughtSignature
-                                            emit(StreamEvent.ToolCallRequest("gemini_call", fc.name, argsJson, sig))
+                                            emit(StreamEvent.ToolCallRequest("call_${UUID.randomUUID()}", fc.name, argsJson, sig))
                                             inThoughtBlock = false
                                         }
                                     }

@@ -3,7 +3,7 @@ package com.newoether.agora.api
 import com.newoether.agora.util.DebugLog
 import com.newoether.agora.api.util.StreamingThinkTagParser
 import com.newoether.agora.api.util.buildToolCallId
-import com.newoether.agora.api.util.limitContext
+import com.newoether.agora.api.util.prepareMessages
 import com.newoether.agora.model.ChatMessage
 import com.newoether.agora.model.Participant
 import com.newoether.agora.util.Constants
@@ -68,7 +68,7 @@ class OllamaProvider : LlmProvider {
         val baseUrl = config.baseUrl?.trimEnd('/') ?: "http://localhost:11434"
         val modelName = config.modelId
 
-        val limitedPath = limitContext(messages, config.maxContextWindow)
+        val validatedPath = prepareMessages(messages, config.maxContextWindow)
 
         val apiMessages = mutableListOf<OllamaMessage>()
         if (!config.systemPrompt.isNullOrBlank()) {
@@ -76,7 +76,7 @@ class OllamaProvider : LlmProvider {
         }
 
 
-        apiMessages.addAll(limitedPath.flatMap { msg ->
+        apiMessages.addAll(validatedPath.flatMap { msg ->
             val entries = mutableListOf<OllamaMessage>()
 
             // tool_ messages: assistant turn with tool_calls (and thinking from segments)

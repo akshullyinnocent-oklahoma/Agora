@@ -3,7 +3,7 @@ package com.newoether.agora.api
 import com.newoether.agora.util.DebugLog
 import com.newoether.agora.api.util.StreamingThinkTagParser
 import com.newoether.agora.api.util.convertToOpenAiMessages
-import com.newoether.agora.api.util.limitContext
+import com.newoether.agora.api.util.prepareMessages
 import com.newoether.agora.model.ChatMessage
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -61,10 +61,10 @@ abstract class BaseOpenAiProvider : LlmProvider {
     ): Flow<StreamEvent> = flow {
         val baseUrl = config.baseUrl?.trimEnd('/') ?: defaultBaseUrl
 
-        val limitedMessages = limitContext(messages, config.maxContextWindow)
+        val validatedMessages = prepareMessages(messages, config.maxContextWindow)
 
         val apiMessages = convertToOpenAiMessages(
-            messages = limitedMessages,
+            messages = validatedMessages,
             systemPrompt = transformSystemPrompt(config.systemPrompt),
             includeImages = true
         )
