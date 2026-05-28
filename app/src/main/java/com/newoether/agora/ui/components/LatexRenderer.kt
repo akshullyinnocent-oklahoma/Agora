@@ -29,6 +29,8 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextLinkStyles
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -45,7 +47,9 @@ import ru.noties.jlatexmath.JLatexMathDrawable
 data class LatexSpan(
     val isLatex: Boolean,
     val content: String,
-    val display: Boolean = false
+    val display: Boolean = false,
+    val bold: Boolean = false,
+    val strikethrough: Boolean = false,
 )
 
 private val dollarAmountPattern = Regex("""\$\d+(?!\$)(?!\w)""")
@@ -219,6 +223,70 @@ fun parseLatexSpans(text: String): List<LatexSpan> {
             }
         }
     }
+
+    // FSM: bridge markdown formatting markers (** __ ~~) across inline LaTeX spans
+    data class Pending(val marker: String, val fromIdx: Int)
+    val stack = mutableListOf<Pending>()
+    val markers = listOf("**", "__", "~~")
+    val isBold: (String) -> Boolean = { it == "**" || it == "__" }
+
+    for (idx in spans.indices) {
+        val span = spans[idx]
+        if (span.isLatex) continue
+        val s = span.content
+        // Skip spans where the marker is already self-contained
+        if (markers.any { s.startsWith(it) && s.endsWith(it) && s.length >= it.length * 2 }) continue
+
+        var resolved = false
+        for (m in markers) {
+            val pending = stack.lastOrNull { it.marker == m }
+            if (pending == null) continue
+
+            if (s.startsWith(m)) {
+                // pending.end ← m: resolve, marker was at end of pending, at start here
+                stack.remove(pending)
+                val bold = isBold(m)
+                for (j in pending.fromIdx..idx) {
+                    val old = spans[j]
+                    spans[j] = old.copy(bold = old.bold || bold, strikethrough = old.strikethrough || !bold)
+                }
+                spans[pending.fromIdx] = spans[pending.fromIdx].copy(content = spans[pending.fromIdx].content.removeSuffix(m))
+                spans[idx] = spans[idx].copy(content = s.removePrefix(m))
+                resolved = true
+                break
+            }
+            if (s.endsWith(m)) {
+                // pending.start ← m: resolve, marker was at start of pending, at end here
+                stack.remove(pending)
+                val bold = isBold(m)
+                for (j in pending.fromIdx..idx) {
+                    val old = spans[j]
+                    spans[j] = old.copy(bold = old.bold || bold, strikethrough = old.strikethrough || !bold)
+                }
+                spans[pending.fromIdx] = spans[pending.fromIdx].copy(content = spans[pending.fromIdx].content.removePrefix(m))
+                spans[idx] = spans[idx].copy(content = s.removeSuffix(m))
+                resolved = true
+                break
+            }
+        }
+        if (resolved) continue
+
+        // No match on stack — push unmatched marker as pending
+        for (m in markers) {
+            val t = spans[idx].content
+            if (t.startsWith(m)) {
+                stack.add(Pending(m, idx))
+                spans[idx] = spans[idx].copy(content = t.removePrefix(m))
+                break
+            }
+            if (t.endsWith(m)) {
+                stack.add(Pending(m, idx))
+                spans[idx] = spans[idx].copy(content = t.removeSuffix(m))
+                break
+            }
+        }
+    }
+
     return spans
 }
 
@@ -390,11 +458,11 @@ private fun buildParaGroups(inlineSpans: List<LatexSpan>, paragraphSpacing: Floa
             while (remaining.isNotEmpty()) {
                 val nlIdx = remaining.indexOf('\n')
                 if (nlIdx < 0) {
-                    currentSpans.add(LatexSpan(false, remaining))
+                    currentSpans.add(LatexSpan(false, remaining, bold = span.bold, strikethrough = span.strikethrough))
                     break
                 }
                 if (nlIdx > 0) {
-                    currentSpans.add(LatexSpan(false, remaining.substring(0, nlIdx)))
+                    currentSpans.add(LatexSpan(false, remaining.substring(0, nlIdx), bold = span.bold, strikethrough = span.strikethrough))
                 }
                 remaining = remaining.substring(nlIdx + 1)
                 flush()
@@ -423,7 +491,20 @@ private fun buildParagraphStrings(
                     appendInlineContent("LATEX_$latexIdx", span.content)
                     latexIdx++
                 } else if (span.content.isNotBlank()) {
-                    append(span.content.buildMarkdownAnnotatedString(textStyle, settings))
+                    if (span.bold || span.strikethrough) {
+                        val start = length
+                        append(span.content)
+                        addStyle(
+                            SpanStyle(
+                                fontWeight = if (span.bold) FontWeight.Bold else null,
+                                textDecoration = if (span.strikethrough) TextDecoration.LineThrough else null,
+                            ),
+                            start,
+                            length,
+                        )
+                    } else {
+                        append(span.content.buildMarkdownAnnotatedString(textStyle, settings))
+                    }
                 }
             }
         }
