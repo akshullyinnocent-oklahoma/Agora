@@ -256,16 +256,16 @@ Java_com_newoether_agora_api_LlamaChatEngine_nativeChatGenerate(
     }
 
     // Prefill all prompt tokens in one batch (n_batch == n_ctx, so this always fits)
+    // llama_batch_get_one returns a lightweight batch that borrows the tokens pointer —
+    // it does NOT allocate, so do NOT call llama_batch_free on it (would free vector memory)
     llama_batch batch = llama_batch_get_one(tokens.data(), n_tokens);
     if (llama_decode(handle->ctx, batch) != 0) {
         LOGE("Prefill decode failed");
-        llama_batch_free(batch);
         llama_sampler_free(smpl);
         env->CallVoidMethod(callback, on_error, env->NewStringUTF("Prefill decode failed"));
         env->DeleteLocalRef(cb_class);
         return -1;
     }
-    llama_batch_free(batch);
 
     // Generation loop
     int32_t generated = 0;
