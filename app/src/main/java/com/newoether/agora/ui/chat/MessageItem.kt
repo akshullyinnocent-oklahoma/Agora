@@ -519,6 +519,14 @@ fun MessageItem(
     var currentThoughtBlockHeight by remember { mutableIntStateOf(0) }
     var stableCollapsedThoughtHeight by remember { mutableIntStateOf(0) }
     var showInfoDialog by remember { mutableStateOf(false) }
+    // Suppress height reports to LazyColumn during expand/collapse animation
+    // to prevent scroll-position drift when the animation is interrupted mid-way.
+    var suppressHeightReport by remember { mutableStateOf(false) }
+    LaunchedEffect(isThoughtExpanded) {
+        suppressHeightReport = true
+        delay(450) // slightly longer than the 400ms expand/collapse tween
+        suppressHeightReport = false
+    }
     
     @Suppress("DEPRECATION")
     val clipboardManager = LocalClipboardManager.current
@@ -695,7 +703,9 @@ fun MessageItem(
             .fillMaxWidth()
             .onSizeChanged {
                 currentTotalHeight = it.height
-                onHeightChanged(calculateReportedHeight(it.height, currentThoughtBlockHeight))
+                if (!suppressHeightReport) {
+                    onHeightChanged(calculateReportedHeight(it.height, currentThoughtBlockHeight))
+                }
             }
             .padding(vertical = 8.dp),
         horizontalAlignment = alignment
