@@ -8,10 +8,8 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.input.rememberTextFieldState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Chat
@@ -21,10 +19,10 @@ import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -32,7 +30,17 @@ import androidx.compose.ui.unit.dp
 import com.newoether.agora.R
 import com.newoether.agora.util.noOpBringIntoView
 import com.newoether.agora.viewmodel.ChatViewModel
-import kotlin.math.min
+
+// Shape constants matching SettingsGroup's per-position rounding.
+// Each encodes top-corners / bottom-corners for its place in the group.
+private val FullRounded   = RoundedCornerShape(24.dp)
+private val TopRounded    = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp, bottomStart = 5.dp, bottomEnd = 5.dp)
+private val BottomRounded = RoundedCornerShape(topStart = 5.dp, topEnd = 5.dp, bottomStart = 24.dp, bottomEnd = 24.dp)
+private val MidRounded    = RoundedCornerShape(5.dp)
+private val FlatShape     = RoundedCornerShape(0.dp)
+private val FlatToBottom  = RoundedCornerShape(bottomStart = 24.dp, bottomEnd = 24.dp)
+private val FiveTop       = RoundedCornerShape(topStart = 5.dp, topEnd = 5.dp)
+private val FiveBottom    = RoundedCornerShape(bottomStart = 5.dp, bottomEnd = 5.dp)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -43,8 +51,9 @@ fun SettingsModelsPage(viewModel: ChatViewModel, onBack: () -> Unit) {
     val selectedModel by viewModel.selectedModel.collectAsState()
     var showActiveModelDialog by remember { mutableStateOf(false) }
     var showModelAliasDialog by remember { mutableStateOf<String?>(null) }
+    val expandedProviders = remember { mutableStateMapOf<String, Boolean>() }
 
-    // No-op bring-into-view to prevent auto-scrolling on text field focus
+    val providers = availableModels.entries.filter { it.value.isNotEmpty() }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -64,108 +73,155 @@ fun SettingsModelsPage(viewModel: ChatViewModel, onBack: () -> Unit) {
             )
         }
     ) { padding ->
-        Column(
+        LazyColumn(
             modifier = Modifier
                 .padding(padding)
                 .navigationBarsPadding()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp, vertical = 16.dp)
+                .fillMaxSize(),
+            contentPadding = PaddingValues(vertical = 16.dp)
         ) {
-            SettingsGroup(
-                title = stringResource(R.string.models_default),
-                items = listOf(
-                    {
-                        val activeAlias = modelAliases[selectedModel]
-                        val cleanId = selectedModel.substringAfter(":")
-                        val providerName = selectedModel.substringBefore(":")
-                        val activeDisplayName = activeAlias ?: cleanId.removePrefix("models/")
+            // ── Default Model section ──
+            item(key = "section_default_title") {
+                SectionLabel(
+                    text = stringResource(R.string.models_default),
+                    firstInPage = true
+                )
+            }
 
+            item(key = "default_model") {
+                val activeAlias = modelAliases[selectedModel]
+                val cleanId = selectedModel.substringAfter(":")
+                val providerName = selectedModel.substringBefore(":")
+                val activeDisplayName = activeAlias ?: cleanId.removePrefix("models/")
+
+                CardSurface(shape = FullRounded) {
+                    SettingsItem(
+                        headlineContent = {
+                            Text(
+                                if (enabledModels.isEmpty()) stringResource(R.string.models_no_models) else activeDisplayName,
+                                color = if (enabledModels.isEmpty()) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f) else MaterialTheme.colorScheme.onSurface
+                            )
+                        },
+                        supportingContent = if (enabledModels.isNotEmpty()) {
+                            { Text(providerName, style = MaterialTheme.typography.bodySmall) }
+                        } else null,
+                        leadingContent = { Icon(Icons.Default.Chat, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+                        modifier = Modifier.heightIn(min = 66.dp).clickable(enabled = enabledModels.isNotEmpty()) { showActiveModelDialog = true }
+                    )
+                }
+            }
+
+            // ── Available Models section ──
+            item(key = "section_available_title") {
+                SectionLabel(
+                    text = stringResource(R.string.models_available),
+                    firstInPage = false
+                )
+            }
+
+            // Sync button – always first in the Available card
+            val hasProviders = providers.isNotEmpty()
+            item(key = "sync") {
+                CardSurface(
+                    shape = if (hasProviders) TopRounded else FullRounded
+                ) {
+                    SettingsItem(
+                        headlineContent = { Text(stringResource(R.string.models_sync)) },
+                        supportingContent = { Text(stringResource(R.string.models_sync_desc)) },
+                        leadingContent = { Icon(Icons.Default.Refresh, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+                        modifier = Modifier.clickable { viewModel.fetchAvailableModels() }
+                    )
+                }
+            }
+
+            // Providers
+            providers.forEachIndexed { providerIndex, (name, models) ->
+                val isExpanded = expandedProviders[name] ?: false
+                val isLastProvider = providerIndex == providers.lastIndex
+
+                // ── Provider header ──
+                // When expanded: 5dp top (gap from above), 0dp bottom (merge with models).
+                // When collapsed: 5dp top, then 24dp bottom if last, else 5dp.
+                val headerShape = if (isExpanded) {
+                    FiveTop
+                } else if (isLastProvider) {
+                    BottomRounded
+                } else {
+                    MidRounded
+                }
+
+                item(key = "hdr_$name") {
+                    CardSurface(shape = headerShape, addTopGap = true) {
                         SettingsItem(
-                            headlineContent = {
-                                Text(
-                                    if (enabledModels.isEmpty()) stringResource(R.string.models_no_models) else activeDisplayName,
-                                    color = if (enabledModels.isEmpty()) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f) else MaterialTheme.colorScheme.onSurface
+                            headlineContent = { Text(name, fontWeight = FontWeight.Bold) },
+                            supportingContent = { Text(stringResource(R.string.models_count, models.size)) },
+                            trailingContent = {
+                                Icon(
+                                    if (isExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                                    contentDescription = null
                                 )
                             },
-                            supportingContent = if (enabledModels.isNotEmpty()) {
-                                { Text(providerName, style = MaterialTheme.typography.bodySmall) }
-                            } else null,
-                            leadingContent = { Icon(Icons.Default.Chat, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
-                            modifier = Modifier.heightIn(min = 66.dp).clickable(enabled = enabledModels.isNotEmpty()) { showActiveModelDialog = true }
+                            modifier = Modifier.clickable {
+                                expandedProviders[name] = !isExpanded
+                            }
                         )
                     }
-                )
-            )
-            val expandedProviders = remember { mutableStateMapOf<String, Boolean>() }
-            SettingsGroup(
-                title = stringResource(R.string.models_available),
-                items = remember(availableModels) { buildList {
-                    add {
-                        SettingsItem(
-                            headlineContent = { Text(stringResource(R.string.models_sync)) },
-                            supportingContent = { Text(stringResource(R.string.models_sync_desc)) },
-                            leadingContent = { Icon(Icons.Default.Refresh, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
-                            modifier = Modifier.clickable { viewModel.fetchAvailableModels() }
-                        )
-                    }
-                    if (availableModels.isNotEmpty()) {
-                        availableModels.forEach { (providerName, models) ->
-                            if (models.isNotEmpty()) {
-                                add {
-                                    val isExpanded = expandedProviders[providerName] ?: false
-                                    Column {
-                                        SettingsItem(
-                                            headlineContent = { Text(providerName, fontWeight = FontWeight.Bold) },
-                                            supportingContent = { Text(stringResource(R.string.models_count, models.size)) },
-                                            trailingContent = {
-                                                Icon(if (isExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown, null)
-                                            },
-                                            modifier = Modifier.clickable { expandedProviders[providerName] = !isExpanded }
-                                        )
+                }
 
-                                        AnimatedVisibility(
-                                            visible = isExpanded,
-                                            enter = expandVertically(),
-                                            exit = shrinkVertically()
-                                        ) {
-                                            Column {
-                                                models.forEach { model ->
-                                                    key(model) {
-                                                        val isEnabled = enabledModels.contains(model)
-                                                        val alias = modelAliases[model]
-                                                        val cleanId = model.substringAfter(":")
-                                                        val displayName = alias ?: cleanId.removePrefix("models/")
+                // ── Model block (one AnimatedVisibility → Column, like the original) ──
+                item(key = "models_$name") {
+                    AnimatedVisibility(
+                        visible = isExpanded,
+                        enter = expandVertically(),
+                        exit = shrinkVertically()
+                    ) {
+                        Column {
+                            models.forEachIndexed { modelIndex, model ->
+                                val isLastModel = modelIndex == models.lastIndex
+                                // Within the block models touch seamlessly (FlatShape).
+                                // The last model closes the group: 24dp if last provider, else 5dp.
+                                val modelShape = when {
+                                    isLastModel && isLastProvider -> FlatToBottom
+                                    isLastModel -> FiveBottom
+                                    else -> FlatShape
+                                }
 
-                                                        SettingsItem(
-                                                            headlineContent = { Text(displayName) },
-                                                            supportingContent = if (alias != null) { { Text(cleanId.removePrefix("models/")) } } else null,
-                                                            trailingContent = {
-                                                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                                                    IconButton(onClick = { showModelAliasDialog = model }) {
-                                                                        Icon(Icons.Default.Edit, contentDescription = stringResource(R.string.models_rename), tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
-                                                                    }
-                                                                    Checkbox(checked = isEnabled, onCheckedChange = {
-                                                                        viewModel.setEnabledModels(if (it) enabledModels + model else enabledModels - model)
-                                                                    })
-                                                                }
-                                                            },
-                                                            modifier = Modifier.padding(start = 16.dp)
-                                                        )
-                                                    }
+                                CardSurface(shape = modelShape, addTopGap = false) {
+                                    val isEnabled = enabledModels.contains(model)
+                                    val alias = modelAliases[model]
+                                    val cleanId = model.substringAfter(":")
+                                    val displayName = alias ?: cleanId.removePrefix("models/")
+
+                                    SettingsItem(
+                                        headlineContent = { Text(displayName) },
+                                        supportingContent = if (alias != null) { { Text(cleanId.removePrefix("models/")) } } else null,
+                                        trailingContent = {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                IconButton(onClick = { showModelAliasDialog = model }) {
+                                                    Icon(
+                                                        Icons.Default.Edit,
+                                                        contentDescription = stringResource(R.string.models_rename),
+                                                        tint = MaterialTheme.colorScheme.primary,
+                                                        modifier = Modifier.size(20.dp)
+                                                    )
                                                 }
+                                                Checkbox(checked = isEnabled, onCheckedChange = {
+                                                    viewModel.setEnabledModels(if (it) enabledModels + model else enabledModels - model)
+                                                })
                                             }
-                                        }
-                                    }
+                                        },
+                                        modifier = Modifier.padding(start = 16.dp)
+                                    )
                                 }
                             }
                         }
                     }
-                } }
-            )
+                }
+            }
         }
     }
 
-    // Active Model Dialog
+    // ── Active Model Dialog ──
     if (showActiveModelDialog) {
         AlertDialog(
             containerColor = MaterialTheme.colorScheme.surfaceContainer,
@@ -206,7 +262,7 @@ fun SettingsModelsPage(viewModel: ChatViewModel, onBack: () -> Unit) {
         )
     }
 
-    // Model Alias Dialog
+    // ── Model Alias Dialog ──
     showModelAliasDialog?.let { model ->
         val aliasState = rememberTextFieldState(modelAliases[model] ?: "")
 
@@ -238,5 +294,40 @@ fun SettingsModelsPage(viewModel: ChatViewModel, onBack: () -> Unit) {
             },
             dismissButton = { TextButton(onClick = { showModelAliasDialog = null }) { Text(stringResource(R.string.provider_cancel)) } }
         )
+    }
+}
+
+/**
+ * Section title matching SettingsGroup's label style.
+ * [firstInPage] = true for the first section on the page (no extra top gap);
+ * subsequent sections get a 24dp gap above to match SettingsGroup's bottom padding.
+ */
+@Composable
+private fun SectionLabel(text: String, firstInPage: Boolean) {
+    val topPadding = if (firstInPage) 12.dp else 36.dp
+    Text(
+        text = text,
+        style = MaterialTheme.typography.labelLarge,
+        color = MaterialTheme.colorScheme.primary,
+        modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = topPadding, bottom = 12.dp)
+    )
+}
+
+/**
+ * A single Surface card matching SettingsGroup's style.
+ * [addTopGap] adds a 2dp gap above when true (for items after the first in a group).
+ */
+@Composable
+private fun CardSurface(shape: Shape, addTopGap: Boolean = false, content: @Composable () -> Unit) {
+    Surface(
+        shape = shape,
+        color = MaterialTheme.colorScheme.surface,
+        tonalElevation = 1.dp,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp)
+            .then(if (addTopGap) Modifier.padding(top = 2.dp) else Modifier)
+    ) {
+        content()
     }
 }
