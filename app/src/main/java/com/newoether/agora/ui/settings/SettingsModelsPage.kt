@@ -99,7 +99,7 @@ fun SettingsModelsPage(viewModel: ChatViewModel, onBack: () -> Unit) {
             val expandedProviders = remember { mutableStateMapOf<String, Boolean>() }
             SettingsGroup(
                 title = stringResource(R.string.models_available),
-                items = buildList {
+                items = remember(availableModels) { buildList {
                     add {
                         SettingsItem(
                             headlineContent = { Text(stringResource(R.string.models_sync)) },
@@ -130,28 +130,28 @@ fun SettingsModelsPage(viewModel: ChatViewModel, onBack: () -> Unit) {
                                         ) {
                                             Column {
                                                 models.forEach { model ->
-                                                    val isEnabled = enabledModels.contains(model)
-                                                    val alias = modelAliases[model]
-                                                    val cleanId = model.substringAfter(":")
-                                                    val displayName = alias ?: cleanId.removePrefix("models/")
+                                                    key(model) {
+                                                        val isEnabled = enabledModels.contains(model)
+                                                        val alias = modelAliases[model]
+                                                        val cleanId = model.substringAfter(":")
+                                                        val displayName = alias ?: cleanId.removePrefix("models/")
 
-                                                    SettingsItem(
-                                                        headlineContent = { Text(displayName) },
-                                                        supportingContent = if (alias != null) { { Text(cleanId.removePrefix("models/")) } } else null,
-                                                        trailingContent = {
-                                                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                                                IconButton(onClick = { showModelAliasDialog = model }) {
-                                                                    Icon(Icons.Default.Edit, contentDescription = stringResource(R.string.models_rename), tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+                                                        SettingsItem(
+                                                            headlineContent = { Text(displayName) },
+                                                            supportingContent = if (alias != null) { { Text(cleanId.removePrefix("models/")) } } else null,
+                                                            trailingContent = {
+                                                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                                                    IconButton(onClick = { showModelAliasDialog = model }) {
+                                                                        Icon(Icons.Default.Edit, contentDescription = stringResource(R.string.models_rename), tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+                                                                    }
+                                                                    Checkbox(checked = isEnabled, onCheckedChange = {
+                                                                        viewModel.setEnabledModels(if (it) enabledModels + model else enabledModels - model)
+                                                                    })
                                                                 }
-                                                                Checkbox(checked = isEnabled, onCheckedChange = {
-                                                                    viewModel.setEnabledModels(if (it) enabledModels + model else enabledModels - model)
-                                                                })
-                                                            }
-                                                        },
-                                                        modifier = Modifier.clickable {
-                                                            viewModel.setEnabledModels(if (!isEnabled) enabledModels + model else enabledModels - model)
-                                                        }.padding(start = 16.dp)
-                                                    )
+                                                            },
+                                                            modifier = Modifier.padding(start = 16.dp)
+                                                        )
+                                                    }
                                                 }
                                             }
                                         }
@@ -160,7 +160,7 @@ fun SettingsModelsPage(viewModel: ChatViewModel, onBack: () -> Unit) {
                             }
                         }
                     }
-                }
+                } }
             )
         }
     }
