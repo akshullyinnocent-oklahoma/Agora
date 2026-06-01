@@ -87,6 +87,10 @@ class MainActivity : ComponentActivity() {
         val settingsManager = SettingsManager(applicationContext)
 
         enableEdgeToEdge()
+        // Remove navigation bar scrim so it blends with app content
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            window.isNavigationBarContrastEnforced = false
+        }
         setContent {
             val themeMode by settingsManager.themeMode.collectAsState(initial = "FOLLOW_DEVICE")
             val colorSchemeName by settingsManager.colorScheme.collectAsState(initial = "DEFAULT")
@@ -96,6 +100,20 @@ class MainActivity : ComponentActivity() {
             val themeModeEnum = try { com.newoether.agora.ui.theme.ThemeMode.valueOf(themeMode) } catch (_: Exception) { com.newoether.agora.ui.theme.ThemeMode.FOLLOW_DEVICE }
             val colorSchemePreset = try { com.newoether.agora.ui.theme.ColorSchemePreset.valueOf(colorSchemeName) } catch (_: Exception) { com.newoether.agora.ui.theme.ColorSchemePreset.MIDNIGHT }
             val schemeStyle = try { com.newoether.agora.ui.theme.SchemeStyle.valueOf(schemeStyleName) } catch (_: Exception) { com.newoether.agora.ui.theme.SchemeStyle.TONAL_SPOT }
+
+            val systemDark = isSystemInDarkTheme()
+            val isDark = when (themeModeEnum) {
+                com.newoether.agora.ui.theme.ThemeMode.LIGHT -> false
+                com.newoether.agora.ui.theme.ThemeMode.DARK -> true
+                com.newoether.agora.ui.theme.ThemeMode.FOLLOW_DEVICE -> systemDark
+            }
+
+            SideEffect {
+                val window = this@MainActivity.window
+                val insetsController = androidx.core.view.WindowInsetsControllerCompat(window, window.decorView)
+                insetsController.isAppearanceLightStatusBars = !isDark
+                insetsController.isAppearanceLightNavigationBars = !isDark
+            }
 
             AgoraTheme(
                 themeMode = themeModeEnum,
@@ -131,12 +149,6 @@ class MainActivity : ComponentActivity() {
                     when (showOnboarding) {
                         null -> { /* loading — splash screen covers this */ }
                         true -> {
-                            val systemDark = isSystemInDarkTheme()
-                            val isDark = when (themeModeEnum) {
-                                com.newoether.agora.ui.theme.ThemeMode.LIGHT -> false
-                                com.newoether.agora.ui.theme.ThemeMode.DARK -> true
-                                com.newoether.agora.ui.theme.ThemeMode.FOLLOW_DEVICE -> systemDark
-                            }
                             WelcomeScreen(
                                 onComplete = {
                                     onboardingScope.launch {
