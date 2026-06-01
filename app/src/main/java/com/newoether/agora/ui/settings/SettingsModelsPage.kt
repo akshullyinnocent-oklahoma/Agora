@@ -1,6 +1,10 @@
 package com.newoether.agora.ui.settings
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.MutableTransitionState
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.snap
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.clickable
@@ -51,7 +55,7 @@ fun SettingsModelsPage(viewModel: ChatViewModel, onBack: () -> Unit) {
     val selectedModel by viewModel.selectedModel.collectAsState()
     var showActiveModelDialog by remember { mutableStateOf(false) }
     var showModelAliasDialog by remember { mutableStateOf<String?>(null) }
-    val expandedProviders = remember { mutableStateMapOf<String, Boolean>() }
+    val expandedProviders = remember { mutableStateMapOf<String, MutableTransitionState<Boolean>>() }
 
     val providers = availableModels.entries.filter { it.value.isNotEmpty() }
 
@@ -135,22 +139,25 @@ fun SettingsModelsPage(viewModel: ChatViewModel, onBack: () -> Unit) {
             }
 
             // Providers
-            providers.forEachIndexed { providerIndex, (name, models) ->
-                val isExpanded = expandedProviders[name] ?: false
+            for ((providerIndex, entry) in providers.withIndex()) {
+                val (name, models) = entry
+                val transitionState = expandedProviders.getOrPut(name) { MutableTransitionState(false) }
+                val isExpanded = transitionState.currentState
                 val isLastProvider = providerIndex == providers.lastIndex
 
                 // ── Provider header ──
-                // When expanded: 5dp top (gap from above), 0dp bottom (merge with models).
-                // When collapsed: 5dp top, then 24dp bottom if last, else 5dp.
-                val headerShape = if (isExpanded) {
-                    FiveTop
-                } else if (isLastProvider) {
-                    BottomRounded
-                } else {
-                    MidRounded
-                }
-
                 item(key = "hdr_$name") {
+                    // Bottom corners: 0dp while expanded (flat, merge with models).
+                    // When collapsed: 24dp if last provider, else 5dp.
+                    // Animation: snap on expand (instant), tween on collapse (after content finishes shrinking).
+                    val collapsedBottomRadius = if (isLastProvider) 24.dp else 5.dp
+                    val targetBottomRadius = if (isExpanded) 0.dp else collapsedBottomRadius
+                    val animBottomRadius by animateDpAsState(
+                        targetValue = targetBottomRadius,
+                        animationSpec = if (isExpanded) snap() else tween(durationMillis = 200)
+                    )
+                    val headerShape = RoundedCornerShape(topStart = 5.dp, topEnd = 5.dp, bottomStart = animBottomRadius, bottomEnd = animBottomRadius)
+
                     CardSurface(shape = headerShape, addTopGap = true) {
                         SettingsItem(
                             headlineContent = { Text(name, fontWeight = FontWeight.Bold) },
@@ -162,7 +169,7 @@ fun SettingsModelsPage(viewModel: ChatViewModel, onBack: () -> Unit) {
                                 )
                             },
                             modifier = Modifier.clickable {
-                                expandedProviders[name] = !isExpanded
+                                transitionState.targetState = !transitionState.targetState
                             }
                         )
                     }
@@ -171,12 +178,12 @@ fun SettingsModelsPage(viewModel: ChatViewModel, onBack: () -> Unit) {
                 // ── Model block (one AnimatedVisibility → Column, like the original) ──
                 item(key = "models_$name") {
                     AnimatedVisibility(
-                        visible = isExpanded,
+                        visibleState = transitionState,
                         enter = expandVertically(),
                         exit = shrinkVertically()
                     ) {
                         Column {
-                            models.forEachIndexed { modelIndex, model ->
+                            for ((modelIndex, model) in models.withIndex()) {
                                 val isLastModel = modelIndex == models.lastIndex
                                 // Within the block models touch seamlessly (FlatShape).
                                 // The last model closes the group: 24dp if last provider, else 5dp.
