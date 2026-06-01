@@ -60,6 +60,7 @@ fun SettingsAboutPage(onBack: () -> Unit) {
             modifier = Modifier
                 .padding(padding)
                 .navigationBarsPadding()
+                .imePadding()
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
                 .clickable(

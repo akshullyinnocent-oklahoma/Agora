@@ -126,13 +126,23 @@ fun RatingForm(
         )
 
         // Comment
+        val commentMaxLen = 10000
+        val commentLen = comment.length
         OutlinedTextField(
             value = comment,
-            onValueChange = { comment = it },
+            onValueChange = { if (it.length <= commentMaxLen) comment = it },
             label = { Text(stringResource(R.string.rating_comment)) },
             minLines = 3,
             maxLines = 5,
             shape = RoundedCornerShape(16.dp),
+            modifier = Modifier.fillMaxWidth().padding(bottom = 2.dp)
+        )
+        Text(
+            text = "$commentLen/$commentMaxLen",
+            style = MaterialTheme.typography.labelSmall,
+            color = if (commentLen >= commentMaxLen) MaterialTheme.colorScheme.error
+                    else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+            textAlign = TextAlign.End,
             modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)
         )
 
