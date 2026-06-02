@@ -28,7 +28,12 @@ data class ProviderConfig(
     val baseUrl: String? = null,
     val tools: List<ToolDefinition>? = null,
     val userPrepend: String? = null,
-    val userPostpend: String? = null
+    val userPostpend: String? = null,
+    val temperature: Float? = null,
+    val maxTokens: Int? = null,
+    val topP: Float? = null,
+    val frequencyPenalty: Float? = null,
+    val presencePenalty: Float? = null
 )
 
 @Serializable
@@ -67,7 +72,12 @@ data class OpenAiChatRequest(
     val tools: List<ToolDefinition>? = null,
     @SerialName("reasoning_effort") val reasoningEffort: String? = null,
     val reasoning: OpenAiReasoning? = null,
-    val plugins: List<OpenAiPlugin>? = null
+    val plugins: List<OpenAiPlugin>? = null,
+    val temperature: Float? = null,
+    @SerialName("max_tokens") val maxTokens: Int? = null,
+    @SerialName("top_p") val topP: Float? = null,
+    @SerialName("frequency_penalty") val frequencyPenalty: Float? = null,
+    @SerialName("presence_penalty") val presencePenalty: Float? = null
 )
 
 @Serializable

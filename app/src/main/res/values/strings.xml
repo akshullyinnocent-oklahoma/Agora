@@ -110,8 +110,8 @@
     <string name="settings_prompts_desc">Create and manage system instructions</string>
     <string name="settings_models">Models</string>
     <string name="settings_models_desc">Enable, disable, and configure AI models</string>
-    <string name="settings_context">Context</string>
-    <string name="settings_context_desc">Context window size and visualization</string>
+    <string name="settings_generation">Generation</string>
+    <string name="settings_generation_desc">LLM parameters and context window</string>
     <string name="settings_web_search">Web Search</string>
     <string name="settings_web_search_desc">Configure web search tool for all providers</string>
     <string name="settings_title_gen">Title Generation</string>
@@ -190,12 +190,30 @@
     <string name="models_alias_hint">Alias</string>
     <string name="models_select_default">Select Default Model</string>
 
-    <!-- Settings - Context Page -->
-    <string name="context_title">Context</string>
+    <!-- Settings - Generation Page -->
+    <string name="generation_title">Generation</string>
     <string name="context_window">Context Window</string>
+    <string name="context_window_default">Default Context Window</string>
     <string name="context_retain">Retain %1$d recent messages</string>
     <string name="context_visualize">Visualize Context Roll-Out</string>
     <string name="context_visualize_desc">Dim messages outside the context window</string>
+    <string name="gen_temperature">Temperature</string>
+    <string name="gen_temperature_desc">Controls randomness (0.0 = deterministic, 2.0 = creative)</string>
+    <string name="gen_max_tokens">Max Output Tokens</string>
+    <string name="gen_max_tokens_desc">Maximum tokens in response</string>
+    <string name="gen_not_specified">Not specified</string>
+    <string name="gen_top_p">Top P</string>
+    <string name="gen_top_p_desc">Nucleus sampling threshold (0.0-1.0)</string>
+    <string name="gen_frequency_penalty">Frequency Penalty</string>
+    <string name="gen_frequency_penalty_desc">Penalize token repetition (-2.0 to 2.0)</string>
+    <string name="gen_presence_penalty">Presence Penalty</string>
+    <string name="gen_presence_penalty_desc">Encourage topic diversity (-2.0 to 2.0)</string>
+    <string name="gen_default_value">Default</string>
+    <string name="gen_reset">Reset</string>
+    <string name="generation_params">Default Generation Parameters</string>
+    <string name="advanced_settings">Advanced</string>
+    <string name="advanced_generation_title">Advanced Settings</string>
+    <string name="advanced_per_conversation">Per-conversation overrides</string>
 
     <!-- Settings - Web Search Page -->
     <string name="web_search_title">Web Search</string>
@@ -217,6 +235,8 @@
     <string name="web_search_serper_key_hint">API key from serper.dev</string>
     <string name="web_search_tavily_key">Tavily API Key</string>
     <string name="web_search_tavily_key_hint">API key from tavily.com</string>
+    <string name="web_search_num_results">Max Results</string>
+    <string name="web_search_num_results_desc">Number of results to fetch: %1$d (1-10)</string>
     <string name="web_search_searxng_url">SearXNG Base URL</string>
     <string name="web_search_searxng_url_hint">https://searx.be</string>
 
@@ -346,6 +366,10 @@
     <string name="cached">Cached</string>
     <string name="not_cached">Not cached</string>
     <string name="advanced_title">Advanced</string>
+    <string name="search_context_label">Context messages per search hit</string>
+    <string name="search_context_desc">%1$d messages</string>
+    <string name="search_match_label">Max search results</string>
+    <string name="search_match_desc">%1$d hits</string>
     <string name="rag_threshold_label">Similarity Threshold</string>
     <string name="auto_cache_title">Caching</string>
     <string name="auto_cache">Auto-cache new messages</string>

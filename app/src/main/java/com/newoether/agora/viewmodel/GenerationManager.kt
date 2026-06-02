@@ -58,7 +58,12 @@ data class GenerationConfig(
     val thinkingLevel: String = "medium",
     val baseUrl: String?,
     val userPrepend: String? = null,
-    val userPostpend: String? = null
+    val userPostpend: String? = null,
+    val temperature: Float? = null,
+    val maxTokens: Int? = null,
+    val topP: Float? = null,
+    val frequencyPenalty: Float? = null,
+    val presencePenalty: Float? = null
 )
 
 data class GenerationContext(
@@ -75,6 +80,7 @@ data class GenerationContext(
     val webSearchEnabled: Boolean = false,
     val webSearchApiKeys: Map<String, String> = emptyMap(),
     val webSearchProvider: String = "brave",
+    val webSearchNumResults: Int = 5,
     val webSearchBaseUrl: String = "",
     val shellEnabled: Boolean = false,
     val shellDevices: List<com.newoether.agora.data.ShellDeviceConfig> = emptyList()
@@ -645,7 +651,7 @@ class GenerationManager(
         val args = Json.decodeFromString<Map<String, kotlinx.serialization.json.JsonElement>>(argsStr)
         val query = (args["query"] as? kotlinx.serialization.json.JsonPrimitive)?.content
             ?: return buildJsonObject { put("type", "web_search"); put("error", "no_query") }.toString()
-        val numResults = ((args["num_results"] as? kotlinx.serialization.json.JsonPrimitive)?.content?.toIntOrNull() ?: 5).coerceIn(1, 10)
+        val numResults = ((args["num_results"] as? kotlinx.serialization.json.JsonPrimitive)?.content?.toIntOrNull() ?: ctx.webSearchNumResults).coerceIn(1, 10)
 
         return try {
             val apiKey = ctx.webSearchApiKeys[ctx.webSearchProvider].orEmpty()
@@ -1360,7 +1366,12 @@ class GenerationManager(
             baseUrl = config.baseUrl,
             tools = allTools,
             userPrepend = config.userPrepend,
-            userPostpend = config.userPostpend
+            userPostpend = config.userPostpend,
+            temperature = config.temperature,
+            maxTokens = config.maxTokens,
+            topP = config.topP,
+            frequencyPenalty = config.frequencyPenalty,
+            presencePenalty = config.presencePenalty
         )
         return Pair(currentPath, providerConfig)
     }

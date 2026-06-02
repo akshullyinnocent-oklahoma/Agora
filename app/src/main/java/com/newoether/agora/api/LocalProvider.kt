@@ -63,9 +63,9 @@ class LocalProvider(
         try {
             engine.generate(
                 prompt = prompt,
-                temperature = modelConfig.temperature,
-                topP = modelConfig.topP,
-                maxTokens = modelConfig.maxTokens
+                temperature = config.temperature ?: modelConfig.temperature,
+                topP = config.topP ?: modelConfig.topP,
+                maxTokens = config.maxTokens ?: modelConfig.maxTokens
             ).collect { token ->
                 if (!coroutineContext.isActive) {
                     engine.cancel()

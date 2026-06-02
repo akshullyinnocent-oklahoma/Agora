@@ -30,7 +30,9 @@ internal data class AnthropicRequest(
     @SerialName("max_tokens") val maxTokens: Int = 4096,
     val stream: Boolean = true,
     val thinking: AnthropicThinking? = null,
-    val tools: List<AnthropicTool>? = null
+    val tools: List<AnthropicTool>? = null,
+    val temperature: Float? = null,
+    @SerialName("top_p") val topP: Float? = null
 )
 
 @Serializable
@@ -212,8 +214,10 @@ class AnthropicProvider : LlmProvider {
             messages = apiMessages,
             system = config.systemPrompt,
             thinking = thinking,
-            maxTokens = if (thinking != null) maxOf(thinking.budgetTokens + 1024, 4096) else 4096,
-            tools = anthropicTools
+            maxTokens = config.maxTokens ?: if (thinking != null) maxOf(thinking.budgetTokens + 1024, 4096) else 4096,
+            tools = anthropicTools,
+            temperature = config.temperature,
+            topP = config.topP
         )
 
         try {

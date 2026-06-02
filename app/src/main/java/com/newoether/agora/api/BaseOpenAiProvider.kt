@@ -74,7 +74,12 @@ abstract class BaseOpenAiProvider : LlmProvider {
             messages = apiMessages,
             stream = true,
             streamOptions = OpenAiStreamOptions(includeUsage = true),
-            tools = config.tools
+            tools = config.tools,
+            temperature = config.temperature,
+            maxTokens = config.maxTokens,
+            topP = config.topP,
+            frequencyPenalty = config.frequencyPenalty,
+            presencePenalty = config.presencePenalty
         )
         request = customizeRequest(request, config)
 

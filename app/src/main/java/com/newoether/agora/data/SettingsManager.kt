@@ -58,6 +58,27 @@ data class SystemPromptEntry(
         else emptyList()
 }
 
+@Serializable
+data class ConversationSettings(
+    val contextWindow: Int? = null,
+    val temperature: Float? = null,
+    val maxTokens: Int? = null,
+    val topP: Float? = null,
+    val frequencyPenalty: Float? = null,
+    val presencePenalty: Float? = null,
+    val codeExecutionEnabled: Boolean? = null,
+    val googleSearchEnabled: Boolean? = null,
+    val thinkingEnabled: Boolean? = null,
+    val thinkingLevel: String? = null,
+    val webSearchEnabled: Boolean? = null,
+    val shellEnabled: Boolean? = null
+) {
+    fun isAllNull() = contextWindow == null && temperature == null && maxTokens == null && topP == null
+        && frequencyPenalty == null && presencePenalty == null
+        && codeExecutionEnabled == null && googleSearchEnabled == null && thinkingEnabled == null
+        && thinkingLevel == null && webSearchEnabled == null && shellEnabled == null
+}
+
 class SettingsManager(private val context: Context) {
     private val json = Json { ignoreUnknownKeys = true }
 
@@ -93,6 +114,7 @@ class SettingsManager(private val context: Context) {
         val WEB_SEARCH_ENABLED = booleanPreferencesKey("web_search_enabled")
         val WEB_SEARCH_PROVIDER = stringPreferencesKey("web_search_provider")
         val WEB_SEARCH_API_KEYS_JSON = stringPreferencesKey("web_search_api_keys_json")
+        val WEB_SEARCH_NUM_RESULTS = intPreferencesKey("web_search_num_results")
         val WEB_SEARCH_BASE_URL = stringPreferencesKey("web_search_base_url")
         val SEARCH_CONTEXT_WINDOW = intPreferencesKey("search_context_window")
         val SEARCH_MATCH_LIMIT = intPreferencesKey("search_match_limit")
@@ -112,6 +134,12 @@ class SettingsManager(private val context: Context) {
         val RATING_PROMPT_SUBMITTED = booleanPreferencesKey("rating_prompt_submitted")
         val RATING_PROMPT_DISMISSED = booleanPreferencesKey("rating_prompt_dismissed")
         val TOTAL_MESSAGES_SENT = intPreferencesKey("total_messages_sent")
+        val DEFAULT_TEMPERATURE = stringPreferencesKey("default_temperature")
+        val DEFAULT_MAX_TOKENS = intPreferencesKey("default_max_tokens")
+        val DEFAULT_TOP_P = stringPreferencesKey("default_top_p")
+        val DEFAULT_FREQUENCY_PENALTY = stringPreferencesKey("default_frequency_penalty")
+        val DEFAULT_PRESENCE_PENALTY = stringPreferencesKey("default_presence_penalty")
+        val CONVERSATION_SETTINGS_JSON = stringPreferencesKey("conversation_settings_json")
     }
 
     val selectedModel: Flow<String> = context.dataStore.data.map { it[SELECTED_MODEL] ?: "gemini-1.5-flash" }
@@ -179,10 +207,20 @@ class SettingsManager(private val context: Context) {
         val jsonStr = pref[WEB_SEARCH_API_KEYS_JSON] ?: "{}"
         try { json.decodeFromString<Map<String, String>>(jsonStr) } catch (e: Exception) { DebugLog.e("SettingsManager", "Failed to decode webSearchApiKeys", e); emptyMap() }
     }
+    val webSearchNumResults: Flow<Int> = context.dataStore.data.map { it[WEB_SEARCH_NUM_RESULTS] ?: 5 }
     val webSearchBaseUrl: Flow<String> = context.dataStore.data.map { it[WEB_SEARCH_BASE_URL] ?: "" }
     val searchContextWindow: Flow<Int> = context.dataStore.data.map { it[SEARCH_CONTEXT_WINDOW] ?: 8 }
     val searchMatchLimit: Flow<Int> = context.dataStore.data.map { it[SEARCH_MATCH_LIMIT] ?: 10 }
     val ragThreshold: Flow<Float> = context.dataStore.data.map { it[RAG_THRESHOLD]?.toFloatOrNull() ?: 0.5f }
+    val defaultTemperature: Flow<Float?> = context.dataStore.data.map { it[DEFAULT_TEMPERATURE]?.toFloatOrNull() }
+    val defaultMaxTokens: Flow<Int?> = context.dataStore.data.map { it[DEFAULT_MAX_TOKENS] }
+    val defaultTopP: Flow<Float?> = context.dataStore.data.map { it[DEFAULT_TOP_P]?.toFloatOrNull() }
+    val defaultFrequencyPenalty: Flow<Float?> = context.dataStore.data.map { it[DEFAULT_FREQUENCY_PENALTY]?.toFloatOrNull() }
+    val defaultPresencePenalty: Flow<Float?> = context.dataStore.data.map { it[DEFAULT_PRESENCE_PENALTY]?.toFloatOrNull() }
+    val conversationSettings: Flow<Map<String, ConversationSettings>> = context.dataStore.data.map { pref ->
+        val jsonStr = pref[CONVERSATION_SETTINGS_JSON] ?: "{}"
+        try { json.decodeFromString<Map<String, ConversationSettings>>(jsonStr) } catch (e: Exception) { emptyMap() }
+    }
     val autoCacheEnabled: Flow<Boolean> = context.dataStore.data.map { it[AUTO_CACHE_ENABLED] ?: true }
     val localChatModels: Flow<List<LocalChatModelConfig>> = context.dataStore.data.map { pref ->
         val jsonStr = pref[LOCAL_CHAT_MODELS_JSON] ?: "[]"
@@ -341,6 +379,9 @@ class SettingsManager(private val context: Context) {
         }
     }
 
+    suspend fun saveWebSearchNumResults(n: Int) {
+        context.dataStore.edit { it[WEB_SEARCH_NUM_RESULTS] = n.coerceIn(1, 10) }
+    }
     suspend fun saveWebSearchBaseUrl(url: String) {
         context.dataStore.edit { it[WEB_SEARCH_BASE_URL] = url }
     }
@@ -352,6 +393,40 @@ class SettingsManager(private val context: Context) {
     }
     suspend fun saveRagThreshold(threshold: Float) {
         context.dataStore.edit { it[RAG_THRESHOLD] = threshold.toString() }
+    }
+    suspend fun saveDefaultTemperature(value: Float?) {
+        context.dataStore.edit { prefs ->
+            if (value == null) prefs.remove(DEFAULT_TEMPERATURE) else prefs[DEFAULT_TEMPERATURE] = value.toString()
+        }
+    }
+    suspend fun saveDefaultMaxTokens(value: Int?) {
+        context.dataStore.edit { prefs ->
+            if (value == null) prefs.remove(DEFAULT_MAX_TOKENS) else prefs[DEFAULT_MAX_TOKENS] = value
+        }
+    }
+    suspend fun saveDefaultTopP(value: Float?) {
+        context.dataStore.edit { prefs ->
+            if (value == null) prefs.remove(DEFAULT_TOP_P) else prefs[DEFAULT_TOP_P] = value.toString()
+        }
+    }
+    suspend fun saveDefaultFrequencyPenalty(value: Float?) {
+        context.dataStore.edit { prefs ->
+            if (value == null) prefs.remove(DEFAULT_FREQUENCY_PENALTY) else prefs[DEFAULT_FREQUENCY_PENALTY] = value.toString()
+        }
+    }
+    suspend fun saveDefaultPresencePenalty(value: Float?) {
+        context.dataStore.edit { prefs ->
+            if (value == null) prefs.remove(DEFAULT_PRESENCE_PENALTY) else prefs[DEFAULT_PRESENCE_PENALTY] = value.toString()
+        }
+    }
+    suspend fun saveConversationSettings(conversationId: String, settings: ConversationSettings?) {
+        context.dataStore.edit { prefs ->
+            val current = prefs[CONVERSATION_SETTINGS_JSON] ?: "{}"
+            val map = try { json.decodeFromString<MutableMap<String, ConversationSettings>>(current) } catch (e: Exception) { mutableMapOf() }
+            if (settings == null || settings.isAllNull()) map.remove(conversationId)
+            else map[conversationId] = settings
+            prefs[CONVERSATION_SETTINGS_JSON] = json.encodeToString(map)
+        }
     }
 
     suspend fun saveLocalChatModels(models: List<LocalChatModelConfig>) {

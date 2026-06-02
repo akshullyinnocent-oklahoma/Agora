@@ -124,12 +124,31 @@ fun ChatApp(
     val totalTokens by viewModel.totalTokens.collectAsState()
     val visualizeContextRollout by viewModel.visualizeContextRollout.collectAsState()
     val maxContextWindow by viewModel.maxContextWindow.collectAsState()
-    val codeExecutionEnabled by viewModel.codeExecutionEnabled.collectAsState()
-    val googleSearchEnabled by viewModel.googleSearchEnabled.collectAsState()
-    val thinkingEnabled by viewModel.thinkingEnabled.collectAsState()
-    val thinkingLevel by viewModel.thinkingLevel.collectAsState()
-    val webSearchEnabled by viewModel.webSearchEnabled.collectAsState()
-    val shellEnabled by viewModel.shellEnabled.collectAsState()
+    val globalCodeExecution by viewModel.codeExecutionEnabled.collectAsState()
+    val globalGoogleSearch by viewModel.googleSearchEnabled.collectAsState()
+    val globalThinkingEnabled by viewModel.thinkingEnabled.collectAsState()
+    val globalThinkingLevel by viewModel.thinkingLevel.collectAsState()
+    val globalWebSearch by viewModel.webSearchEnabled.collectAsState()
+    val webSearchApiKeys by viewModel.webSearchApiKeys.collectAsState()
+    val globalShell by viewModel.shellEnabled.collectAsState()
+    val shellDevices by viewModel.shellDevices.collectAsState()
+    val conversationSettings by viewModel.conversationSettings.collectAsState()
+    val pendingSettings by viewModel.pendingConversationSettings.collectAsState()
+    // Resolved per-conversation values: override → global default
+    val convId = currentConversationId
+    val convOverride = if (convId != null) conversationSettings[convId] else pendingSettings
+    val codeExecutionEnabled = convOverride?.codeExecutionEnabled ?: globalCodeExecution
+    val googleSearchEnabled = convOverride?.googleSearchEnabled ?: globalGoogleSearch
+    val thinkingEnabled = convOverride?.thinkingEnabled ?: globalThinkingEnabled
+    val thinkingLevel = convOverride?.thinkingLevel ?: globalThinkingLevel
+    // Web Search and Shell: global switch OFF → always false, regardless of override
+    val webSearchEnabled = globalWebSearch && (convOverride?.webSearchEnabled ?: true)
+    val shellEnabled = globalShell && (convOverride?.shellEnabled ?: true)
+    val defaultTemperature by viewModel.defaultTemperature.collectAsState()
+    val defaultMaxTokens by viewModel.defaultMaxTokens.collectAsState()
+    val defaultTopP by viewModel.defaultTopP.collectAsState()
+    val defaultFrequencyPenalty by viewModel.defaultFrequencyPenalty.collectAsState()
+    val defaultPresencePenalty by viewModel.defaultPresencePenalty.collectAsState()
 
     val systemPrompts by viewModel.systemPrompts.collectAsState()
     val activeSystemPromptId by viewModel.activeSystemPromptId.collectAsState()
@@ -138,6 +157,7 @@ fun ChatApp(
     var conversationToRename by remember { mutableStateOf("") }
     var showDeleteConfirmDialog by remember { mutableStateOf<String?>(null) }
     var showPromptDialog by remember { mutableStateOf(false) }
+    var showAdvancedDialog by remember { mutableStateOf(false) }
     var isExpanded by remember { mutableStateOf(false) }
     var outerSpacerStartNanos by remember { mutableLongStateOf(0L) }
     var outerSpacerTickNanos by remember { mutableLongStateOf(0L) }
@@ -934,14 +954,14 @@ fun ChatApp(
                         googleSearchEnabled = googleSearchEnabled,
                         thinkingEnabled = thinkingEnabled,
                         thinkingLevel = thinkingLevel,
-                        onCodeExecutionToggle = { viewModel.setCodeExecutionEnabled(it) },
-                        onGoogleSearchToggle = { viewModel.setGoogleSearchEnabled(it) },
-                        onThinkingToggle = { viewModel.setThinkingEnabled(it) },
-                        onThinkingLevelChange = { viewModel.setThinkingLevel(it) },
+                        onCodeExecutionToggle = { enabled -> viewModel.updateConversationSetting(currentConversationId) { it.copy(codeExecutionEnabled = enabled) } },
+                        onGoogleSearchToggle = { enabled -> viewModel.updateConversationSetting(currentConversationId) { it.copy(googleSearchEnabled = enabled) } },
+                        onThinkingToggle = { enabled -> viewModel.updateConversationSetting(currentConversationId) { it.copy(thinkingEnabled = enabled) } },
+                        onThinkingLevelChange = { level -> viewModel.updateConversationSetting(currentConversationId) { it.copy(thinkingLevel = level) } },
                         webSearchEnabled = webSearchEnabled,
-                        onWebSearchToggle = { viewModel.setWebSearchEnabled(it) },
+                        onWebSearchToggle = { enabled -> viewModel.updateConversationSetting(currentConversationId) { it.copy(webSearchEnabled = enabled) } },
                         shellEnabled = shellEnabled,
-                        onShellToggle = { viewModel.setShellEnabled(it) },
+                        onShellToggle = { enabled -> viewModel.updateConversationSetting(currentConversationId) { it.copy(shellEnabled = enabled) } },
                         onModelSelect = { viewModel.setActiveModel(it) },
                         onImageClick = { url -> onMediaClick(listOf(url), 0) },
                         onFileContentClick = { name, content -> viewModel.showFilePreview(name, content) },
@@ -951,7 +971,10 @@ fun ChatApp(
                         isExpanded = isExpanded,
                         isExpandAnimating = isExpandAnimating,
                         onCollapse = { isExpanded = false },
-                        onExpand = { isExpanded = true }
+                        onExpand = { isExpanded = true },
+                        showWebSearch = webSearchApiKeys.isNotEmpty() && globalWebSearch,
+                        showShell = shellDevices.isNotEmpty() && globalShell,
+                        onAdvancedClick = { showAdvancedDialog = true }
                     )
                 }
             }
@@ -1079,6 +1102,41 @@ fun ChatApp(
                     Text(stringResource(R.string.cancel))
                 }
             }
+        )
+    }
+
+    // ── Advanced Settings Dialog ──
+    if (showAdvancedDialog) {
+        val currentId = currentConversationId
+        val overrides = if (currentId != null) conversationSettings[currentId] ?: com.newoether.agora.data.ConversationSettings()
+            else com.newoether.agora.data.ConversationSettings()
+        val defaults = com.newoether.agora.data.ConversationSettings(
+            contextWindow = maxContextWindow,
+            temperature = defaultTemperature,
+            maxTokens = defaultMaxTokens,
+            topP = defaultTopP,
+            frequencyPenalty = defaultFrequencyPenalty,
+            presencePenalty = defaultPresencePenalty
+        )
+        AdvancedSettingsDialog(
+            overrides = overrides,
+            globalDefaults = defaults,
+            onSave = { settings ->
+                if (currentId != null) {
+                    viewModel.setConversationSettings(currentId, settings)
+                } else {
+                    viewModel.setPendingConversationSettings(settings)
+                }
+                showAdvancedDialog = false
+            },
+            onResetToDefaults = {
+                if (currentId != null) {
+                    viewModel.setConversationSettings(currentId, null)
+                } else {
+                    viewModel.setPendingConversationSettings(null)
+                }
+            },
+            onDismiss = { showAdvancedDialog = false }
         )
     }
 }

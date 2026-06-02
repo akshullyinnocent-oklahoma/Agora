@@ -53,6 +53,7 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.Terminal
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Videocam
@@ -149,7 +150,10 @@ fun ChatBottomBar(
     isExpanded: Boolean = false,
     isExpandAnimating: Boolean = false,
     onCollapse: () -> Unit = {},
-    onExpand: () -> Unit = {}
+    onExpand: () -> Unit = {},
+    showWebSearch: Boolean = true,
+    showShell: Boolean = true,
+    onAdvancedClick: () -> Unit = {}
 ) {
     val scrollState = rememberScrollState()
     BackHandler(enabled = isExpanded) { onCollapse() }
@@ -770,39 +774,53 @@ fun ChatBottomBar(
                                 }
                             }
                         }
+                        if (showWebSearch) {
+                            DropdownMenuItem(
+                                text = {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(Icons.Default.Language, null, modifier = Modifier.size(18.dp))
+                                        Spacer(modifier = Modifier.width(12.dp))
+                                        Text(stringResource(R.string.web_search))
+                                    }
+                                },
+                                trailingIcon = {
+                                    Switch(
+                                        checked = webSearchEnabled,
+                                        onCheckedChange = { onWebSearchToggle(it) },
+                                        modifier = Modifier.scale(0.7f)
+                                    )
+                                },
+                                onClick = { onWebSearchToggle(!webSearchEnabled) }
+                            )
+                        }
+                        if (showShell) {
+                            DropdownMenuItem(
+                                text = {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(Icons.Default.Terminal, null, modifier = Modifier.size(18.dp))
+                                        Spacer(modifier = Modifier.width(12.dp))
+                                        Text(stringResource(R.string.shell_title))
+                                    }
+                                },
+                                trailingIcon = {
+                                    Switch(
+                                        checked = shellEnabled,
+                                        onCheckedChange = { onShellToggle(it) },
+                                        modifier = Modifier.scale(0.7f)
+                                    )
+                                },
+                                onClick = { onShellToggle(!shellEnabled) }
+                            )
+                        }
                         DropdownMenuItem(
                             text = {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(Icons.Default.Language, null, modifier = Modifier.size(18.dp))
+                                    Icon(Icons.Default.Tune, null, modifier = Modifier.size(18.dp))
                                     Spacer(modifier = Modifier.width(12.dp))
-                                    Text(stringResource(R.string.web_search))
+                                    Text(stringResource(R.string.advanced_settings))
                                 }
                             },
-                            trailingIcon = {
-                                Switch(
-                                    checked = webSearchEnabled,
-                                    onCheckedChange = { onWebSearchToggle(it) },
-                                    modifier = Modifier.scale(0.7f)
-                                )
-                            },
-                            onClick = { onWebSearchToggle(!webSearchEnabled) }
-                        )
-                        DropdownMenuItem(
-                            text = {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(Icons.Default.Terminal, null, modifier = Modifier.size(18.dp))
-                                    Spacer(modifier = Modifier.width(12.dp))
-                                    Text(stringResource(R.string.shell_title))
-                                }
-                            },
-                            trailingIcon = {
-                                Switch(
-                                    checked = shellEnabled,
-                                    onCheckedChange = { onShellToggle(it) },
-                                    modifier = Modifier.scale(0.7f)
-                                )
-                            },
-                            onClick = { onShellToggle(!shellEnabled) }
+                            onClick = onAdvancedClick
                         )
                     }
                 }

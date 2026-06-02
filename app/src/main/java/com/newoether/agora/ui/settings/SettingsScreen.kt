@@ -137,7 +137,7 @@ private val settingsGroups = listOf(
     )),
     SettingsGroupData(titleRes = R.string.settings_group_responses, items = listOf(
         SettingsCategory("prompts", R.string.settings_prompts, R.string.settings_prompts_desc, Icons.Default.Psychology),
-        SettingsCategory("context", R.string.settings_context, R.string.settings_context_desc, Icons.Default.Memory),
+        SettingsCategory("generation", R.string.settings_generation, R.string.settings_generation_desc, Icons.Default.Tune),
         SettingsCategory("titlegen", R.string.settings_title_gen, R.string.settings_title_gen_desc, Icons.Default.Edit),
     )),
     SettingsGroupData(titleRes = R.string.settings_group_tools, items = listOf(
@@ -195,7 +195,7 @@ fun SettingsScreen(viewModel: ChatViewModel, onBack: () -> Unit) {
                 "provider" -> SettingsProviderPage(viewModel, onBack = { selectedCategory = null })
                 "prompts" -> SettingsPromptsPage(viewModel, onBack = { selectedCategory = null })
                 "models" -> SettingsModelsPage(viewModel, onBack = { selectedCategory = null })
-                "context" -> SettingsContextPage(viewModel, onBack = { selectedCategory = null })
+                "generation" -> SettingsGenerationPage(viewModel, onBack = { selectedCategory = null })
                 "websearch" -> SettingsWebSearchPage(viewModel, onBack = { selectedCategory = null })
                 "shell" -> SettingsShellPage(viewModel, onBack = { selectedCategory = null })
                 "language" -> SettingsLanguagePage(viewModel, onBack = { selectedCategory = null })

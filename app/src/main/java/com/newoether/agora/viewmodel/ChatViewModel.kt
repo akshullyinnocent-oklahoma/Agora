@@ -11,6 +11,7 @@ import com.newoether.agora.api.*
 import com.newoether.agora.data.ClaudeChatImporter
 import com.newoether.agora.data.GptChatImporter
 import com.newoether.agora.data.ApiKeyEntry
+import com.newoether.agora.data.ConversationSettings
 import com.newoether.agora.data.CustomProviderConfig
 import com.newoether.agora.data.DataExporter
 import com.newoether.agora.data.DataImporter
@@ -127,6 +128,52 @@ class ChatViewModel(
                 val baseUrls = settingsManager.providerBaseUrls.first()
                 custom.forEach { config ->
                     providers[config.name] = CustomOpenAiProvider(config.name, baseUrls[config.name] ?: "")
+                }
+            }
+        }
+        // Auto-clear available models when a provider loses its credentials.
+        // Watches all three configuration sources (API keys, active key IDs,
+        // and base URLs) and uses the shared isProviderConfigured() to decide
+        // whether a provider just became unconfigured.
+        viewModelScope.launch {
+            var prevConfigured = emptyMap<String, Boolean>()
+
+            combine(
+                settingsManager.apiKeys,
+                settingsManager.activeApiKeyIds,
+                settingsManager.providerBaseUrls
+            ) { keys, activeIds, baseUrls ->
+                // Read current values; the parameters are here so combine
+                // re-emits when any of the three sources changes.
+                Triple(keys, activeIds, baseUrls)
+            }.collect { (keys, activeIds, _) ->
+                // Skip the initial empty-state emission.
+                if (keys.isEmpty() && activeIds.isEmpty()) return@collect
+
+                val current = mutableMapOf<String, Boolean>()
+                providers.toMap().forEach { (name, _) ->
+                    val activeKey = keys.find { it.id == activeIds[name] }?.key ?: ""
+                    current[name] = isProviderConfigured(name, activeKey)
+                }
+
+                var changed = false
+                current.forEach { (name, configured) ->
+                    if (prevConfigured[name] == true && !configured) {
+                        val existing = settingsManager.availableModels.first()[name]
+                        if (!existing.isNullOrEmpty()) {
+                            settingsManager.saveAvailableModels(name, emptyList())
+                            changed = true
+                        }
+                    }
+                }
+                prevConfigured = current
+
+                if (changed) {
+                    val allAvailable = settingsManager.availableModels.first().values.flatten().toSet()
+                    val newEnabled = enabledModels.value.intersect(allAvailable)
+                    if (newEnabled != enabledModels.value) {
+                        setEnabledModels(newEnabled)
+                    }
                 }
             }
         }
@@ -272,9 +319,16 @@ class ChatViewModel(
     val webSearchEnabled = settingsManager.webSearchEnabled.stateIn(viewModelScope, SharingStarted.Eagerly, false)
     val webSearchProvider = settingsManager.webSearchProvider.stateIn(viewModelScope, SharingStarted.Eagerly, "brave")
     val webSearchApiKeys = settingsManager.webSearchApiKeys.stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
+    val webSearchNumResults = settingsManager.webSearchNumResults.stateIn(viewModelScope, SharingStarted.Eagerly, 5)
     val webSearchBaseUrl = settingsManager.webSearchBaseUrl.stateIn(viewModelScope, SharingStarted.Eagerly, "")
     val shellEnabled = settingsManager.shellEnabled.stateIn(viewModelScope, SharingStarted.Eagerly, false)
     val shellDevices = settingsManager.shellDevices.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+    val defaultTemperature = settingsManager.defaultTemperature.stateIn(viewModelScope, SharingStarted.Eagerly, null)
+    val defaultMaxTokens = settingsManager.defaultMaxTokens.stateIn(viewModelScope, SharingStarted.Eagerly, null)
+    val defaultTopP = settingsManager.defaultTopP.stateIn(viewModelScope, SharingStarted.Eagerly, null)
+    val defaultFrequencyPenalty = settingsManager.defaultFrequencyPenalty.stateIn(viewModelScope, SharingStarted.Eagerly, null)
+    val defaultPresencePenalty = settingsManager.defaultPresencePenalty.stateIn(viewModelScope, SharingStarted.Eagerly, null)
+    val conversationSettings = settingsManager.conversationSettings.stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
     val themeMode = settingsManager.themeMode.stateIn(viewModelScope, SharingStarted.Eagerly, "FOLLOW_DEVICE")
     val colorScheme = settingsManager.colorScheme.stateIn(viewModelScope, SharingStarted.Eagerly, "DEFAULT")
     val dynamicColor = settingsManager.dynamicColor.stateIn(viewModelScope, SharingStarted.Eagerly, true)
@@ -409,6 +463,23 @@ class ChatViewModel(
 
     fun setPendingSystemPrompt(promptId: String?) {
         _pendingSystemPromptId.value = promptId
+    }
+
+    private val _pendingConversationSettings = MutableStateFlow<ConversationSettings?>(null)
+    val pendingConversationSettings: StateFlow<ConversationSettings?> = _pendingConversationSettings.asStateFlow()
+
+    fun setPendingConversationSettings(settings: ConversationSettings?) {
+        _pendingConversationSettings.value = settings
+    }
+
+    fun updateConversationSetting(convId: String?, update: (ConversationSettings) -> ConversationSettings) {
+        if (convId != null) {
+            val current = conversationSettings.value[convId] ?: ConversationSettings()
+            viewModelScope.launch { settingsManager.saveConversationSettings(convId, update(current)) }
+        } else {
+            val current = _pendingConversationSettings.value ?: ConversationSettings()
+            _pendingConversationSettings.value = update(current)
+        }
     }
 
     private val _branchSwitchTrigger = MutableStateFlow<String?>(null)
@@ -596,10 +667,13 @@ class ChatViewModel(
             val entry = apiKeys.value.find { it.id == id } ?: return@launch
             val provider = entry.provider
             val newList = apiKeys.value.filter { it.id != id }
-            settingsManager.saveApiKeys(newList)
+            // Update active key FIRST so the auto-clear collector sees the
+            // replacement key (if any) before the old key is removed from the list.
             if (activeApiKeyIds.value[provider] == id) {
-                settingsManager.setActiveApiKeyId(provider, null)
+                val other = newList.firstOrNull { it.provider == provider }
+                settingsManager.setActiveApiKeyId(provider, other?.id)
             }
+            settingsManager.saveApiKeys(newList)
         }
     }
     fun updateApiKey(id: String, name: String, key: String) {
@@ -656,10 +730,6 @@ class ChatViewModel(
     fun setActiveSystemPrompt(id: String) { viewModelScope.launch { settingsManager.setActiveSystemPromptId(id) } }
     fun setMaxContextWindow(window: Int) { viewModelScope.launch { settingsManager.saveMaxContextWindow(window) } }
     fun setVisualizeContextRollout(enabled: Boolean) { viewModelScope.launch { settingsManager.saveVisualizeContextRollout(enabled) } }
-    fun setCodeExecutionEnabled(enabled: Boolean) { viewModelScope.launch { settingsManager.saveCodeExecutionEnabled(enabled) } }
-    fun setGoogleSearchEnabled(enabled: Boolean) { viewModelScope.launch { settingsManager.saveGoogleSearchEnabled(enabled) } }
-    fun setThinkingEnabled(enabled: Boolean) { viewModelScope.launch { settingsManager.saveThinkingEnabled(enabled) } }
-    fun setThinkingLevel(level: String) { viewModelScope.launch { settingsManager.saveThinkingLevel(level) } }
     fun setProviderBaseUrl(provider: String, url: String) { viewModelScope.launch { settingsManager.saveProviderBaseUrl(provider, url) } }
     fun addCustomProvider(name: String, baseUrl: String) {
         providers[name] = CustomOpenAiProvider(name, baseUrl)
@@ -704,6 +774,7 @@ class ChatViewModel(
             val current = customProviders.value.toMutableList()
             current.removeAll { it.name == name }
             settingsManager.saveCustomProviders(current)
+            providers.remove(name)
             // Clean up associated data
             settingsManager.saveAvailableModels(name, emptyList())
             val enabled = enabledModels.value.filter { !it.startsWith("$name:") }.toSet()
@@ -958,9 +1029,12 @@ class ChatViewModel(
             activeEmbeddingConfig = activeEmbeddingModel.value,
             embeddingApiKey = resolveEmbeddingApiKey() ?: "",
             ragThreshold = ragThreshold.value,
+            searchMatchLimit = searchMatchLimit.value,
+            searchContextWindow = searchContextWindow.value,
             webSearchEnabled = webSearchEnabled.value,
             webSearchApiKeys = webSearchApiKeys.value,
             webSearchProvider = webSearchProvider.value,
+            webSearchNumResults = webSearchNumResults.value,
             webSearchBaseUrl = webSearchBaseUrl.value
         )
         return generationManager.semanticSearch(query, limit, ctx)
@@ -1050,8 +1124,36 @@ class ChatViewModel(
     fun setWebSearchEnabled(enabled: Boolean) { viewModelScope.launch { settingsManager.saveWebSearchEnabled(enabled) } }
     fun setWebSearchProvider(provider: String) { viewModelScope.launch { settingsManager.saveWebSearchProvider(provider) } }
     fun setWebSearchApiKey(provider: String, apiKey: String) { viewModelScope.launch { settingsManager.saveWebSearchApiKey(provider, apiKey) } }
+    fun setWebSearchNumResults(n: Int) { viewModelScope.launch { settingsManager.saveWebSearchNumResults(n) } }
     fun setWebSearchBaseUrl(url: String) { viewModelScope.launch { settingsManager.saveWebSearchBaseUrl(url) } }
     fun setShellEnabled(enabled: Boolean) { viewModelScope.launch { settingsManager.saveShellEnabled(enabled) } }
+    fun setDefaultTemperature(v: Float?) { viewModelScope.launch { settingsManager.saveDefaultTemperature(v) } }
+    fun setDefaultMaxTokens(v: Int?) { viewModelScope.launch { settingsManager.saveDefaultMaxTokens(v) } }
+    fun setDefaultTopP(v: Float?) { viewModelScope.launch { settingsManager.saveDefaultTopP(v) } }
+    fun setDefaultFrequencyPenalty(v: Float?) { viewModelScope.launch { settingsManager.saveDefaultFrequencyPenalty(v) } }
+    fun setDefaultPresencePenalty(v: Float?) { viewModelScope.launch { settingsManager.saveDefaultPresencePenalty(v) } }
+    fun setConversationSettings(convId: String, settings: ConversationSettings?) {
+        viewModelScope.launch { settingsManager.saveConversationSettings(convId, settings) }
+    }
+    fun buildEffectiveConversationSettings(conversationId: String): ConversationSettings {
+        val overrides = conversationSettings.value[conversationId]
+            ?: _pendingConversationSettings.value  // new chat: may not be saved to map yet
+            ?: ConversationSettings()
+        return ConversationSettings(
+            contextWindow = overrides.contextWindow ?: maxContextWindow.value,
+            temperature = overrides.temperature ?: defaultTemperature.value,
+            maxTokens = overrides.maxTokens ?: defaultMaxTokens.value,
+            topP = overrides.topP ?: defaultTopP.value,
+            frequencyPenalty = overrides.frequencyPenalty ?: defaultFrequencyPenalty.value,
+            presencePenalty = overrides.presencePenalty ?: defaultPresencePenalty.value,
+            codeExecutionEnabled = overrides.codeExecutionEnabled ?: codeExecutionEnabled.value,
+            googleSearchEnabled = overrides.googleSearchEnabled ?: googleSearchEnabled.value,
+            thinkingEnabled = overrides.thinkingEnabled ?: thinkingEnabled.value,
+            thinkingLevel = overrides.thinkingLevel ?: thinkingLevel.value,
+            webSearchEnabled = if (webSearchEnabled.value) (overrides.webSearchEnabled ?: true) else false,
+            shellEnabled = if (shellEnabled.value) (overrides.shellEnabled ?: true) else false
+        )
+    }
     fun addShellDevice(device: com.newoether.agora.data.ShellDeviceConfig) {
         viewModelScope.launch {
             val current = shellDevices.value.toMutableList()
@@ -1104,6 +1206,7 @@ class ChatViewModel(
             clearMessageHeights()
             _currentConversationId.value = null
             _currentActiveModel.value = null
+            _pendingConversationSettings.value = null
             _allMessages.value = emptyList()
             _selectedChildren.value = emptyMap()
             _branchSwitchTrigger.value = null
@@ -1450,19 +1553,25 @@ class ChatViewModel(
                 chatDao.upsertConversation(conv.copy(lastUpdated = System.currentTimeMillis()))
             }
             val resolved = buildEffectiveSystemPrompt(currentId)
+            val effectiveSettings = buildEffectiveConversationSettings(currentId)
             val config = GenerationConfig(
                 providerName = providerName,
                 modelId = modelId.substringAfter(":"),
                 apiKey = activeKey,
                 effectiveSystemPrompt = resolved.systemPrompt,
-                maxContextWindow = maxContextWindow.value,
-                codeExecutionEnabled = codeExecutionEnabled.value,
-                googleSearchEnabled = googleSearchEnabled.value,
-                thinkingEnabled = thinkingEnabled.value,
-                thinkingLevel = thinkingLevel.value,
+                maxContextWindow = effectiveSettings.contextWindow ?: maxContextWindow.value,
+                codeExecutionEnabled = effectiveSettings.codeExecutionEnabled ?: codeExecutionEnabled.value,
+                googleSearchEnabled = effectiveSettings.googleSearchEnabled ?: googleSearchEnabled.value,
+                thinkingEnabled = effectiveSettings.thinkingEnabled ?: thinkingEnabled.value,
+                thinkingLevel = effectiveSettings.thinkingLevel ?: thinkingLevel.value,
                 baseUrl = getEffectiveBaseUrl(providerName),
                 userPrepend = resolved.userPrepend,
-                userPostpend = resolved.userPostpend
+                userPostpend = resolved.userPostpend,
+                temperature = effectiveSettings.temperature,
+                maxTokens = effectiveSettings.maxTokens,
+                topP = effectiveSettings.topP,
+                frequencyPenalty = effectiveSettings.frequencyPenalty,
+                presencePenalty = effectiveSettings.presencePenalty
             )
 
             val genCtx = com.newoether.agora.viewmodel.GenerationContext(
@@ -1476,11 +1585,12 @@ class ChatViewModel(
                 ragThreshold = ragThreshold.value,
                 searchMatchLimit = searchMatchLimit.value,
                 searchContextWindow = searchContextWindow.value,
-                webSearchEnabled = webSearchEnabled.value,
+                webSearchEnabled = effectiveSettings.webSearchEnabled ?: webSearchEnabled.value,
                 webSearchApiKeys = webSearchApiKeys.value,
                 webSearchProvider = webSearchProvider.value,
+                webSearchNumResults = webSearchNumResults.value,
                 webSearchBaseUrl = webSearchBaseUrl.value,
-                shellEnabled = shellEnabled.value,
+                shellEnabled = effectiveSettings.shellEnabled ?: shellEnabled.value,
                 shellDevices = shellDevices.value
             )
             generationManager.generate(
@@ -1559,19 +1669,25 @@ class ChatViewModel(
                 chatDao.upsertConversation(conv.copy(lastUpdated = System.currentTimeMillis()))
             }
             val resolved = buildEffectiveSystemPrompt(currentId)
+            val effectiveSettings = buildEffectiveConversationSettings(currentId)
             val config = GenerationConfig(
                 providerName = providerName,
                 modelId = modelId.substringAfter(":"),
                 apiKey = activeKey,
                 effectiveSystemPrompt = resolved.systemPrompt,
-                maxContextWindow = maxContextWindow.value,
-                codeExecutionEnabled = codeExecutionEnabled.value,
-                googleSearchEnabled = googleSearchEnabled.value,
-                thinkingEnabled = thinkingEnabled.value,
-                thinkingLevel = thinkingLevel.value,
+                maxContextWindow = effectiveSettings.contextWindow ?: maxContextWindow.value,
+                codeExecutionEnabled = effectiveSettings.codeExecutionEnabled ?: codeExecutionEnabled.value,
+                googleSearchEnabled = effectiveSettings.googleSearchEnabled ?: googleSearchEnabled.value,
+                thinkingEnabled = effectiveSettings.thinkingEnabled ?: thinkingEnabled.value,
+                thinkingLevel = effectiveSettings.thinkingLevel ?: thinkingLevel.value,
                 baseUrl = getEffectiveBaseUrl(providerName),
                 userPrepend = resolved.userPrepend,
-                userPostpend = resolved.userPostpend
+                userPostpend = resolved.userPostpend,
+                temperature = effectiveSettings.temperature,
+                maxTokens = effectiveSettings.maxTokens,
+                topP = effectiveSettings.topP,
+                frequencyPenalty = effectiveSettings.frequencyPenalty,
+                presencePenalty = effectiveSettings.presencePenalty
             )
 
             val genCtx = com.newoether.agora.viewmodel.GenerationContext(
@@ -1585,11 +1701,12 @@ class ChatViewModel(
                 ragThreshold = ragThreshold.value,
                 searchMatchLimit = searchMatchLimit.value,
                 searchContextWindow = searchContextWindow.value,
-                webSearchEnabled = webSearchEnabled.value,
+                webSearchEnabled = effectiveSettings.webSearchEnabled ?: webSearchEnabled.value,
                 webSearchApiKeys = webSearchApiKeys.value,
                 webSearchProvider = webSearchProvider.value,
+                webSearchNumResults = webSearchNumResults.value,
                 webSearchBaseUrl = webSearchBaseUrl.value,
-                shellEnabled = shellEnabled.value,
+                shellEnabled = effectiveSettings.shellEnabled ?: shellEnabled.value,
                 shellDevices = shellDevices.value
             )
             generationManager.generate(
@@ -1871,6 +1988,12 @@ class ChatViewModel(
                 _isNewChatMode.value = false
                 currentId = newId
             }
+            // Apply pending per-conversation settings if any (from Advanced dialog in new chat)
+            val pendingSettings = _pendingConversationSettings.value
+            if (pendingSettings != null) {
+                viewModelScope.launch { settingsManager.saveConversationSettings(currentId!!, pendingSettings) }
+                _pendingConversationSettings.value = null
+            }
             val currentPath = messages.value
             val lastMessageId = currentPath.lastOrNull()?.id
             val userMessageId = UUID.randomUUID().toString()
@@ -1893,19 +2016,25 @@ class ChatViewModel(
             triggerScrollToMessage(userMessageId)
 
             val resolved = buildEffectiveSystemPrompt(currentId)
+            val effectiveSettings = buildEffectiveConversationSettings(currentId)
             val config = GenerationConfig(
                 providerName = providerName,
                 modelId = modelId.substringAfter(":"),
                 apiKey = activeKey,
                 effectiveSystemPrompt = resolved.systemPrompt,
-                maxContextWindow = maxContextWindow.value,
-                codeExecutionEnabled = codeExecutionEnabled.value,
-                googleSearchEnabled = googleSearchEnabled.value,
-                thinkingEnabled = thinkingEnabled.value,
-                thinkingLevel = thinkingLevel.value,
+                maxContextWindow = effectiveSettings.contextWindow ?: maxContextWindow.value,
+                codeExecutionEnabled = effectiveSettings.codeExecutionEnabled ?: codeExecutionEnabled.value,
+                googleSearchEnabled = effectiveSettings.googleSearchEnabled ?: googleSearchEnabled.value,
+                thinkingEnabled = effectiveSettings.thinkingEnabled ?: thinkingEnabled.value,
+                thinkingLevel = effectiveSettings.thinkingLevel ?: thinkingLevel.value,
                 baseUrl = getEffectiveBaseUrl(providerName),
                 userPrepend = resolved.userPrepend,
-                userPostpend = resolved.userPostpend
+                userPostpend = resolved.userPostpend,
+                temperature = effectiveSettings.temperature,
+                maxTokens = effectiveSettings.maxTokens,
+                topP = effectiveSettings.topP,
+                frequencyPenalty = effectiveSettings.frequencyPenalty,
+                presencePenalty = effectiveSettings.presencePenalty
             )
 
             val genCtx = com.newoether.agora.viewmodel.GenerationContext(
@@ -1919,11 +2048,12 @@ class ChatViewModel(
                 ragThreshold = ragThreshold.value,
                 searchMatchLimit = searchMatchLimit.value,
                 searchContextWindow = searchContextWindow.value,
-                webSearchEnabled = webSearchEnabled.value,
+                webSearchEnabled = effectiveSettings.webSearchEnabled ?: webSearchEnabled.value,
                 webSearchApiKeys = webSearchApiKeys.value,
                 webSearchProvider = webSearchProvider.value,
+                webSearchNumResults = webSearchNumResults.value,
                 webSearchBaseUrl = webSearchBaseUrl.value,
-                shellEnabled = shellEnabled.value,
+                shellEnabled = effectiveSettings.shellEnabled ?: shellEnabled.value,
                 shellDevices = shellDevices.value
             )
             try {
@@ -1978,28 +2108,22 @@ class ChatViewModel(
                 providers.forEach { (name, providerInstance) ->
                     if (name == "Local") return@forEach
 
-                    val activeKeyId = activeApiKeyIds.value[name]
-                    val activeKey = apiKeys.value.find { it.id == activeKeyId }?.key ?: ""
-                    val isCustomProvider = name !in builtInProviders
-                    val currentBaseUrl = if (isCustomProvider) {
-                        providerBaseUrls.value[name]?.takeIf { it.isNotBlank() } ?: providerInstance.defaultBaseUrl
-                    } else {
-                        providerBaseUrls.value[name]
-                    }
-
-                    val isConfigured = when {
-                        isCustomProvider -> providerInstance.defaultBaseUrl.isNotBlank()
-                        name == "Ollama" -> !providerBaseUrls.value[name].isNullOrBlank()
-                        else -> activeKey.isNotBlank()
-                    }
-
-                    if (!isConfigured) {
-                        skippedCount++
-                        settingsManager.saveAvailableModels(name, emptyList())
-                        return@forEach
-                    }
-
                     try {
+                        val activeKeyId = activeApiKeyIds.value[name]
+                        val activeKey = apiKeys.value.find { it.id == activeKeyId }?.key ?: ""
+                        val isCustomProvider = name !in builtInProviders
+                        val currentBaseUrl = if (isCustomProvider) {
+                            providerBaseUrls.value[name]?.takeIf { it.isNotBlank() } ?: providerInstance.defaultBaseUrl
+                        } else {
+                            providerBaseUrls.value[name]
+                        }
+
+                        if (!isProviderConfigured(name, activeKey)) {
+                            skippedCount++
+                            settingsManager.saveAvailableModels(name, emptyList())
+                            return@forEach
+                        }
+
                         val rawModels = withTimeout(10_000L) {
                             providerInstance.fetchModels(activeKey, currentBaseUrl)
                         }

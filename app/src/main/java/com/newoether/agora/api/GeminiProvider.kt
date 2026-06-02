@@ -38,7 +38,12 @@ internal data class ApiToolConfig(
 
 @Serializable
 internal data class ApiGenerationConfig(
-    @SerialName("thinkingConfig") val thinkingConfig: ApiThinkingConfig? = null
+    @SerialName("thinkingConfig") val thinkingConfig: ApiThinkingConfig? = null,
+    val temperature: Float? = null,
+    @SerialName("maxOutputTokens") val maxOutputTokens: Int? = null,
+    @SerialName("topP") val topP: Float? = null,
+    @SerialName("frequencyPenalty") val frequencyPenalty: Float? = null,
+    @SerialName("presencePenalty") val presencePenalty: Float? = null
 )
 
 @Serializable
@@ -306,12 +311,23 @@ class GeminiProvider : LlmProvider {
             ApiToolConfig(includeServerSideToolInvocations = true)
         } else null
 
+        val hasGenParams = config.temperature != null || config.maxTokens != null || config.topP != null
+                || config.frequencyPenalty != null || config.presencePenalty != null
+        val genConfig = if (thinkingConfig != null || hasGenParams) ApiGenerationConfig(
+            thinkingConfig = thinkingConfig,
+            temperature = config.temperature,
+            maxOutputTokens = config.maxTokens,
+            topP = config.topP,
+            frequencyPenalty = config.frequencyPenalty,
+            presencePenalty = config.presencePenalty
+        ) else null
+
         val requestBody = ApiGenerateContentRequest(
             contents = apiContents,
             systemInstruction = systemInstruction,
             tools = if (tools.isNotEmpty()) tools else null,
             toolConfig = toolConfig,
-            generationConfig = if (thinkingConfig != null) ApiGenerationConfig(thinkingConfig = thinkingConfig) else null
+            generationConfig = genConfig
         )
 
         try {

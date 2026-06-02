@@ -333,12 +333,12 @@ fun SettingsSearchPage(viewModel: ChatViewModel, onBack: () -> Unit) {
                                 Spacer(modifier = Modifier.width(16.dp))
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(
-                                        text = "Context messages per search hit",
+                                        text = stringResource(R.string.search_context_label),
                                         style = MaterialTheme.typography.bodyLarge,
                                         color = MaterialTheme.colorScheme.onSurface
                                     )
                                     Text(
-                                        text = "$searchContextWindow messages",
+                                        text = stringResource(R.string.search_context_desc, searchContextWindow),
                                         style = MaterialTheme.typography.bodyMedium,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                         modifier = Modifier.padding(top = 4.dp)
@@ -373,12 +373,12 @@ fun SettingsSearchPage(viewModel: ChatViewModel, onBack: () -> Unit) {
                                 Spacer(modifier = Modifier.width(16.dp))
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(
-                                        text = "Max search results",
+                                        text = stringResource(R.string.search_match_label),
                                         style = MaterialTheme.typography.bodyLarge,
                                         color = MaterialTheme.colorScheme.onSurface
                                     )
                                     Text(
-                                        text = "$searchMatchLimit hits",
+                                        text = stringResource(R.string.search_match_desc, searchMatchLimit),
                                         style = MaterialTheme.typography.bodyMedium,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                         modifier = Modifier.padding(top = 4.dp)

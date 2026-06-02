@@ -7,6 +7,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.Key
@@ -31,6 +32,7 @@ fun SettingsWebSearchPage(viewModel: ChatViewModel, onBack: () -> Unit) {
     val webSearchEnabled by viewModel.webSearchEnabled.collectAsState()
     val webSearchProvider by viewModel.webSearchProvider.collectAsState()
     val webSearchApiKeys by viewModel.webSearchApiKeys.collectAsState()
+    val webSearchNumResults by viewModel.webSearchNumResults.collectAsState()
     val webSearchBaseUrl by viewModel.webSearchBaseUrl.collectAsState()
     var showProviderDialog by remember { mutableStateOf(false) }
     var apiKeyText by remember(webSearchProvider) { mutableStateOf(webSearchApiKeys[webSearchProvider] ?: "") }
@@ -172,6 +174,39 @@ fun SettingsWebSearchPage(viewModel: ChatViewModel, onBack: () -> Unit) {
                                             )
                                         }
                                     }
+                                }
+                            }
+                        }
+                    }
+                    // Num Results slider (visible for all providers)
+                    add {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 12.dp)
+                        ) {
+                            Row(verticalAlignment = Alignment.Top) {
+                                Icon(Icons.Default.Tune, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(top = 2.dp))
+                                Spacer(modifier = Modifier.width(16.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        stringResource(R.string.web_search_num_results),
+                                        style = MaterialTheme.typography.bodyLarge,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                    Text(
+                                        stringResource(R.string.web_search_num_results_desc, webSearchNumResults),
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.padding(top = 4.dp)
+                                    )
+                                    Slider(
+                                        value = webSearchNumResults.toFloat(),
+                                        onValueChange = { viewModel.setWebSearchNumResults(it.toInt()) },
+                                        valueRange = 1f..10f,
+                                        steps = 8,
+                                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
+                                    )
                                 }
                             }
                         }
