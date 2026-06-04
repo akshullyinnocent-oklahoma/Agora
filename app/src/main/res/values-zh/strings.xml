@@ -365,6 +365,16 @@
     <string name="search_no_response">搜索失败：无响应</string>
     <string name="search_no_results">未找到相关结果。</string>
     <string name="search_error_format">搜索错误：%1$s</string>
+
+    <!-- Conversation list / read tools -->
+    <string name="conversation_list_empty">未找到任何对话。</string>
+    <string name="conversation_list_header">显示 %1$d 条对话（第 %2$d-%3$d 条）。</string>
+    <string name="conversation_list_more">使用更高的 offset 查看更多对话。</string>
+    <string name="conversation_read_header">对话：%1$s（共 %2$d 条消息）</string>
+    <string name="conversation_read_empty">所选分支中没有消息。</string>
+    <string name="conversation_read_page">页面：消息 %1$d-%2$d</string>
+    <string name="conversation_read_more">使用更高的 offset 查看更多消息。</string>
+
     <string name="tool_call_failed">工具调用失败</string>
     <string name="database_incompatible">数据库不兼容</string>
     <string name="database_incompatible_desc">数据库版本较新，无法降级。请卸载并重新安装应用。</string>

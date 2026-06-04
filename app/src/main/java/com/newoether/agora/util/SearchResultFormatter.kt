@@ -12,7 +12,7 @@ object SearchResultFormatter {
 
     fun isRawSearchResult(text: String): Boolean = try {
         val type = Json.parseToJsonElement(text).jsonObject["type"]?.let { (it as? JsonPrimitive)?.content }
-        type == "web_search" || type == "search_conversations" || type == "execute_shell_command" || type == "list_shells" || type == "list_memory_files"
+        type == "web_search" || type == "search_conversations" || type == "execute_shell_command" || type == "list_shells" || type == "list_memory_files" || type == "list_conversations" || type == "read_conversation"
     } catch (_: Exception) { false }
 
     fun format(text: String, context: Context): String {
@@ -24,6 +24,8 @@ object SearchResultFormatter {
             when (json["type"]?.let { (it as? JsonPrimitive)?.content }) {
                 "web_search" -> formatWebSearch(json, context)
                 "search_conversations" -> formatConversationSearch(json, context)
+                "list_conversations" -> formatConversationList(json, context)
+                "read_conversation" -> formatConversationRead(json, context)
                 "list_memory_files" -> formatMemoryList(json)
                 "list_shells" -> formatShellList(json, context)
                 "execute_shell_command" -> formatShellCommand(json, context)
@@ -140,5 +142,53 @@ object SearchResultFormatter {
             if (desc.isNotEmpty()) "$name — $desc" else name
         }
         return list
+    }
+
+    private fun formatConversationList(json: JsonObject, context: Context): String {
+        val total = (json["total"] as? JsonPrimitive)?.content?.toIntOrNull() ?: 0
+        val offset = (json["offset"] as? JsonPrimitive)?.content?.toIntOrNull() ?: 0
+        val limit = (json["limit"] as? JsonPrimitive)?.content?.toIntOrNull() ?: 0
+        val hasMore = (json["has_more"] as? JsonPrimitive)?.content?.toBoolean() ?: false
+        val conversations = json["conversations"]?.jsonArray
+        if (conversations == null || conversations.isEmpty()) {
+            return context.getString(R.string.conversation_list_empty)
+        }
+
+        val header = context.getString(R.string.conversation_list_header, total, offset + 1, offset + conversations.size)
+        val body = conversations.joinToString("\n") { element ->
+            val obj = element.jsonObject
+            val id = (obj["id"] as? JsonPrimitive)?.content?.takeLast(8) ?: "?"
+            val title = (obj["title"] as? JsonPrimitive)?.content ?: context.getString(R.string.search_untitled)
+            val dateStr = (obj["timestamp"] as? JsonPrimitive)?.content ?: ""
+            if (dateStr.isNotEmpty()) "- [$id] $title ($dateStr)" else "- [$id] $title"
+        }
+        val footer = if (hasMore) context.getString(R.string.conversation_list_more) else ""
+        return "$header\n\n$body${if (footer.isNotEmpty()) "\n\n$footer" else ""}"
+    }
+
+    private fun formatConversationRead(json: JsonObject, context: Context): String {
+        val title = (json["title"] as? JsonPrimitive)?.content ?: context.getString(R.string.search_untitled)
+        val totalMessages = (json["total_messages"] as? JsonPrimitive)?.content?.toIntOrNull() ?: 0
+        val offset = (json["offset"] as? JsonPrimitive)?.content?.toIntOrNull() ?: 0
+        val hasMore = (json["has_more"] as? JsonPrimitive)?.content?.toBoolean() ?: false
+        val messages = json["messages"]?.jsonArray
+        val userRole = context.getString(R.string.search_role_user)
+        val modelRole = context.getString(R.string.search_role_model)
+
+        val header = context.getString(R.string.conversation_read_header, title, totalMessages)
+        val body = if (messages != null && messages.isNotEmpty()) {
+            messages.joinToString("\n\n") { element ->
+                val obj = element.jsonObject
+                val participant = (obj["participant"] as? JsonPrimitive)?.content ?: ""
+                val role = if (participant == "USER") userRole else modelRole
+                val text = (obj["text"] as? JsonPrimitive)?.content ?: ""
+                "$role: $text"
+            }
+        } else {
+            context.getString(R.string.conversation_read_empty)
+        }
+        val pageInfo = context.getString(R.string.conversation_read_page, offset + 1, offset + (messages?.size ?: 0))
+        val footer = if (hasMore) context.getString(R.string.conversation_read_more) else ""
+        return "$header\n$pageInfo\n\n$body${if (footer.isNotEmpty()) "\n\n$footer" else ""}"
     }
 }

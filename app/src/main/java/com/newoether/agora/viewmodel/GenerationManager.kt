@@ -295,6 +295,30 @@ class GenerationManager(
                     ),
                     required = listOf("query")
                 )
+            )),
+            ToolDefinition(function = ToolFunction(
+                name = "list_conversations",
+                description = "List all past conversations. Use this to browse conversation history and find conversations to read. Returns conversation IDs, titles, and last-updated timestamps.",
+                parameters = ToolParameters(
+                    properties = mapOf(
+                        "order" to ToolProperty("string", "Sort order by last updated time: 'asc' (oldest first) or 'desc' (newest first). Default: 'desc'."),
+                        "limit" to ToolProperty("integer", "Maximum conversations per page (1-50, default 20)."),
+                        "offset" to ToolProperty("integer", "Number of conversations to skip for pagination (default 0).")
+                    ),
+                    required = emptyList()
+                )
+            )),
+            ToolDefinition(function = ToolFunction(
+                name = "read_conversation",
+                description = "Read a specific conversation by its ID. Shows the selected message branch as a linear list with page controls. Use this after list_conversations or search_conversations to read a conversation of interest. Each message includes participant, text, and timestamp.",
+                parameters = ToolParameters(
+                    properties = mapOf(
+                        "conversation_id" to ToolProperty("string", "The conversation ID to read (from list_conversations or search_conversations results)."),
+                        "offset" to ToolProperty("integer", "Number of messages to skip for pagination (default 0)."),
+                        "limit" to ToolProperty("integer", "Maximum messages per page (1-100, default 50).")
+                    ),
+                    required = listOf("conversation_id")
+                )
             ))
         )
     }
@@ -534,10 +558,12 @@ class GenerationManager(
                         put("top_score", window.topScore)
                         put("match_count", window.matchCount)
                         putJsonArray("messages") {
+                            val dateFormat = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.US)
                             for (msg in window.messages) {
                                 add(buildJsonObject {
                                     put("participant", msg.participant.name)
                                     put("text", msg.text)
+                                    put("timestamp", dateFormat.format(java.util.Date(msg.timestamp)))
                                 })
                             }
                         }
@@ -554,6 +580,114 @@ class GenerationManager(
                 put("type", "search_conversations")
                 put("query", query)
                 put("error", "search_error")
+                put("message", e.message ?: "")
+            }.toString()
+        }
+    }
+
+    private suspend fun executeListConversations(arguments: String, ctx: GenerationContext): String {
+        val argsStr = arguments.ifBlank { "{}" }
+        val args = Json.decodeFromString<Map<String, kotlinx.serialization.json.JsonElement>>(argsStr)
+        val order = ((args["order"] as? kotlinx.serialization.json.JsonPrimitive)?.content ?: "desc").lowercase()
+        val limit = ((args["limit"] as? kotlinx.serialization.json.JsonPrimitive)?.content?.toIntOrNull() ?: 20).coerceIn(1, 50)
+        val offset = ((args["offset"] as? kotlinx.serialization.json.JsonPrimitive)?.content?.toIntOrNull() ?: 0).coerceAtLeast(0)
+
+        return try {
+            val allConversations = chatDao.getAllConversationsList()
+            val sorted = if (order == "desc") allConversations.reversed() else allConversations
+            val total = sorted.size
+            val page = if (offset < total) {
+                sorted.subList(offset, (offset + limit).coerceAtMost(total))
+            } else {
+                emptyList()
+            }
+            val hasMore = offset + limit < total
+
+            buildJsonObject {
+                put("type", "list_conversations")
+                put("total", total)
+                put("offset", offset)
+                put("limit", limit)
+                put("has_more", hasMore)
+                putJsonArray("conversations") {
+                    val dateFormat = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.US)
+                    for (conv in page) {
+                        add(buildJsonObject {
+                            put("id", conv.id)
+                            put("title", conv.title)
+                            put("timestamp", dateFormat.format(java.util.Date(conv.lastUpdated)))
+                        })
+                    }
+                }
+            }.toString()
+        } catch (e: Exception) {
+            buildJsonObject {
+                put("type", "list_conversations")
+                put("error", "list_error")
+                put("message", e.message ?: "")
+            }.toString()
+        }
+    }
+
+    private suspend fun executeReadConversation(arguments: String, ctx: GenerationContext): String {
+        val argsStr = arguments.ifBlank { "{}" }
+        val args = Json.decodeFromString<Map<String, kotlinx.serialization.json.JsonElement>>(argsStr)
+        val conversationId = ((args["conversation_id"] as? kotlinx.serialization.json.JsonPrimitive)?.content ?: "").trim()
+        if (conversationId.isEmpty()) {
+            return buildJsonObject {
+                put("type", "read_conversation")
+                put("error", "missing_conversation_id")
+            }.toString()
+        }
+        val limit = ((args["limit"] as? kotlinx.serialization.json.JsonPrimitive)?.content?.toIntOrNull() ?: 50).coerceIn(1, 100)
+        val offset = ((args["offset"] as? kotlinx.serialization.json.JsonPrimitive)?.content?.toIntOrNull() ?: 0).coerceAtLeast(0)
+
+        return try {
+            val conversation = chatDao.getConversation(conversationId)
+                ?: return buildJsonObject {
+                    put("type", "read_conversation")
+                    put("conversation_id", conversationId)
+                    put("error", "not_found")
+                }.toString()
+
+            val allMessages = chatDao.getMessagesForConversation(conversationId).first()
+                .filter { it.participant in listOf(Participant.USER, Participant.MODEL) }
+            // buildSelectedBranch needs all intermediate nodes to walk the tree without gaps;
+            // text emptiness check is deferred: tool-only MODEL msgs must stay as parent-chain links.
+            val branch = buildSelectedBranch(allMessages, conversation.selectedBranchesJson)
+                .filter { !it.id.startsWith(Constants.TOOL_MSG_PREFIX) && !it.id.startsWith(Constants.RESULT_MSG_PREFIX) }
+            val totalMessages = branch.size
+            val page = if (offset < totalMessages) {
+                branch.subList(offset, (offset + limit).coerceAtMost(totalMessages))
+            } else {
+                emptyList()
+            }
+            val hasMore = offset + limit < totalMessages
+
+            buildJsonObject {
+                put("type", "read_conversation")
+                put("conversation_id", conversationId)
+                put("title", conversation.title)
+                put("total_messages", totalMessages)
+                put("offset", offset)
+                put("limit", limit)
+                put("has_more", hasMore)
+                putJsonArray("messages") {
+                    val dateFormat = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.US)
+                    for (msg in page) {
+                        add(buildJsonObject {
+                            put("participant", msg.participant.name)
+                            put("text", msg.text)
+                            put("timestamp", dateFormat.format(java.util.Date(msg.timestamp)))
+                        })
+                    }
+                }
+            }.toString()
+        } catch (e: Exception) {
+            buildJsonObject {
+                put("type", "read_conversation")
+                put("conversation_id", conversationId)
+                put("error", "read_error")
                 put("message", e.message ?: "")
             }.toString()
         }
@@ -1229,6 +1363,8 @@ class GenerationManager(
                 "web_search" -> executeWebSearch(arguments, ctx)
                 "web_fetch" -> executeWebFetch(arguments, ctx)
                 "search_conversations" -> executeSearchConversations(arguments, ctx)
+                "list_conversations" -> executeListConversations(arguments, ctx)
+                "read_conversation" -> executeReadConversation(arguments, ctx)
                 "list_shells" -> listShells(ctx)
                 "execute_shell_command" -> executeShellCommand(arguments, ctx)
                 "file_read" -> executeFileRead(arguments, ctx)
