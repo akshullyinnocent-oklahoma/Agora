@@ -186,8 +186,8 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun MainNavigation(viewModel: ChatViewModel, settingsManager: SettingsManager) {
     var showSettings by rememberSaveable { mutableStateOf(false) }
-    var fullScreenMediaUrls by rememberSaveable { mutableStateOf<List<String>?>(null) }
-    var fullScreenMediaIndex by rememberSaveable { mutableIntStateOf(0) }
+    var fullScreenMediaUrls by remember { mutableStateOf<List<String>?>(null) }
+    var fullScreenMediaIndex by remember { mutableIntStateOf(0) }
     val pdfPages by viewModel.previewPdfPages.collectAsState()
     val pdfIndex by viewModel.previewPdfIndex.collectAsState()
     var savedPdfPages by remember { mutableStateOf<List<String>>(emptyList()) }
