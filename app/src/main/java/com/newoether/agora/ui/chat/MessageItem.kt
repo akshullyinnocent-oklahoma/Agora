@@ -85,7 +85,9 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.window.DialogWindowProvider
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onSizeChanged
+import kotlin.math.roundToInt
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -1447,7 +1449,7 @@ fun MessageItem(
         val scrollState = rememberScrollState()
 
         val PARTIAL = 0.45f
-        val FULL = 0.92f
+        val FULL = 0.94f
 
         // ── Finite state machine ──
         // Collapsed = 0, Half = PARTIAL, Full = FULL
@@ -1458,6 +1460,7 @@ fun MessageItem(
         var rawFraction by remember { mutableFloatStateOf(0f) }
         val visualFraction = remember { Animatable(0f) }
         var snapJob by remember { mutableStateOf<Job?>(null) }
+        var dismissing by remember { mutableStateOf(false) }
 
         val snapSpring = spring<Float>(dampingRatio = 0.9f, stiffness = 350f, visibilityThreshold = 0.001f)
 
@@ -1488,7 +1491,7 @@ fun MessageItem(
             }
         }
 
-        fun dismiss() { animateTo(0f) }
+        fun dismiss() { dismissing = true; animateTo(0f) }
 
         // ── Grab: interrupt animation, sync raw to current visual position ──
         fun grabSheet() {
@@ -1507,10 +1510,10 @@ fun MessageItem(
 
         // ── Safety-net snap: if drag ends without fling (velocity ≈ 0) ──
         LaunchedEffect(rawFraction) {
-            if (snapJob?.isActive == true) return@LaunchedEffect
+            if (dismissing || snapJob?.isActive == true) return@LaunchedEffect
             val pos = rawFraction
             delay(80)
-            if (pos != rawFraction || snapJob?.isActive == true) return@LaunchedEffect
+            if (dismissing || pos != rawFraction || snapJob?.isActive == true) return@LaunchedEffect
             val target = snapTarget(pos, 0f)
             if (abs(target - pos) > 0.01f) animateTo(target)
         }
@@ -1579,33 +1582,46 @@ fun MessageItem(
             properties = DialogProperties(
                 usePlatformDefaultWidth = false,
                 dismissOnBackPress = true,
-                dismissOnClickOutside = false
+                dismissOnClickOutside = false,
+                decorFitsSystemWindows = false
             )
         ) {
             val dialogWindow = (LocalView.current.parent as? DialogWindowProvider)?.window
             SideEffect { dialogWindowRef.value = dialogWindow }
 
             Box(modifier = Modifier.fillMaxSize()) {
-                // Transparent click-catcher — dim is handled by native Window.dimAmount
+                // Transparent click-catcher — dim is handled by native Window.dimAmount.
+                // Uses pointerInput to avoid reading visualFraction in composition.
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .then(
-                            if (visualFraction.value > 0.02f) {
-                                Modifier.clickable(
-                                    indication = null,
-                                    interactionSource = remember { MutableInteractionSource() }
-                                ) { dismiss() }
-                            } else Modifier
-                        )
+                        .pointerInput(Unit) {
+                            detectTapGestures(
+                                onTap = {
+                                    if (visualFraction.value > 0.02f) dismiss()
+                                }
+                            )
+                        }
                 )
 
-                // Sheet
-                Surface(
+                // Sheet height via Modifier.layout (layout phase) to avoid
+                // recomposition on every spring animation frame.
+                Box(
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
                         .fillMaxWidth()
-                        .height((configuration.screenHeightDp.dp * visualFraction.value).coerceAtLeast(0.dp)),
+                        .layout { measurable, constraints ->
+                            val h = (screenHeightPx * visualFraction.value).roundToInt().coerceAtLeast(0)
+                            val placeable = measurable.measure(
+                                constraints.copy(minHeight = h, maxHeight = h)
+                            )
+                            layout(placeable.width, h) {
+                                placeable.placeRelative(0, 0)
+                            }
+                        }
+                ) {
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
                     shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp),
                     shadowElevation = 8.dp,
                     color = MaterialTheme.colorScheme.surfaceContainer
@@ -1668,8 +1684,11 @@ fun MessageItem(
                                 .fillMaxSize()
                                 .nestedScroll(sheetScrollConnection)
                                 .verticalScroll(scrollState)
+                                .noOpBringIntoView()
                                 .padding(horizontal = 24.dp)
-                                .padding(top = 12.dp, bottom = 32.dp)
+                                .padding(top = 12.dp)
+                                .navigationBarsPadding()
+                                .padding(bottom = 32.dp)
                         ) {
                             if (seg.type == "tool") {
                                 val args = seg.toolArgs
@@ -1735,6 +1754,7 @@ fun MessageItem(
                             }
                         }
                     }
+                }
                 }
             }
         }
