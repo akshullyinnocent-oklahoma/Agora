@@ -698,7 +698,7 @@ fun ChatApp(
                                                 }
                                             }
                                         }
-                                        Spacer(modifier = Modifier.width(20.dp))
+                                        Spacer(modifier = Modifier.width(24.dp))
                                     }
                                 }
 
