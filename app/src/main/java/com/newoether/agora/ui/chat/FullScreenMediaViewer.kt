@@ -32,6 +32,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
@@ -147,11 +148,13 @@ private fun PdfPager(
             exit = fadeOut(),
             modifier = Modifier.align(Alignment.TopEnd).statusBarsPadding().padding(24.dp)
         ) {
-            IconButton(
+            Surface(
                 onClick = { onClose() },
-                modifier = Modifier.background(MaterialTheme.colorScheme.surfaceContainer, CircleShape)
+                shape = CircleShape,
+                color = MaterialTheme.colorScheme.surfaceContainer,
+                modifier = Modifier.shadow(8.dp, CircleShape)
             ) {
-                Icon(Icons.Default.Close, contentDescription = stringResource(R.string.provider_close), tint = MaterialTheme.colorScheme.onSurface)
+                Icon(Icons.Default.Close, contentDescription = stringResource(R.string.provider_close), tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.size(48.dp).padding(12.dp))
             }
         }
     }
@@ -225,11 +228,13 @@ private fun MediaPager(
             exit = fadeOut(),
             modifier = Modifier.align(Alignment.TopEnd).statusBarsPadding().padding(24.dp)
         ) {
-            IconButton(
+            Surface(
                 onClick = { onClose() },
-                modifier = Modifier.background(MaterialTheme.colorScheme.surfaceContainer, CircleShape)
+                shape = CircleShape,
+                color = MaterialTheme.colorScheme.surfaceContainer,
+                modifier = Modifier.shadow(8.dp, CircleShape)
             ) {
-                Icon(Icons.Default.Close, contentDescription = stringResource(R.string.provider_close), tint = MaterialTheme.colorScheme.onSurface)
+                Icon(Icons.Default.Close, contentDescription = stringResource(R.string.provider_close), tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.size(48.dp).padding(12.dp))
             }
         }
     }
@@ -470,11 +475,13 @@ private fun SingleImage(
             exit = fadeOut(),
             modifier = Modifier.align(Alignment.TopEnd).statusBarsPadding().padding(24.dp)
         ) {
-            IconButton(
+            Surface(
                 onClick = onClose,
-                modifier = Modifier.background(MaterialTheme.colorScheme.surfaceContainer, CircleShape)
+                shape = CircleShape,
+                color = MaterialTheme.colorScheme.surfaceContainer,
+                modifier = Modifier.shadow(8.dp, CircleShape)
             ) {
-                Icon(Icons.Default.Close, contentDescription = stringResource(R.string.provider_close), tint = MaterialTheme.colorScheme.onSurface)
+                Icon(Icons.Default.Close, contentDescription = stringResource(R.string.provider_close), tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.size(48.dp).padding(12.dp))
             }
         }
     }
