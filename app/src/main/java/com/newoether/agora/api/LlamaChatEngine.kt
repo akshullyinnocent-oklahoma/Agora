@@ -65,7 +65,10 @@ class LlamaChatEngine(
         return nativeChatGetTemplate(nativeHandle)
     }
 
-    fun applyTemplate(messages: List<ChatTemplateMessage>, addAss: Boolean = true): String? {
+    fun applyTemplate(
+        messages: List<ChatTemplateMessage>,
+        addAss: Boolean = true
+    ): String? {
         if (nativeHandle == 0L) return null
         return nativeChatApplyTemplate(nativeHandle, messages.toTypedArray(), addAss)
     }

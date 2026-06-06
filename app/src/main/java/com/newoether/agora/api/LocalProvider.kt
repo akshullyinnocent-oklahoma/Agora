@@ -2,7 +2,7 @@ package com.newoether.agora.api
 
 import android.content.Context
 import com.newoether.agora.util.DebugLog
-import com.newoether.agora.api.util.StreamingThinkTagParser
+import com.newoether.agora.api.util.ThinkingParser
 import com.newoether.agora.data.SettingsManager
 import com.newoether.agora.model.ChatMessage
 import com.newoether.agora.model.Participant
@@ -57,9 +57,12 @@ class LocalProvider(
 
         DebugLog.d(TAG, "Generated prompt (${prompt.length} chars): ${prompt.take(200)}...")
 
-        // Generate tokens with think tag parsing
+        // Generate tokens with unified thinking parsing
         var totalTokens = 0
-        val thinkParser = StreamingThinkTagParser()
+        var stopped = false
+        var rawBuf = ""
+        val STOP_PATTERNS = listOf("<|im_end|>", "<|im_start|>")
+        val thinkParser = ThinkingParser()
         try {
             engine.generate(
                 prompt = prompt,
@@ -71,9 +74,45 @@ class LocalProvider(
                     engine.cancel()
                     return@collect
                 }
+                if (stopped) return@collect
                 totalTokens++
+
+                // Check for stop patterns in the rolling buffer
+                rawBuf += token
+                val hit = STOP_PATTERNS.firstOrNull { p -> rawBuf.contains(p) }
+                if (hit != null) {
+                    // Strip the stop pattern and anything after it, then stop
+                    val cleanEnd = rawBuf.substringBefore(hit)
+                    if (cleanEnd.isNotEmpty()) {
+                        thinkParser.feed(
+                            content = cleanEnd,
+                            thinkingEnabled = config.thinkingEnabled,
+                            onText = { emit(StreamEvent.TextChunk(it)) },
+                            onThought = { emit(StreamEvent.ThoughtChunk(it)) }
+                        )
+                    }
+                    engine.cancel()
+                    stopped = true
+                    return@collect
+                }
+
+                // Keep buffer bounded — only as much as longest stop pattern
+                val maxPatLen = STOP_PATTERNS.maxOf { it.length }
+                if (rawBuf.length > maxPatLen * 2) {
+                    val emitPart = rawBuf.substring(0, rawBuf.length - maxPatLen)
+                    thinkParser.feed(
+                        content = emitPart,
+                        thinkingEnabled = config.thinkingEnabled,
+                        onText = { emit(StreamEvent.TextChunk(it)) },
+                        onThought = { emit(StreamEvent.ThoughtChunk(it)) }
+                    )
+                    rawBuf = rawBuf.substring(rawBuf.length - maxPatLen)
+                }
+            }
+            // Flush remaining buffer (no stop pattern found)
+            if (!stopped && rawBuf.isNotEmpty()) {
                 thinkParser.feed(
-                    content = token,
+                    content = rawBuf,
                     thinkingEnabled = config.thinkingEnabled,
                     onText = { emit(StreamEvent.TextChunk(it)) },
                     onThought = { emit(StreamEvent.ThoughtChunk(it)) }

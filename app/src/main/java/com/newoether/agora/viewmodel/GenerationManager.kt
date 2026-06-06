@@ -277,7 +277,8 @@ class GenerationManager(
                 description = "Fetch and read the full text content of a web page. Use this after web_search when you need more detail from a specific page.",
                 parameters = ToolParameters(
                     properties = mapOf(
-                        "url" to ToolProperty("string", "The URL of the page to fetch.")
+                        "url" to ToolProperty("string", "The URL of the page to fetch."),
+                        "maxChars" to ToolProperty("integer", "Maximum characters of text to return (default 4000, max 100000). Increase to get more content — the model can adjust this when the output appears truncated.")
                     ),
                     required = listOf("url")
                 )
@@ -897,6 +898,9 @@ class GenerationManager(
         val args = Json.decodeFromString<Map<String, kotlinx.serialization.json.JsonElement>>(argsStr)
         val url = (args["url"] as? kotlinx.serialization.json.JsonPrimitive)?.content
             ?: return buildJsonObject { put("type", "web_fetch"); put("error", "no_url") }.toString()
+        val maxChars = try {
+            (args["maxChars"] as? kotlinx.serialization.json.JsonPrimitive)?.content?.toIntOrNull()
+        } catch (_: Exception) { null } ?: 4000
 
         return try {
             val html = com.newoether.agora.api.HttpClient.fetchModels(url)
@@ -915,7 +919,7 @@ class GenerationManager(
                 }
                 .replace(Regex("\\s+"), " ")
                 .trim()
-                .take(4000)
+                .take(maxChars)
             buildJsonObject {
                 put("type", "web_fetch")
                 put("url", url)
