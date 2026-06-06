@@ -31,6 +31,7 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.newoether.agora.R
 import com.newoether.agora.viewmodel.ChatViewModel
@@ -158,7 +159,8 @@ fun SettingsSearchPage(viewModel: ChatViewModel, onBack: () -> Unit) {
                                         searchMethods.find { it.key == modelSearchMethod }?.let { stringResource(it.labelRes) } ?: "",
                                         style = MaterialTheme.typography.labelLarge,
                                         color = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.widthIn(min = 80.dp)
+                                        modifier = Modifier.width(80.dp),
+                                        textAlign = TextAlign.Center
                                     )
                                     DropdownMenu(
                                         containerColor = MaterialTheme.colorScheme.surfaceContainer,
@@ -198,7 +200,8 @@ fun SettingsSearchPage(viewModel: ChatViewModel, onBack: () -> Unit) {
                                         searchMethods.find { it.key == manualSearchMethod }?.let { stringResource(it.labelRes) } ?: "",
                                         style = MaterialTheme.typography.labelLarge,
                                         color = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.widthIn(min = 80.dp)
+                                        modifier = Modifier.width(80.dp),
+                                        textAlign = TextAlign.Center
                                     )
                                     DropdownMenu(
                                         containerColor = MaterialTheme.colorScheme.surfaceContainer,
