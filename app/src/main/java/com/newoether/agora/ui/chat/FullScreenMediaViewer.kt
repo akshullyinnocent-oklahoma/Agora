@@ -72,7 +72,26 @@ fun FullScreenMediaViewer(
         url.contains("vid_original_")
 
     if (isSingleVideo && urls.size == 1) {
-        VideoPlayer(uri = url, onClose = onClose)
+        var showOverlay by remember { mutableStateOf(true) }
+        var closing by remember { mutableStateOf(false) }
+        Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
+            VideoPlayer(uri = url, onClose = onClose, closing = closing)
+            AnimatedVisibility(
+                visible = showOverlay,
+                enter = fadeIn(),
+                exit = fadeOut(),
+                modifier = Modifier.align(Alignment.TopEnd).statusBarsPadding().padding(24.dp)
+            ) {
+                Surface(
+                    onClick = { closing = true },
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.surfaceContainer,
+                    modifier = Modifier.shadow(8.dp, CircleShape)
+                ) {
+                    Icon(Icons.Default.Close, contentDescription = stringResource(R.string.provider_close), tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.size(48.dp).padding(12.dp))
+                }
+            }
+        }
         return
     }
 
@@ -128,33 +147,33 @@ private fun PdfPager(
             visible = showOverlay,
             enter = fadeIn(),
             exit = fadeOut(),
-            modifier = Modifier.align(Alignment.TopStart).padding(20.dp).statusBarsPadding()
+            modifier = Modifier.align(Alignment.TopCenter).statusBarsPadding().padding(horizontal = 20.dp, vertical = 24.dp)
         ) {
-            Surface(
-                shape = RoundedCornerShape(50),
-                color = MaterialTheme.colorScheme.surfaceContainer
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    "${pagerState.currentPage + 1} / ${pdfPages.size}",
-                    color = MaterialTheme.colorScheme.onSurface,
-                    style = MaterialTheme.typography.labelMedium,
-                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
-                )
-            }
-        }
-        AnimatedVisibility(
-            visible = showOverlay,
-            enter = fadeIn(),
-            exit = fadeOut(),
-            modifier = Modifier.align(Alignment.TopEnd).statusBarsPadding().padding(24.dp)
-        ) {
-            Surface(
-                onClick = { onClose() },
-                shape = CircleShape,
-                color = MaterialTheme.colorScheme.surfaceContainer,
-                modifier = Modifier.shadow(8.dp, CircleShape)
-            ) {
-                Icon(Icons.Default.Close, contentDescription = stringResource(R.string.provider_close), tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.size(48.dp).padding(12.dp))
+                Surface(
+                    shape = RoundedCornerShape(50),
+                    color = MaterialTheme.colorScheme.surfaceContainer,
+                    modifier = Modifier.shadow(8.dp, RoundedCornerShape(50))
+                ) {
+                    Text(
+                        "${pagerState.currentPage + 1} / ${pdfPages.size}",
+                        color = MaterialTheme.colorScheme.onSurface,
+                        style = MaterialTheme.typography.labelMedium,
+                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 14.dp)
+                    )
+                }
+                Spacer(Modifier.weight(1f))
+                Surface(
+                    onClick = { onClose() },
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.surfaceContainer,
+                    modifier = Modifier.shadow(8.dp, CircleShape)
+                ) {
+                    Icon(Icons.Default.Close, contentDescription = stringResource(R.string.provider_close), tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.size(48.dp).padding(12.dp))
+                }
             }
         }
     }
@@ -172,9 +191,11 @@ private fun MediaPager(
     val context = LocalContext.current
     var currentScale by remember { mutableFloatStateOf(1f) }
     var showOverlay by remember { mutableStateOf(true) }
+    var closing by remember { mutableStateOf(false) }
     val pagerState = rememberPagerState(initialPage = initialIndex.coerceIn(0, urls.size - 1)) { urls.size }
     LaunchedEffect(pagerState.currentPage) { onNavigate(pagerState.currentPage) }
-    BackHandler { onClose() }
+    LaunchedEffect(closing) { if (closing) { kotlinx.coroutines.delay(400); onClose() } }
+    BackHandler { closing = true }
     Box(
         modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.9f))
     ) {
@@ -193,7 +214,7 @@ private fun MediaPager(
             }
             if (isVideo) {
                 if (page == pagerState.currentPage) {
-                    VideoPlayer(uri = mediaUrl, onClose = onClose)
+                    VideoPlayer(uri = mediaUrl, onClose = onClose, closing = closing)
                 }
             } else {
                 ZoomableImageItem(
@@ -205,36 +226,38 @@ private fun MediaPager(
             }
         }
         AnimatedVisibility(
-            visible = showOverlay && urls.size > 1,
-            enter = fadeIn(),
-            exit = fadeOut(),
-            modifier = Modifier.align(Alignment.TopStart).padding(20.dp).statusBarsPadding()
-        ) {
-            Surface(
-                shape = RoundedCornerShape(50),
-                color = MaterialTheme.colorScheme.surfaceContainer
-            ) {
-                Text(
-                    "${pagerState.currentPage + 1} / ${urls.size}",
-                    color = MaterialTheme.colorScheme.onSurface,
-                    style = MaterialTheme.typography.labelMedium,
-                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
-                )
-            }
-        }
-        AnimatedVisibility(
             visible = showOverlay,
             enter = fadeIn(),
             exit = fadeOut(),
-            modifier = Modifier.align(Alignment.TopEnd).statusBarsPadding().padding(24.dp)
+            modifier = Modifier.align(Alignment.TopCenter).statusBarsPadding().padding(horizontal = 20.dp, vertical = 24.dp)
         ) {
-            Surface(
-                onClick = { onClose() },
-                shape = CircleShape,
-                color = MaterialTheme.colorScheme.surfaceContainer,
-                modifier = Modifier.shadow(8.dp, CircleShape)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(Icons.Default.Close, contentDescription = stringResource(R.string.provider_close), tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.size(48.dp).padding(12.dp))
+                if (urls.size > 1) {
+                    Surface(
+                        shape = RoundedCornerShape(50),
+                        color = MaterialTheme.colorScheme.surfaceContainer,
+                        modifier = Modifier.shadow(8.dp, RoundedCornerShape(50))
+                    ) {
+                        Text(
+                            "${pagerState.currentPage + 1} / ${urls.size}",
+                            color = MaterialTheme.colorScheme.onSurface,
+                            style = MaterialTheme.typography.labelMedium,
+                            modifier = Modifier.padding(horizontal = 20.dp, vertical = 14.dp)
+                        )
+                    }
+                }
+                Spacer(Modifier.weight(1f))
+                Surface(
+                    onClick = { closing = true },
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.surfaceContainer,
+                    modifier = Modifier.shadow(8.dp, CircleShape)
+                ) {
+                    Icon(Icons.Default.Close, contentDescription = stringResource(R.string.provider_close), tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.size(48.dp).padding(12.dp))
+                }
             }
         }
     }

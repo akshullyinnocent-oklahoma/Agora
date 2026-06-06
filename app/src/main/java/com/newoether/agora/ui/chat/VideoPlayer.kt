@@ -14,16 +14,13 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.*
-import androidx.compose.material3.ripple
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
@@ -43,13 +40,15 @@ import kotlin.math.roundToLong
 fun VideoPlayer(
     uri: String,
     onClose: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    closing: Boolean = false
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     var contentReady by remember { mutableStateOf(false) }
-    var closing by remember { mutableStateOf(false) }
+    var internalClosing by remember { mutableStateOf(false) }
+    val effectiveClosing = closing || internalClosing
     val alpha by animateFloatAsState(
-        targetValue = if (contentReady && !closing) 1f else 0f,
+        targetValue = if (contentReady && !effectiveClosing) 1f else 0f,
         animationSpec = tween(400)
     )
 
@@ -78,8 +77,8 @@ fun VideoPlayer(
         }
     }
 
-    BackHandler(enabled = contentReady && !closing) {
-        closing = true
+    BackHandler(enabled = contentReady && !effectiveClosing) {
+        internalClosing = true
     }
 
     val player = remember {
@@ -125,8 +124,8 @@ fun VideoPlayer(
         }
     }
 
-    LaunchedEffect(closing) {
-        if (closing) {
+    LaunchedEffect(effectiveClosing) {
+        if (effectiveClosing) {
             delay(400)
             onClose()
         }
@@ -205,45 +204,9 @@ fun VideoPlayer(
             }
         }
 
-        // Top gradient + close button
-        AnimatedVisibility(
-            visible = controlsVisible && !closing,
-            enter = fadeIn(tween(250)),
-            exit = fadeOut(tween(250)),
-            modifier = Modifier.align(Alignment.TopCenter)
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .statusBarsPadding()
-                    .background(Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.6f), Color.Transparent)))
-                    .padding(horizontal = 16.dp, vertical = 16.dp)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .size(48.dp)
-                        .clip(CircleShape)
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = ripple(color = Color.White),
-                            onClick = { closing = true }
-                        ),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        Icons.Default.Close,
-                        contentDescription = stringResource(R.string.provider_close),
-                        tint = Color.White,
-                        modifier = Modifier.size(24.dp)
-                    )
-                }
-            }
-        }
-
         // Bottom controls bar
         AnimatedVisibility(
-            visible = controlsVisible && !closing,
+            visible = controlsVisible && !effectiveClosing,
             enter = fadeIn(tween(250)),
             exit = fadeOut(tween(250)),
             modifier = Modifier.align(Alignment.BottomCenter)
