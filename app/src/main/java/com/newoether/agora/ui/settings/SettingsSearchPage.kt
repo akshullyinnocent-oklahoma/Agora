@@ -869,10 +869,9 @@ fun SettingsSearchPage(viewModel: ChatViewModel, onBack: () -> Unit) {
 
         if (showRenameDialog != null) {
             val modelId = showRenameDialog!!
-            var editBatchSize by remember { mutableStateOf("") }
-            LaunchedEffect(modelId) {
+            var editBatchSize by remember(modelId) {
                 val model = viewModel.embeddingModels.value.find { it.id == modelId }
-                editBatchSize = model?.batchSize?.toString() ?: "8"
+                mutableStateOf((model?.batchSize ?: 8).toString())
             }
             AlertDialog(
                 containerColor = MaterialTheme.colorScheme.surfaceContainer,
