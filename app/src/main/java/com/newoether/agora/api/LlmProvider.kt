@@ -14,6 +14,9 @@ sealed class StreamEvent {
     data class Error(val message: String) : StreamEvent()
     data class ToolCallRequest(val id: String, val name: String, val arguments: String, val signature: String? = null) : StreamEvent()
     data class ToolCallsRequest(val calls: List<ToolCallRequest>) : StreamEvent()
+    /** Emitted when the provider is retrying after a transient error (401, 429, 5xx).
+     *  [attempt] is 1-based and always < [maxAttempts] (the final attempt does not emit). */
+    data class Retrying(val attempt: Int, val maxAttempts: Int) : StreamEvent()
 }
 
 data class ProviderConfig(

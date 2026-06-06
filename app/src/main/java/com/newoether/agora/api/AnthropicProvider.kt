@@ -6,6 +6,7 @@ import com.newoether.agora.model.Participant
 import com.newoether.agora.api.util.buildToolCallId
 import com.newoether.agora.api.util.prepareMessages
 import com.newoether.agora.util.Constants
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.withContext
@@ -228,9 +229,17 @@ class AnthropicProvider : LlmProvider {
             val requestBodyJson = json.encodeToString(AnthropicRequest.serializer(), requestBody)
             DebugLog.d("AgoraAPI", "[Anthropic] REQ → $baseUrl/messages | model=$modelName | msgs=${apiMessages.size} | thinking=${thinking != null} | tools=${anthropicTools?.size ?: 0}")
             DebugLog.d("AgoraAPI", "[Anthropic] BODY: ${requestBodyJson.take(4000)}")
-            val handle = HttpClient.streamPost(url, requestBodyJson, headers)
-            try {
+            val maxAttempts = 3
+            val retryableCodes = setOf(401, 429, 502, 503, 504)
+            var attempt = 0
+            var done = false
+
+            while (attempt < maxAttempts && !done) {
+                attempt++
+                val handle = HttpClient.streamPost(url, requestBodyJson, headers)
+                try {
                 if (handle.code == 200) {
+                    done = true
                     var line: String? = null
                     var currentType: String? = null
                     var toolUseId: String? = null
@@ -315,15 +324,23 @@ class AnthropicProvider : LlmProvider {
                 } else {
                     val errorRaw = handle.errorBody ?: "Unknown error"
                     DebugLog.e("AgoraAPI", "[Anthropic] ERR ${handle.code}: $errorRaw")
-                    val errorMessage = try {
-                        val errorJson = json.decodeFromString<OpenAiErrorResponse>(errorRaw)
-                        "Error ${errorJson.error.code ?: handle.code} (${errorJson.error.type ?: "UNKNOWN"}): ${errorJson.error.message}"
-                    } catch (_: Exception) {
-                        "Error ${handle.code}: $errorRaw"
+
+                    if (handle.code in retryableCodes && attempt < maxAttempts) {
+                        DebugLog.w("AgoraAPI", "[Anthropic] Transient error ${handle.code} on attempt $attempt/$maxAttempts, retrying in ${1000 * attempt}ms...")
+                        emit(StreamEvent.Retrying(attempt, maxAttempts))
+                        delay(1000L * attempt)
+                    } else {
+                        val errorMessage = try {
+                            val errorJson = json.decodeFromString<OpenAiErrorResponse>(errorRaw)
+                            "Error ${errorJson.error.code ?: handle.code} (${errorJson.error.type ?: "UNKNOWN"}): ${errorJson.error.message}"
+                        } catch (_: Exception) {
+                            "Error ${handle.code}: $errorRaw"
+                        }
+                        emit(StreamEvent.Error(errorMessage))
                     }
-                    emit(StreamEvent.Error(errorMessage))
                 }
-            } finally { handle.close() }
+                } finally { handle.close() }
+            }
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
         } catch (e: java.net.SocketTimeoutException) {

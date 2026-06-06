@@ -1008,6 +1008,9 @@ fun MessageItem(
                                 else -> stringResource(R.string.sending_ellipsis)
                             }
                             else -> null
+                        }.let { base ->
+                            if (base != null && message.retryText != null) "$base (${message.retryText})"
+                            else base
                         }
                         // Hold the last non-null label so the status bar doesn't collapse
                         // during the timing gap between isStreaming→false and the DB

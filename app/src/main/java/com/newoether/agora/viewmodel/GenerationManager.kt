@@ -18,6 +18,7 @@ import com.newoether.agora.model.MessageSegment
 import com.newoether.agora.model.MessageStatus
 import com.newoether.agora.model.Participant
 import com.newoether.agora.model.ToolCallData
+import com.newoether.agora.R
 import com.newoether.agora.service.AgoraForegroundService
 import com.newoether.agora.service.AppForegroundTracker
 import com.newoether.agora.api.EmbeddingClient
@@ -1555,6 +1556,7 @@ class GenerationManager(
         var cumulativeThoughtMs: Long = 0
         var currentThoughtStartMs: Long? = null
         var currentStatus = MessageStatus.SENDING
+        var retryText: String? = null
         val segments = mutableListOf<MessageSegment>()
         var currentThoughtBuf = StringBuilder()
         var currentThoughtSignature: String? = null
@@ -1578,7 +1580,8 @@ class GenerationManager(
                 status = currentStatus, participant = Participant.MODEL,
                 timestamp = startTime, thoughtTimeMs = totalThoughtTimeMs,
                 modelName = modelName, toolCall = toolCallData,
-                segments = buildLiveSegments(segments, currentThoughtBuf, currentThoughtSignature)
+                segments = buildLiveSegments(segments, currentThoughtBuf, currentThoughtSignature),
+                retryText = retryText
             )
 
             suspend fun handleStreamEvent(event: StreamEvent) {
@@ -1600,9 +1603,11 @@ class GenerationManager(
                             totalText += event.text
                         }
                         currentStatus = MessageStatus.SENDING
+                        retryText = null
                     }
                     is StreamEvent.ThoughtChunk -> {
                         currentStatus = MessageStatus.THINKING
+                        retryText = null
                         if (currentThoughtStartMs == null) {
                             currentThoughtStartMs = System.currentTimeMillis()
                         }
@@ -1625,7 +1630,12 @@ class GenerationManager(
                             if (totalThoughts.isEmpty()) totalThoughts = "Thinking..."
                         }
                     }
+                    is StreamEvent.Retrying -> {
+                        retryText = context.getString(R.string.generation_retry_attempt, event.attempt, event.maxAttempts)
+                        onStreamUpdate(modelMessage())
+                    }
                     is StreamEvent.Error -> {
+                        retryText = null
                         if (toolCallData == null && toolCallDataList.isEmpty()) {
                             totalText = event.message
                             currentStatus = MessageStatus.ERROR

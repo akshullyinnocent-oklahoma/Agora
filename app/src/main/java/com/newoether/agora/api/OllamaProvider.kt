@@ -7,6 +7,7 @@ import com.newoether.agora.api.util.prepareMessages
 import com.newoether.agora.model.ChatMessage
 import com.newoether.agora.model.Participant
 import com.newoether.agora.util.Constants
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.flow.Flow
@@ -169,9 +170,17 @@ class OllamaProvider : LlmProvider {
             val requestBodyJson = json.encodeToString(OllamaChatRequest.serializer(), requestBody)
             DebugLog.d("AgoraAPI", "[Ollama] REQ → $baseUrl/api/chat | model=${config.modelId} | msgs=${apiMessages.size} | tools=${config.tools?.size ?: 0}")
             DebugLog.d("AgoraAPI", "[Ollama] BODY: ${requestBodyJson.take(4000)}")
-            val handle = HttpClient.streamPost(url, requestBodyJson, headers)
-            try {
+            val maxAttempts = 3
+            val retryableCodes = setOf(401, 429, 502, 503, 504)
+            var attempt = 0
+            var done = false
+
+            while (attempt < maxAttempts && !done) {
+                attempt++
+                val handle = HttpClient.streamPost(url, requestBodyJson, headers)
+                try {
                 if (handle.code == 200) {
+                    done = true
                     var line: String? = null
                     val thinkParser = StreamingThinkTagParser()
                     var receivedStructuredThinking = false
@@ -241,15 +250,23 @@ class OllamaProvider : LlmProvider {
                 } else {
                     val errorRaw = handle.errorBody ?: "Unknown error"
                     DebugLog.e("AgoraAPI", "[Ollama] ERR ${handle.code}: $errorRaw")
-                    val errorMessage = try {
-                        val errorJson = json.decodeFromString<OpenAiErrorResponse>(errorRaw)
-                        "Error ${errorJson.error.code ?: handle.code} (${errorJson.error.type ?: "UNKNOWN"}): ${errorJson.error.message}"
-                    } catch (_: Exception) {
-                        "Error ${handle.code}: $errorRaw"
+
+                    if (handle.code in retryableCodes && attempt < maxAttempts) {
+                        DebugLog.w("AgoraAPI", "[Ollama] Transient error ${handle.code} on attempt $attempt/$maxAttempts, retrying in ${1000 * attempt}ms...")
+                        emit(StreamEvent.Retrying(attempt, maxAttempts))
+                        delay(1000L * attempt)
+                    } else {
+                        val errorMessage = try {
+                            val errorJson = json.decodeFromString<OpenAiErrorResponse>(errorRaw)
+                            "Error ${errorJson.error.code ?: handle.code} (${errorJson.error.type ?: "UNKNOWN"}): ${errorJson.error.message}"
+                        } catch (_: Exception) {
+                            "Error ${handle.code}: $errorRaw"
+                        }
+                        emit(StreamEvent.Error(errorMessage))
                     }
-                    emit(StreamEvent.Error(errorMessage))
                 }
-            } finally { handle.close() }
+                } finally { handle.close() }
+            }
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
         } catch (e: java.net.SocketTimeoutException) {

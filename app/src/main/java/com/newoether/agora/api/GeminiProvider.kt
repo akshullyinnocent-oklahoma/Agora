@@ -5,6 +5,7 @@ import com.newoether.agora.model.ChatMessage
 import com.newoether.agora.api.util.prepareMessages
 import com.newoether.agora.model.Participant
 import com.newoether.agora.util.Constants
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.flow.Flow
@@ -345,9 +346,17 @@ class GeminiProvider : LlmProvider {
             val requestJson = json.encodeToString(ApiGenerateContentRequest.serializer(), requestBody)
             DebugLog.d("AgoraAPI", "[Gemini] REQ → $finalUrlString | model=$cleanModelName | msgs=${apiContents.size} | thinking=${config.thinkingEnabled} | tools=${tools.size}")
             DebugLog.d("AgoraAPI", "[Gemini] BODY: ${requestJson.take(4000)}")
-            val handle = HttpClient.streamPost(finalUrlString, requestJson, headers)
-            try {
+            val maxAttempts = 3
+            val retryableCodes = setOf(401, 429, 502, 503, 504)
+            var attempt = 0
+            var done = false
+
+            while (attempt < maxAttempts && !done) {
+                attempt++
+                val handle = HttpClient.streamPost(finalUrlString, requestJson, headers)
+                try {
                 if (handle.code == 200) {
+                    done = true
                     var line: String? = null
                     var currentThoughtSignature: String? = null
                     var inThoughtBlock = false
@@ -443,18 +452,26 @@ class GeminiProvider : LlmProvider {
                 } else {
                     val errorRaw = handle.errorBody ?: "Unknown error (Code: ${handle.code})"
                     DebugLog.e("AgoraAPI", "[Gemini] ERR ${handle.code}: $errorRaw")
-                    val errorMessage = try {
-                        val errorJson = json.decodeFromString<ApiErrorResponse>(errorRaw)
-                        val code = errorJson.error.code ?: handle.code
-                        val status = errorJson.error.status ?: "UNKNOWN"
-                        val message = errorJson.error.message ?: "No error message provided"
-                        "Error $code ($status): $message"
-                    } catch (e: Exception) {
-                        "Error (Code ${handle.code}): $errorRaw"
+
+                    if (handle.code in retryableCodes && attempt < maxAttempts) {
+                        DebugLog.w("AgoraAPI", "[Gemini] Transient error ${handle.code} on attempt $attempt/$maxAttempts, retrying in ${1000 * attempt}ms...")
+                        emit(StreamEvent.Retrying(attempt, maxAttempts))
+                        delay(1000L * attempt)
+                    } else {
+                        val errorMessage = try {
+                            val errorJson = json.decodeFromString<ApiErrorResponse>(errorRaw)
+                            val code = errorJson.error.code ?: handle.code
+                            val status = errorJson.error.status ?: "UNKNOWN"
+                            val message = errorJson.error.message ?: "No error message provided"
+                            "Error $code ($status): $message"
+                        } catch (e: Exception) {
+                            "Error (Code ${handle.code}): $errorRaw"
+                        }
+                        emit(StreamEvent.Error(errorMessage))
                     }
-                    emit(StreamEvent.Error(errorMessage))
                 }
-            } finally { handle.close() }
+                } finally { handle.close() }
+            }
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
         } catch (e: java.net.SocketTimeoutException) {

@@ -95,6 +95,7 @@
     <string name="thought_for_minutes">Thought for %1$dm %2$ds</string>
     <string name="failed_to_generate">Failed to generate.</string>
     <string name="generation_stopped">Generation stopped.</string>
+    <string name="generation_retry_attempt">Retry %1$d/%2$d</string>
     <string name="action">Action</string>
     <string name="video">Video</string>
 
