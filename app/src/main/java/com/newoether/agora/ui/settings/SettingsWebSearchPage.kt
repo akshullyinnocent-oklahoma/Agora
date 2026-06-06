@@ -173,12 +173,23 @@ fun SettingsWebSearchPage(viewModel: ChatViewModel, onBack: () -> Unit) {
                                                 textStyle = MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
                                             )
                                         }
+                                        Text(
+                                            stringResource(R.string.web_search_searxng_fallback_desc),
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                                            modifier = Modifier.padding(top = 6.dp)
+                                        )
                                     }
                                 }
                             }
                         }
                     }
-                    // Num Results slider (visible for all providers)
+                }
+            })
+
+            if (webSearchEnabled) {
+                Spacer(modifier = Modifier.height(16.dp))
+                SettingsGroup(title = stringResource(R.string.web_search_advanced), items = buildList {
                     add {
                         Column(
                             modifier = Modifier
@@ -211,8 +222,8 @@ fun SettingsWebSearchPage(viewModel: ChatViewModel, onBack: () -> Unit) {
                             }
                         }
                     }
-                }
-            })
+                })
+            }
         }
     }
 
