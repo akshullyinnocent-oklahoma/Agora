@@ -83,12 +83,13 @@ fun SettingsSearchPage(viewModel: ChatViewModel, onBack: () -> Unit) {
         EmbeddingProviderPreset("Mistral", "https://api.mistral.ai/v1", listOf("mistral-embed")),
         EmbeddingProviderPreset("Voyage AI", "https://api.voyageai.com/v1", listOf("voyage-3-large", "voyage-3-lite", "voyage-code-3")),
         EmbeddingProviderPreset("SiliconFlow", "https://api.siliconflow.cn/v1", listOf("BAAI/bge-m3", "BAAI/bge-large-en-v1.5")),
-        EmbeddingProviderPreset("Custom", "https://api.openai.com/v1", emptyList())
+        EmbeddingProviderPreset("Ollama", "http://localhost:11434/v1", emptyList()),
+        EmbeddingProviderPreset("Custom", "", emptyList())
     )
     var remoteName by remember { mutableStateOf("") }
     var selectedProviderIdx by remember { mutableIntStateOf(0) }
     var remoteModelName by remember { mutableStateOf("") }
-    var remoteBaseUrl by remember { mutableStateOf("https://api.openai.com/v1") }
+    var remoteBaseUrl by remember { mutableStateOf("") }
     val remoteApiKeys = remember { mutableStateListOf(*Array(embeddingProviders.size) { "" }) }
     var remoteBatchSize by remember { mutableStateOf("8") }
     var showRemoteModelDropdown by remember { mutableStateOf(false) }
@@ -361,7 +362,7 @@ fun SettingsSearchPage(viewModel: ChatViewModel, onBack: () -> Unit) {
                                 remoteName = ""
                                 selectedProviderIdx = 0
                                 remoteModelName = embeddingProviders[0].models.firstOrNull() ?: ""
-                                remoteBaseUrl = "https://api.openai.com/v1"
+                                remoteBaseUrl = embeddingProviders[0].baseUrl
                                 for (i in remoteApiKeys.indices) { remoteApiKeys[i] = "" }
                                 remoteApiKeys[0] = viewModel.resolveEmbeddingKeyForProviderExact("OpenAI")?.key ?: ""
                                 remoteBatchSize = "8"
@@ -684,7 +685,7 @@ fun SettingsSearchPage(viewModel: ChatViewModel, onBack: () -> Unit) {
                             isTesting = true
                             testStatus = null
                             scope.launch {
-                                val result = viewModel.testRemoteEmbedding(finalModel, remoteBaseUrl)
+                                val result = viewModel.testRemoteEmbedding(finalModel, remoteBaseUrl, remoteApiKeys[selectedProviderIdx])
                                 if (result != null && result.startsWith("OK")) {
                                     viewModel.addEmbeddingModel(
                                         com.newoether.agora.data.EmbeddingModelConfig(

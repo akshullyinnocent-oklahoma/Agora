@@ -34,10 +34,10 @@ object EmbeddingClient {
         return try {
             val url = "$baseUrl/embeddings"
             val body = json.encodeToString(EmbeddingRequest(input = text, model = model))
-            val headers = mapOf(
-                "Authorization" to "Bearer $apiKey",
-                "Content-Type" to "application/json"
-            )
+            val headers = buildMap {
+                put("Content-Type", "application/json")
+                if (apiKey.isNotBlank()) put("Authorization", "Bearer $apiKey")
+            }
             val response = HttpClient.post(url, body, headers) ?: return null
             val parsed = json.parseToJsonElement(response).jsonObject
             val data = parsed["data"]?.jsonArray ?: return null
@@ -59,10 +59,10 @@ object EmbeddingClient {
         return try {
             val url = "$baseUrl/embeddings"
             val body = json.encodeToString(BatchEmbeddingRequest(input = texts, model = model))
-            val headers = mapOf(
-                "Authorization" to "Bearer $apiKey",
-                "Content-Type" to "application/json"
-            )
+            val headers = buildMap {
+                put("Content-Type", "application/json")
+                if (apiKey.isNotBlank()) put("Authorization", "Bearer $apiKey")
+            }
             val response = HttpClient.post(url, body, headers) ?: return texts.map { null }
             val parsed = json.parseToJsonElement(response).jsonObject
             val data = parsed["data"]?.jsonArray ?: return texts.map { null }

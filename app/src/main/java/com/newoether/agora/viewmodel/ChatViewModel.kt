@@ -834,6 +834,7 @@ class ChatViewModel(
             if (wasEmpty) {
                 settingsManager.setActiveEmbeddingModelId(config.id)
             }
+            refreshCacheCounts()
         }
     }
     fun deleteEmbeddingModel(id: String) {
@@ -850,6 +851,7 @@ class ChatViewModel(
                 if (activeEmbeddingModelId.value == id && models.isNotEmpty()) {
                     settingsManager.setActiveEmbeddingModelId(models.first().id)
                 }
+                refreshCacheCounts()
             }
         }
     }
@@ -1256,12 +1258,12 @@ class ChatViewModel(
     fun setSearchMatchLimit(n: Int) { viewModelScope.launch { settingsManager.saveSearchMatchLimit(n) } }
     fun setSearchContextWindow(n: Int) { viewModelScope.launch { settingsManager.saveSearchContextWindow(n) } }
     fun setRagThreshold(threshold: Float) { viewModelScope.launch { settingsManager.saveRagThreshold(threshold) } }
-    suspend fun testRemoteEmbedding(modelName: String, baseUrl: String): String? {
-        val apiKey = resolveEmbeddingApiKey() ?: return "No API key configured"
+    suspend fun testRemoteEmbedding(modelName: String, baseUrl: String, apiKey: String = ""): String? {
+        val effectiveKey = apiKey.ifBlank { resolveEmbeddingApiKey() ?: "" }
         val url = baseUrl.ifBlank { resolveEmbeddingBaseUrl() }
         return withContext(Dispatchers.IO) {
             try {
-                val result = EmbeddingClient.computeEmbedding("test connection", apiKey, modelName, url)
+                val result = EmbeddingClient.computeEmbedding("test connection", effectiveKey, modelName, url)
                 if (result != null) "OK (dim=${result.size})" else "Request failed. Check API key, URL, and model name."
             } catch (e: Exception) {
                 e.message ?: "Error"
