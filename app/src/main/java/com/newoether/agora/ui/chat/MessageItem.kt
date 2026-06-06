@@ -375,6 +375,9 @@ private fun toolSummary(seg: MessageSegment): String {
             if (isError) {
                 if (query != null) stringResource(R.string.tool_web_search_error, query)
                 else stringResource(R.string.tool_search_failed)
+            } else if (content.isBlank()) {
+                if (query != null) stringResource(R.string.tool_searching_web, query)
+                else stringResource(R.string.tool_web_search_done_default)
             } else {
                 val resultCount = try {
                     Json.parseToJsonElement(content).jsonObject["results"]?.jsonArray?.size ?: 0
