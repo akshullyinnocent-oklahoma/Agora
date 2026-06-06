@@ -288,7 +288,7 @@ fun SettingsSearchPage(viewModel: ChatViewModel, onBack: () -> Unit) {
                                         } else {
                                             stringResource(R.string.not_cached)
                                         }
-                                        Text("$typeLabel · Batch ${model.batchSize} · $cacheLabel")
+                                        Text("$typeLabel · $cacheLabel")
                                     },
                                     leadingContent = {
                                         RadioButton(
@@ -869,24 +869,41 @@ fun SettingsSearchPage(viewModel: ChatViewModel, onBack: () -> Unit) {
 
         if (showRenameDialog != null) {
             val modelId = showRenameDialog!!
+            var editBatchSize by remember { mutableStateOf("") }
+            LaunchedEffect(modelId) {
+                val model = viewModel.embeddingModels.value.find { it.id == modelId }
+                editBatchSize = model?.batchSize?.toString() ?: "8"
+            }
             AlertDialog(
                 containerColor = MaterialTheme.colorScheme.surfaceContainer,
                 onDismissRequest = { showRenameDialog = null },
-                title = { Text(stringResource(R.string.rename), fontWeight = FontWeight.Bold) },
+                title = { Text(stringResource(R.string.edit), fontWeight = FontWeight.Bold) },
                 text = {
-                    OutlinedTextField(
-                        value = renameText,
-                        onValueChange = { renameText = it },
-                        label = { Text(stringResource(R.string.model_name_label)) },
-                        singleLine = true,
-                        shape = RoundedCornerShape(16.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    )
+                    Column {
+                        OutlinedTextField(
+                            value = renameText,
+                            onValueChange = { renameText = it },
+                            label = { Text(stringResource(R.string.model_name_label)) },
+                            singleLine = true,
+                            shape = RoundedCornerShape(16.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        OutlinedTextField(
+                            value = editBatchSize,
+                            onValueChange = { editBatchSize = it.filter { c -> c.isDigit() } },
+                            label = { Text(stringResource(R.string.embedding_batch_size)) },
+                            supportingText = { Text(stringResource(R.string.embedding_batch_size_desc)) },
+                            singleLine = true,
+                            shape = RoundedCornerShape(16.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
                 },
                 confirmButton = {
                     TextButton(onClick = {
                         if (renameText.isNotBlank()) {
-                            viewModel.renameEmbeddingModel(modelId, renameText)
+                            viewModel.renameEmbeddingModel(modelId, renameText, editBatchSize.toIntOrNull() ?: 8)
                             showRenameDialog = null
                         }
                     }) { Text(stringResource(R.string.save)) }

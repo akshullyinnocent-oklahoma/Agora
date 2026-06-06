@@ -853,9 +853,11 @@ class ChatViewModel(
             }
         }
     }
-    fun renameEmbeddingModel(id: String, newName: String) {
+    fun renameEmbeddingModel(id: String, newName: String, batchSize: Int? = null) {
         viewModelScope.launch {
-            val models = embeddingModels.value.map { if (it.id == id) it.copy(name = newName) else it }
+            val models = embeddingModels.value.map {
+                if (it.id == id) it.copy(name = newName, batchSize = batchSize ?: it.batchSize) else it
+            }
             settingsManager.saveEmbeddingModels(models)
         }
     }
