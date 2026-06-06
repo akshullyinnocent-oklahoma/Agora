@@ -516,61 +516,51 @@ fun SettingsSearchPage(viewModel: ChatViewModel, onBack: () -> Unit) {
                 title = { Text(stringResource(R.string.add_remote_model), fontWeight = FontWeight.Bold) },
                 text = {
                     Column {
-                        // Provider selector (fully clickable)
+                        // Provider selector
                         var provExpanded by remember { mutableStateOf(false) }
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(16.dp))
-                                .clickable { provExpanded = true }
-                        ) {
-                            OutlinedTextField(
-                                value = provider.name,
-                                onValueChange = { },
-                                readOnly = true,
-                                enabled = false,
-                                label = { Text(stringResource(R.string.embedding_provider_label)) },
-                                trailingIcon = {
-                                    Icon(Icons.Default.ArrowDropDown, null)
-                                },
-                                singleLine = true,
-                                shape = RoundedCornerShape(16.dp),
-                                modifier = Modifier.fillMaxWidth(),
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    disabledTextColor = MaterialTheme.colorScheme.onSurface,
-                                    disabledBorderColor = MaterialTheme.colorScheme.outline,
-                                    disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            )
-                        }
-                        DropdownMenu(
-                            expanded = provExpanded,
-                            onDismissRequest = { provExpanded = false },
-                            containerColor = MaterialTheme.colorScheme.surfaceContainer,
-                            shape = RoundedCornerShape(12.dp)
-                        ) {
-                            embeddingProviders.forEachIndexed { idx, p ->
-                                DropdownMenuItem(
-                                    text = { Text(p.name) },
-                                    onClick = {
-                                        selectedProviderIdx = idx
-                                        remoteBaseUrl = p.baseUrl
-                                        // Only OpenAI gets auto-filled from chat keys
-                                        if (idx == 0 && remoteApiKeys[0].isBlank()) {
-                                            remoteApiKeys[0] = viewModel.resolveEmbeddingKeyForProviderExact("OpenAI")?.key ?: ""
-                                        }
-                                        if (p.models.isNotEmpty()) {
-                                            remoteModelName = p.models.first()
-                                            isCustomModel = false
-                                        } else {
-                                            remoteModelName = ""
-                                            isCustomModel = true
-                                        }
-                                        provExpanded = false
+                        OutlinedTextField(
+                            value = provider.name,
+                            onValueChange = { },
+                            readOnly = true,
+                            label = { Text(stringResource(R.string.embedding_provider_label)) },
+                            trailingIcon = {
+                                Box {
+                                    IconButton(onClick = { provExpanded = true }) {
+                                        Icon(Icons.Default.ArrowDropDown, null)
                                     }
-                                )
-                            }
-                        }
+                                    DropdownMenu(
+                                        expanded = provExpanded,
+                                        onDismissRequest = { provExpanded = false },
+                                        containerColor = MaterialTheme.colorScheme.surfaceContainer,
+                                        shape = RoundedCornerShape(12.dp)
+                                    ) {
+                                        embeddingProviders.forEachIndexed { idx, p ->
+                                            DropdownMenuItem(
+                                                text = { Text(p.name) },
+                                                onClick = {
+                                                    selectedProviderIdx = idx
+                                                    remoteBaseUrl = p.baseUrl
+                                                    if (idx == 0 && remoteApiKeys[0].isBlank()) {
+                                                        remoteApiKeys[0] = viewModel.resolveEmbeddingKeyForProviderExact("OpenAI")?.key ?: ""
+                                                    }
+                                                    if (p.models.isNotEmpty()) {
+                                                        remoteModelName = p.models.first()
+                                                        isCustomModel = false
+                                                    } else {
+                                                        remoteModelName = ""
+                                                        isCustomModel = true
+                                                    }
+                                                    provExpanded = false
+                                                }
+                                            )
+                                        }
+                                    }
+                                }
+                            },
+                            singleLine = true,
+                            shape = RoundedCornerShape(16.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        )
                         Spacer(modifier = Modifier.height(12.dp))
                         // API Key
                         val currentKey = remoteApiKeys[selectedProviderIdx]
