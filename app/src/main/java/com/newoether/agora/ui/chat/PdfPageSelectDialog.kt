@@ -13,9 +13,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 
 data class PdfPageSelection(
@@ -26,12 +28,18 @@ data class PdfPageSelection(
 @Composable
 fun PdfPageSelectDialog(
     totalPages: Int,
+    thumbnailPaths: List<String> = emptyList(),
+    isLoading: Boolean = false,
+    renderProgress: Pair<Int, Int> = 0 to 0,
+    onPreviewPage: ((Int) -> Unit)? = null,
     onConfirm: (PdfPageSelection) -> Unit,
     onDismiss: () -> Unit
 ) {
     val effectiveTotal = totalPages.coerceIn(1, 50)
     var selected by remember(effectiveTotal) { mutableStateOf((0 until minOf(effectiveTotal, 5)).toSet()) }
     var selectAll by remember(effectiveTotal) { mutableStateOf(selected.size == effectiveTotal) }
+
+    val hasThumbnails = thumbnailPaths.isNotEmpty() && !isLoading
 
     Dialog(onDismissRequest = onDismiss) {
         Surface(
@@ -76,51 +84,107 @@ fun PdfPageSelectDialog(
 
                 Spacer(Modifier.height(8.dp))
 
-                // Page grid
-                LazyColumn(
-                    modifier = Modifier.heightIn(max = 320.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    itemsIndexed((0 until effectiveTotal).chunked(5)) { rowIdx, row ->
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(4.dp)
-                        ) {
-                            for (pageIdx in row) {
-                                val page = pageIdx + 1
-                                val isSelected = pageIdx in selected
-                                Box(
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .aspectRatio(0.75f)
-                                        .clip(RoundedCornerShape(6.dp))
-                                        .then(
-                                            if (isSelected) Modifier.border(2.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(6.dp))
-                                            else Modifier.border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(6.dp))
-                                        )
-                                        .background(
-                                            if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
-                                            else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
-                                        )
-                                        .clickable {
-                                            selected = if (isSelected) selected - pageIdx else selected + pageIdx
-                                            selectAll = selected.size == effectiveTotal
-                                        },
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text(
-                                        "$page",
-                                        style = MaterialTheme.typography.labelLarge,
-                                        color = if (isSelected) MaterialTheme.colorScheme.primary
-                                                else MaterialTheme.colorScheme.onSurfaceVariant,
-                                        fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
-                                        textAlign = TextAlign.Center
-                                    )
+                // Loading / thumbnail grid
+                if (isLoading) {
+                    Box(
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 200.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            CircularProgressIndicator(modifier = Modifier.size(32.dp), strokeWidth = 2.5.dp)
+                            Spacer(Modifier.height(12.dp))
+                            Text(
+                                "Rendering page ${renderProgress.first} of ${renderProgress.second}…",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.heightIn(max = 320.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        itemsIndexed((0 until effectiveTotal).chunked(3)) { rowIdx, row ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                for (pageIdx in row) {
+                                    val page = pageIdx + 1
+                                    val isSelected = pageIdx in selected
+                                    Box(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .aspectRatio(0.75f)
+                                            .clip(RoundedCornerShape(6.dp))
+                                            .then(
+                                                if (isSelected) Modifier.border(2.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(6.dp))
+                                                else Modifier.border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(6.dp))
+                                            )
+                                            .background(
+                                                if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+                                                else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+                                            )
+                                            .clickable { onPreviewPage?.invoke(pageIdx) },
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        if (hasThumbnails && pageIdx < thumbnailPaths.size) {
+                                            coil.compose.AsyncImage(
+                                                model = thumbnailPaths[pageIdx],
+                                                contentDescription = "Page $page",
+                                                modifier = Modifier.fillMaxSize(),
+                                                contentScale = ContentScale.Fit
+                                            )
+                                            // Page number badge
+                                            Box(
+                                                modifier = Modifier.align(Alignment.BottomEnd)
+                                                    .padding(2.dp)
+                                                    .background(Color.Black.copy(alpha = 0.55f), RoundedCornerShape(3.dp))
+                                                    .padding(horizontal = 4.dp, vertical = 1.dp)
+                                            ) {
+                                                Text(
+                                                    "$page",
+                                                    color = Color.White,
+                                                    fontSize = 10.sp,
+                                                    lineHeight = 12.sp
+                                                )
+                                            }
+                                        } else {
+                                            Text(
+                                                "$page",
+                                                style = MaterialTheme.typography.labelLarge,
+                                                color = if (isSelected) MaterialTheme.colorScheme.primary
+                                                        else MaterialTheme.colorScheme.onSurfaceVariant,
+                                                fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+                                                textAlign = TextAlign.Center
+                                            )
+                                        }
+                                        // Selection checkbox overlay
+                                        Box(
+                                            modifier = Modifier
+                                                .align(Alignment.TopStart)
+                                                .padding(4.dp)
+                                                .clip(RoundedCornerShape(3.dp))
+                                                .background(Color.Black.copy(alpha = 0.45f))
+                                                .clickable {
+                                                    selected = if (isSelected) selected - pageIdx else selected + pageIdx
+                                                    selectAll = selected.size == effectiveTotal
+                                                }
+                                                .padding(2.dp)
+                                        ) {
+                                            Checkbox(
+                                                checked = isSelected,
+                                                onCheckedChange = null,
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        }
+                                    }
                                 }
-                            }
-                            // Fill remaining slots in last row
-                            repeat(5 - row.size) {
-                                Spacer(Modifier.weight(1f))
+                                // Fill remaining slots in last row
+                                repeat(3 - row.size) {
+                                    Spacer(Modifier.weight(1f))
+                                }
                             }
                         }
                     }

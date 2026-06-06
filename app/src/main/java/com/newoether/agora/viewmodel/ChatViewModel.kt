@@ -1912,7 +1912,12 @@ class ChatViewModel(
                         ))
                     }
                     "pdf" -> {
-                        val pagePaths = com.newoether.agora.util.PdfPageRenderer.renderAsImages(app, android.net.Uri.parse(att.uri), att.selectedPages)
+                        val pagePaths = if (att.preRenderedPaths != null && att.preRenderedPaths.isNotEmpty()) {
+                            val sel = att.selectedPages ?: att.preRenderedPaths.indices.toSet()
+                            att.preRenderedPaths.filterIndexed { i, _ -> i in sel }
+                        } else {
+                            com.newoether.agora.util.PdfPageRenderer.renderAsImages(app, android.net.Uri.parse(att.uri), att.selectedPages)
+                        }
                         if (pagePaths.isEmpty()) {
                             _snackbarMessage.emit(SnackbarEvent(app.getString(R.string.pdf_render_failed)))
                             continue

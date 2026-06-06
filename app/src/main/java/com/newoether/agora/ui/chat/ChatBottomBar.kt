@@ -173,6 +173,9 @@ fun ChatBottomBar(
     var pendingPdfPages by remember { mutableIntStateOf(0) }
     var pendingPdfFileName by remember { mutableStateOf<String?>(null) }
     var pendingPdfMimeType by remember { mutableStateOf<String?>(null) }
+    var pendingPdfRenderedPaths by remember { mutableStateOf<List<String>>(emptyList()) }
+    var pendingPdfIsRendering by remember { mutableStateOf(false) }
+    var pendingPdfRenderProgress by remember { mutableStateOf(0 to 0) }
 
     // Video slicing dialog state
     var showVideoSliceDialog by remember { mutableStateOf(false) }
@@ -280,14 +283,25 @@ fun ChatBottomBar(
                 }
             } catch (_: Exception) { null }
             if (type == "pdf" && !showPdfPageDialog) {
-                // Queue first PDF for page selection dialog
+                // Queue first PDF — render all pages in background
                 val pageCount = com.newoether.agora.util.PdfPageRenderer.getPageCount(context, uri)
                 if (pageCount > 0) {
                     pendingPdfUri = uri.toString()
                     pendingPdfPages = pageCount
                     pendingPdfFileName = fileName
                     pendingPdfMimeType = mimeType
+                    pendingPdfRenderedPaths = emptyList()
+                    pendingPdfIsRendering = true
+                    pendingPdfRenderProgress = 0 to minOf(pageCount, 50)
                     showPdfPageDialog = true
+                    coroutineScope.launch(Dispatchers.IO) {
+                        val paths = com.newoether.agora.util.PdfPageRenderer.renderAllPages(
+                            context, uri, maxPages = 50,
+                            onProgress = { cur, total -> pendingPdfRenderProgress = cur to total }
+                        )
+                        pendingPdfRenderedPaths = paths
+                        pendingPdfIsRendering = false
+                    }
                     continue
                 }
             }
@@ -917,19 +931,27 @@ fun ChatBottomBar(
     if (showPdfPageDialog && pendingPdfUri != null) {
         PdfPageSelectDialog(
             totalPages = pendingPdfPages,
+            thumbnailPaths = pendingPdfRenderedPaths,
+            isLoading = pendingPdfIsRendering,
+            renderProgress = pendingPdfRenderProgress,
+            onPreviewPage = { index -> onPdfPagesClick?.invoke(pendingPdfRenderedPaths, index) },
             onConfirm = { selection ->
                 showPdfPageDialog = false
                 selectedAttachments = selectedAttachments + com.newoether.agora.model.SelectedAttachment(
                     uri = pendingPdfUri!!, type = "pdf",
                     mimeType = pendingPdfMimeType,
                     fileName = pendingPdfFileName,
-                    selectedPages = selection.selectedPages
+                    selectedPages = selection.selectedPages,
+                    preRenderedPaths = pendingPdfRenderedPaths
                 )
                 pendingPdfUri = null
+                pendingPdfRenderedPaths = emptyList()
             },
             onDismiss = {
                 showPdfPageDialog = false
                 pendingPdfUri = null
+                pendingPdfRenderedPaths = emptyList()
+                pendingPdfIsRendering = false
             }
         )
     }
