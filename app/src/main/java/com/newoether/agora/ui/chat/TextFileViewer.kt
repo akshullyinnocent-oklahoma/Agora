@@ -134,20 +134,22 @@ fun TextFileViewer(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Surface(
-                    shape = RoundedCornerShape(50),
-                    color = MaterialTheme.colorScheme.surfaceContainer,
-                    modifier = Modifier.weight(1f, fill = false).shadow(8.dp, RoundedCornerShape(50)).widthIn(max = 320.dp)
-                ) {
-                    Text(
-                        fileName,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 14.dp)
-                    )
+                Box(modifier = Modifier.weight(1f)) {
+                    Surface(
+                        shape = RoundedCornerShape(50),
+                        color = MaterialTheme.colorScheme.surfaceContainer,
+                        modifier = Modifier.shadow(8.dp, RoundedCornerShape(50)).widthIn(max = 320.dp)
+                    ) {
+                        Text(
+                            fileName,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.padding(horizontal = 20.dp, vertical = 14.dp)
+                        )
+                    }
                 }
                 Spacer(Modifier.width(12.dp))
                 Surface(
