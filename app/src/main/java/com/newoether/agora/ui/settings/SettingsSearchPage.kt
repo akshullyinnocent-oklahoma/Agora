@@ -288,7 +288,7 @@ fun SettingsSearchPage(viewModel: ChatViewModel, onBack: () -> Unit) {
                                         } else {
                                             stringResource(R.string.not_cached)
                                         }
-                                        Text("$typeLabel · $cacheLabel")
+                                        Text("$typeLabel · Batch ${model.batchSize} · $cacheLabel")
                                     },
                                     leadingContent = {
                                         RadioButton(
@@ -327,7 +327,7 @@ fun SettingsSearchPage(viewModel: ChatViewModel, onBack: () -> Unit) {
                                                     shape = RoundedCornerShape(12.dp)
                                                 ) {
                                                     DropdownMenuItem(
-                                                        text = { Text(stringResource(R.string.rename)) },
+                                                        text = { Text(stringResource(R.string.edit)) },
                                                         leadingIcon = { Icon(Icons.Default.Edit, null) },
                                                         onClick = {
                                                             showMenuForModel = null
@@ -845,7 +845,9 @@ fun SettingsSearchPage(viewModel: ChatViewModel, onBack: () -> Unit) {
                             )
                             showLocalDialog = false
                         }
-                    }) { Text(stringResource(R.string.add)) }
+                    },
+                        enabled = localName.isNotBlank() && localFilePath.isNotBlank()
+                    ) { Text(stringResource(R.string.add)) }
                 },
                 dismissButton = {
                     TextButton(onClick = {
