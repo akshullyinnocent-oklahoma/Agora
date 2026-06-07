@@ -17,12 +17,14 @@ import com.newoether.agora.R
 @Composable
 fun DocumentationFab(docPath: String, modifier: Modifier = Modifier) {
     val context = LocalContext.current
+    val isZh = java.util.Locale.getDefault().language == "zh"
     val baseUrl = "https://newo-ether.github.io/Agora/"
+    val langPrefix = if (isZh) "zh/" else ""
 
     ExtendedFloatingActionButton(
         onClick = {
             val page = docPath.removeSuffix(".md") + "/"
-            val intent = Intent(Intent.ACTION_VIEW, Uri.parse("$baseUrl$page"))
+            val intent = Intent(Intent.ACTION_VIEW, Uri.parse("$baseUrl$langPrefix$page"))
             context.startActivity(intent)
         },
         icon = { Icon(Icons.AutoMirrored.Filled.MenuBook, contentDescription = null) },
