@@ -52,6 +52,7 @@ import androidx.compose.ui.unit.dp
 import com.newoether.agora.R
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+import kotlin.math.abs
 
 @Composable
 fun FullScreenMediaViewer(
@@ -320,6 +321,7 @@ private fun SingleImage(
     var animationJob by remember { mutableStateOf<Job?>(null) }
     var showOverlay by remember { mutableStateOf(true) }
     var lastCentroid by remember { mutableStateOf(Offset.Unspecified) }
+    var gestureSuppressed by remember { mutableStateOf(false) }
 
     val statusBarHeight = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     val navBarHeight = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
@@ -357,6 +359,15 @@ private fun SingleImage(
         return (fullDelta * c * dimension) / (dimension + c * fullDelta)
     }
 
+    /** Clamp pivot so offset stays in [-maxO, maxO]. */
+    fun clampPivot(tapPivot: Float, centerCoord: Float, startOffset: Float, r: Float, maxO: Float): Float {
+        if (abs(r - 1f) < 0.0001f) return tapPivot
+        val sign = if (r > 1f) 1f else -1f
+        val lower = centerCoord - sign * (maxO - startOffset * r) / (r - 1f)
+        val upper = centerCoord + sign * (maxO + startOffset * r) / (r - 1f)
+        return tapPivot.coerceIn(lower, upper)
+    }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -367,40 +378,51 @@ private fun SingleImage(
                     onTap = { showOverlay = !showOverlay },
                     onDoubleTap = { tapOffset ->
                         animationJob?.cancel()
+                        gestureSuppressed = true
+                        val s0 = scale
+                        val oX = offsetX
+                        val oY = offsetY
+                        val startS = s0 * baseScale
+                        val centerX = containerSize.width / 2f
+                        val centerY = containerSize.height / 2f
+                        val imgTapX = (tapOffset.x - centerX - oX) / startS
+                        val imgTapY = (tapOffset.y - centerY - oY) / startS
+                        val targetScale = if (s0 > 1.05f) 1f else 3f
+                        val isZoomIn = targetScale > s0
+                        val isLandscape = imageSize.width > imageSize.height
                         animationJob = scope.launch {
-                            val startScale = scale
-                            val startOffsetX = offsetX
-                            val startOffsetY = offsetY
-                            if (startScale > 1.05f) {
-                                val targetScale = 1f
-                                val center = Offset(containerSize.width / 2f, containerSize.height / 2f)
-                                AnimationState(startScale).animateTo(
+                            try {
+                                AnimationState(s0).animateTo(
                                     targetScale,
                                     spring(stiffness = Spring.StiffnessMediumLow, dampingRatio = Spring.DampingRatioNoBouncy, visibilityThreshold = 0.001f)
                                 ) {
                                     scale = value
-                                    val r = if (startScale != 0f) value / startScale else 1f
-                                    val ux = startOffsetX * r + (tapOffset.x - center.x) * (1f - r)
-                                    val uy = startOffsetY * r + (tapOffset.y - center.y) * (1f - r)
-                                    val (maxX, maxY) = getMaxOffsets(value)
-                                    offsetX = ux.coerceIn(-maxX, maxX)
-                                    offsetY = uy.coerceIn(-maxY, maxY)
+                                    if (isZoomIn) {
+                                        val r = value / s0
+                                        val curS = value * baseScale
+                                        val (maxX, maxY) = getMaxOffsets(value)
+                                        val idealX = oX * r + (tapOffset.x - centerX) * (1f - r)
+                                        val idealY = oY * r + (tapOffset.y - centerY) * (1f - r)
+                                        if (idealX in -maxX..maxX && idealY in -maxY..maxY) {
+                                            offsetX = idealX
+                                            offsetY = idealY
+                                        } else {
+                                            val px = if (isLandscape) 0f else imgTapX
+                                            val py = if (isLandscape) imgTapY else 0f
+                                            offsetX = ((tapOffset.x - centerX) - px * curS).coerceIn(-maxX, maxX)
+                                            offsetY = ((tapOffset.y - centerY) - py * curS).coerceIn(-maxY, maxY)
+                                        }
+                                    } else {
+                                        val r = if (s0 != 0f) value / s0 else 1f
+                                        val ux = oX * r + (tapOffset.x - centerX) * (1f - r)
+                                        val uy = oY * r + (tapOffset.y - centerY) * (1f - r)
+                                        val (maxX, maxY) = getMaxOffsets(value)
+                                        offsetX = ux.coerceIn(-maxX, maxX)
+                                        offsetY = uy.coerceIn(-maxY, maxY)
+                                    }
                                 }
-                            } else {
-                                val targetScale = 3f
-                                val center = Offset(containerSize.width / 2f, containerSize.height / 2f)
-                                AnimationState(startScale).animateTo(
-                                    targetScale,
-                                    spring(stiffness = Spring.StiffnessMediumLow, dampingRatio = Spring.DampingRatioNoBouncy, visibilityThreshold = 0.001f)
-                                ) {
-                                    scale = value
-                                    val r = if (startScale != 0f) value / startScale else 1f
-                                    val ux = startOffsetX * r + (tapOffset.x - center.x) * (1f - r)
-                                    val uy = startOffsetY * r + (tapOffset.y - center.y) * (1f - r)
-                                    val (maxX, maxY) = getMaxOffsets(value)
-                                    offsetX = ux.coerceIn(-maxX, maxX)
-                                    offsetY = uy.coerceIn(-maxY, maxY)
-                                }
+                            } finally {
+                                gestureSuppressed = false
                             }
                         }
                     }
@@ -417,6 +439,7 @@ private fun SingleImage(
                 .pointerInput(url) {
                     val velocityTracker = VelocityTracker()
                     awaitEachGesture {
+                        if (gestureSuppressed) return@awaitEachGesture
                         awaitFirstDown(requireUnconsumed = false)
                         animationJob?.cancel()
                         var pastTouchSlop = false
@@ -446,12 +469,22 @@ private fun SingleImage(
                                     }
                                     val r = if (oldVisualScale != 0f) newVisualScale / oldVisualScale else 1f
                                     val center = Offset(containerSize.width / 2f, containerSize.height / 2f)
-                                    logicalOffsetX = logicalOffsetX * r + (centroid.x - center.x) * (1f - r) + panChange.x
-                                    logicalOffsetY = logicalOffsetY * r + (centroid.y - center.y) * (1f - r) + panChange.y
+                                    // scale monotonic increase → pivot must be centroid or center.
+                                    // offset_new = offset_old * r + pivot * (1 - r), pivot = centroid.
+                                    val isZooming = abs(1f - r) > 0.0001f
+                                    if (isZooming) {
+                                        logicalOffsetX = logicalOffsetX * r + (centroid.x - center.x) * (1f - r)
+                                        logicalOffsetY = logicalOffsetY * r + (centroid.y - center.y) * (1f - r)
+                                    } else {
+                                        logicalOffsetX += panChange.x
+                                        logicalOffsetY += panChange.y
+                                    }
                                     val (maxX, maxY) = getMaxOffsets(newVisualScale)
                                     scale = newVisualScale
                                     offsetX = logicalOffsetX.coerceIn(-maxX, maxX)
                                     offsetY = logicalOffsetY.coerceIn(-maxY, maxY)
+                                    logicalOffsetX = offsetX
+                                    logicalOffsetY = offsetY
                                     event.changes.forEach { if (it.positionChanged()) it.consume() }
                                 }
                             }
@@ -466,9 +499,10 @@ private fun SingleImage(
                             x = if (rawVelocity.x.isNaN()) 0f else rawVelocity.x.coerceIn(-maxV, maxV),
                             y = if (rawVelocity.y.isNaN()) 0f else rawVelocity.y.coerceIn(-maxV, maxV)
                         )
-                        animationJob = scope.launch {
-                            if (scale < 0.95f || scale > 10.05f) {
-                                val sS = scale; val sX = offsetX; val sY = offsetY
+                        if (animationJob?.isActive != true) {
+                            animationJob = scope.launch {
+                                if (scale < 0.95f || scale > 10.05f) {
+                                    val sS = scale; val sX = offsetX; val sY = offsetY
                                 val targetS = scale.coerceIn(1f, 10f)
                                 val (targetMaxX, targetMaxY) = getMaxOffsets(targetS)
                                 val center = Offset(containerSize.width / 2f, containerSize.height / 2f)
@@ -518,8 +552,9 @@ private fun SingleImage(
                                             }
                                     }
                                 }
+                                }
                             }
-                        }
+                        } // end if (animationJob?.isActive != true)
                         velocityTracker.resetTracking()
                     }
                 }
