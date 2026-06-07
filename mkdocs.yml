@@ -1,0 +1,61 @@
+site_name: Agora User Manual
+site_description: Guide for configuring and using Agora
+site_url: https://newo-ether.github.io/Agora/
+repo_url: https://github.com/newo-ether/Agora
+repo_name: newo-ether/Agora
+
+theme:
+  name: material
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light
+  font:
+    text: Inter
+    code: JetBrains Mono
+  features:
+    - navigation.instant
+    - navigation.tracking
+    - navigation.top
+    - search.highlight
+    - search.share
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - toc:
+      permalink: true
+
+nav:
+  - Home: index.md
+  - Getting Started: getting-started.md
+  - Conversations: conversations.md
+  - API Providers: provider.md
+  - System Prompts: system-prompts.md
+  - Agentic Tools:
+      - Overview: tools.md
+      - Web Search: web-search.md
+      - Remote Shell (Conch): shell.md
+  - Knowledge Management:
+      - Conversation Search: search.md
+      - Embedding / RAG: embedding.md
+      - Memory & Cache: memory.md
+  - Local Models: local-model.md
+  - PDF Import: pdf-import.md
+  - Data Portability: import-export.md
+  - FAQ: faq.md
