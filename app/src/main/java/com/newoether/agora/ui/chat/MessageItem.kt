@@ -1207,7 +1207,7 @@ fun MessageItem(
                                     ) {
                                         Spacer(modifier = Modifier.height(2.dp))
                                         segs.forEachIndexed { idx, seg ->
-                                            if ((seg.type == "thought" || seg.type == "transcription") && seg.content.isNotBlank()) {
+                                            if ((seg.type == "thought" && seg.content.isNotBlank()) || seg.type == "transcription") {
                                                 Column(
                                                     modifier = Modifier
                                                         .fillMaxWidth()
@@ -1221,17 +1221,25 @@ fun MessageItem(
                                                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
                                                         fontWeight = FontWeight.SemiBold
                                                     )
-                                                    val flat = seg.content.replace('\n', ' ')
-                                                    val preview = if (isStreaming && idx == segs.lastIndex) {
-                                                        if (flat.length > 60) "…${flat.takeLast(60)}" else flat
-                                                    } else flat
-                                                    Text(
-                                                        text = preview,
-                                                        style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
-                                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                                        maxLines = 1,
-                                                        overflow = TextOverflow.Ellipsis
-                                                    )
+                                                    if (seg.content.isNotBlank()) {
+                                                        val flat = seg.content.replace('\n', ' ')
+                                                        val preview = if (isStreaming && idx == segs.lastIndex) {
+                                                            if (flat.length > 60) "…${flat.takeLast(60)}" else flat
+                                                        } else flat
+                                                        Text(
+                                                            text = preview,
+                                                            style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
+                                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                            maxLines = 1,
+                                                            overflow = TextOverflow.Ellipsis
+                                                        )
+                                                    } else {
+                                                        Text(
+                                                            text = "Image transcription is empty.",
+                                                            style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
+                                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                                                        )
+                                                    }
                                                 }
                                             } else if (seg.type == "tool") {
                                                 Column(
@@ -1765,6 +1773,12 @@ fun MessageItem(
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                 }
+                            } else if (seg.type == "transcription" && seg.content.isBlank()) {
+                                Text(
+                                    text = "Image transcription is empty.",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+                                )
                             } else {
                                 if (!isStreaming) {
                                     SelectionContainer {
