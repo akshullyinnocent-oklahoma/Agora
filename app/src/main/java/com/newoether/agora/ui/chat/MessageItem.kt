@@ -35,6 +35,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.text.input.*
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.CloseFullscreen
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Add
@@ -135,7 +136,7 @@ private fun mergeAdjacentSegments(segs: List<MessageSegment>): List<MessageSegme
     val merged = mutableListOf<MessageSegment>()
     for (seg in segs) {
         val last = merged.lastOrNull()
-        if (last != null && last.type == seg.type && seg.type == "thought") {
+        if (last != null && last.type == seg.type && (seg.type == "thought" || seg.type == "transcription")) {
             merged[merged.lastIndex] = last.copy(content = last.content + seg.content)
         } else {
             merged.add(seg)
@@ -1113,11 +1114,13 @@ fun MessageItem(
                             val isToolInProgress = isLastTool && lastSeg.toolResult == null
                             val isThinking = message.status == MessageStatus.THINKING
                             val isToolCalling = message.status == MessageStatus.TOOL_CALLING
+                            val isTranscribing = message.status == MessageStatus.TRANSCRIBING
                             val toolCount = segs.count { it.type == "tool" && it.toolResult != null }
                             val thoughtMs = message.thoughtTimeMs
                             val hasThought = thoughtMs != null && thoughtMs > 0
                             val collapsedTitle = when {
                                 isThinking -> message.thoughtTitle ?: stringResource(R.string.thinking_ellipsis)
+                                isTranscribing -> message.thoughtTitle ?: stringResource(R.string.transcription_ellipsis)
                                 isToolCalling || isToolInProgress -> toolDisplayName(lastSeg.toolName)
                                 else -> {
                                     if (hasThought) {
@@ -1133,6 +1136,8 @@ fun MessageItem(
                                         stringResource(R.string.called_n_tools, toolCount)
                                     } else if (message.thoughtTitle != null) {
                                         message.thoughtTitle
+                                    } else if (segs.any { it.type == "transcription" }) {
+                                        "Image Transcription"
                                     } else {
                                         stringResource(R.string.thinking_complete)
                                     }
@@ -1164,6 +1169,8 @@ fun MessageItem(
                                         Icon(Icons.Default.Build, null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f))
                                     } else if (!isThinking && !hasThought && toolCount > 0) {
                                         Icon(Icons.Default.Build, null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f))
+                                    } else if (isTranscribing || collapsedTitle == "Image Transcription") {
+                                        Icon(Icons.Filled.Image, null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f))
                                     } else {
                                         Icon(androidx.compose.ui.res.painterResource(id = com.newoether.agora.R.drawable.neurology_24), null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f))
                                     }
@@ -1200,7 +1207,7 @@ fun MessageItem(
                                     ) {
                                         Spacer(modifier = Modifier.height(2.dp))
                                         segs.forEachIndexed { idx, seg ->
-                                            if (seg.type == "thought" && seg.content.isNotBlank()) {
+                                            if ((seg.type == "thought" || seg.type == "transcription") && seg.content.isNotBlank()) {
                                                 Column(
                                                     modifier = Modifier
                                                         .fillMaxWidth()
@@ -1209,7 +1216,8 @@ fun MessageItem(
                                                         .padding(horizontal = 10.dp, vertical = 8.dp)
                                                 ) {
                                                     Text(
-                                                        stringResource(R.string.tool_thinking), style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
+                                                        if (seg.type == "transcription") "Image Transcription" else stringResource(R.string.tool_thinking),
+                                                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
                                                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
                                                         fontWeight = FontWeight.SemiBold
                                                     )
@@ -1704,6 +1712,7 @@ fun MessageItem(
                             // Fixed title
                             Text(
                                 text = if (seg.type == "tool") toolDisplayName(seg.toolName)
+                                    else if (seg.type == "transcription") "Image Transcription"
                                     else stringResource(R.string.tool_thinking),
                                 style = MaterialTheme.typography.titleLarge,
                                 fontWeight = FontWeight.Bold,

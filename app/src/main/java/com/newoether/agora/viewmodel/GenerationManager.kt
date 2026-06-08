@@ -1603,7 +1603,7 @@ class GenerationManager(
         modelMessageId: String,
         startTime: Long,
         onStreamUpdate: (ChatMessage) -> Unit
-    ) {
+    ): List<MessageSegment> {
         val provider = getProviderInstance(ctx.transcriptionProviderName)
         val transcriptionConfig = ProviderConfig(
             apiKey = ctx.transcriptionApiKey,
@@ -1615,16 +1615,26 @@ class GenerationManager(
         val placeholder = chatDao.getMessagesForConversation(conversationId).first().find { it.id == modelMessageId }
         val parentId = placeholder?.parentId
         val results = mutableMapOf<String, MutableList<Pair<Int, String>>>()
+        val transcriptionSegments = mutableListOf<MessageSegment>()
         var processed = 0
         val total = targets.size
         for (target in targets) {
             if (generationJob?.isCancelled == true) throw kotlinx.coroutines.CancellationException("Transcription cancelled")
             if (!kotlinx.coroutines.currentCoroutineContext().isActive) throw kotlinx.coroutines.CancellationException("Transcription cancelled")
 
+            withContext(Dispatchers.Main) {
+                AgoraForegroundService.updateText(context.getString(R.string.transcription_progress, processed + 1, total))
+            }
+
+            // Stream initial segment with placeholder
+            val currentSegment = MessageSegment(type = "transcription", content = "Transcribing...")
+            transcriptionSegments.add(currentSegment)
             onStreamUpdate(ChatMessage(
                 id = modelMessageId, parentId = parentId, text = "",
                 participant = Participant.MODEL, status = MessageStatus.TRANSCRIBING, timestamp = startTime,
-                retryText = "${processed + 1}/$total"
+                retryText = "${processed + 1}/$total",
+                thoughtTitle = "Image Transcription",
+                segments = transcriptionSegments.toList(),
             ))
 
             val promptMessages = listOf(ChatMessage(
@@ -1636,7 +1646,18 @@ class GenerationManager(
             val transcription = StringBuilder()
             provider.generateResponse(promptMessages, transcriptionConfig).collect { event ->
                 when (event) {
-                    is StreamEvent.TextChunk -> transcription.append(event.text)
+                    is StreamEvent.TextChunk -> {
+                        transcription.append(event.text)
+                        // Stream update with current content
+                        transcriptionSegments[transcriptionSegments.lastIndex] = currentSegment.copy(content = transcription.toString())
+                        onStreamUpdate(ChatMessage(
+                            id = modelMessageId, parentId = parentId, text = "",
+                            participant = Participant.MODEL, status = MessageStatus.TRANSCRIBING, timestamp = startTime,
+                            retryText = "${processed + 1}/$total",
+                            thoughtTitle = "Image Transcription",
+                            segments = transcriptionSegments.toList(),
+                        ))
+                    }
                     is StreamEvent.Error -> throw RuntimeException(
                         "Transcription failed for image ${processed + 1}/$total: ${event.message}"
                     )
@@ -1644,6 +1665,8 @@ class GenerationManager(
                 }
             }
             val text = transcription.toString().trim()
+            // Finalize segment
+            transcriptionSegments[transcriptionSegments.lastIndex] = currentSegment.copy(content = text)
             results.getOrPut(target.messageId) { mutableListOf() }
                 .add(target.metaItemIndex to text)
             processed++
@@ -1671,6 +1694,7 @@ class GenerationManager(
                 ))
             }
         }
+        return transcriptionSegments
     }
 
     suspend fun generate(
@@ -1720,7 +1744,8 @@ class GenerationManager(
                 kotlinx.coroutines.delay(500) // let foreground service fully start
                 val targets = collectImagesNeedingTranscription(conversationId, parentId)
                 if (targets.isNotEmpty()) {
-                    runTranscriptionStage(targets, conversationId, ctx, generationJob, modelMessageId, startTime, onStreamUpdate)
+                    val transcriptionSegments = runTranscriptionStage(targets, conversationId, ctx, generationJob, modelMessageId, startTime, onStreamUpdate)
+                    segments.addAll(0, transcriptionSegments)
                     transcriptionPerformed = true
                 }
             }

@@ -15,7 +15,7 @@ data class ToolCallData(
 
 @Serializable
 data class MessageSegment(
-    val type: String, // "thought" or "tool"
+    val type: String, // "thought", "tool", or "transcription"
     val content: String = "",
     val toolName: String? = null,
     val toolArgs: String? = null,
