@@ -1603,7 +1603,7 @@ class GenerationManager(
         modelMessageId: String,
         startTime: Long,
         onStreamUpdate: (ChatMessage) -> Unit
-    ): List<MessageSegment> {
+    ): Pair<List<MessageSegment>, String?> { // segments, errorMessage
         val provider = getProviderInstance(ctx.transcriptionProviderName)
         val transcriptionConfig = ProviderConfig(
             apiKey = ctx.transcriptionApiKey,
@@ -1644,6 +1644,7 @@ class GenerationManager(
                 status = MessageStatus.SUCCESS
             ))
             val transcription = StringBuilder()
+            var streamError: String? = null
             provider.generateResponse(promptMessages, transcriptionConfig).collect { event ->
                 when (event) {
                     is StreamEvent.TextChunk -> {
@@ -1658,10 +1659,11 @@ class GenerationManager(
                             segments = transcriptionSegments.toList(),
                         ))
                     }
-                    is StreamEvent.Error -> throw RuntimeException(event.message)
+                    is StreamEvent.Error -> { streamError = event.message }
                     else -> {}
                 }
             }
+            if (streamError != null) return Pair(transcriptionSegments, streamError)
             val text = transcription.toString().trim()
             // Finalize segment
             transcriptionSegments[transcriptionSegments.lastIndex] = currentSegment.copy(content = text)
@@ -1692,7 +1694,7 @@ class GenerationManager(
                 ))
             }
         }
-        return transcriptionSegments
+        return Pair(transcriptionSegments, null)
     }
 
     suspend fun generate(
@@ -1742,12 +1744,19 @@ class GenerationManager(
                 kotlinx.coroutines.delay(500) // let foreground service fully start
                 val targets = collectImagesNeedingTranscription(conversationId, parentId)
                 if (targets.isNotEmpty()) {
-                    val transcriptionSegments = runTranscriptionStage(targets, conversationId, ctx, generationJob, modelMessageId, startTime, onStreamUpdate)
-                    segments.addAll(0, transcriptionSegments)
-                    transcriptionPerformed = true
+                    val (transcriptionSegments, transcriptionError) = runTranscriptionStage(targets, conversationId, ctx, generationJob, modelMessageId, startTime, onStreamUpdate)
+                    if (transcriptionError != null) {
+                        totalText = transcriptionError
+                        currentStatus = MessageStatus.ERROR
+                        transcriptionPerformed = true
+                    } else {
+                        segments.addAll(0, transcriptionSegments)
+                        transcriptionPerformed = true
+                    }
                 }
             }
 
+            if (currentStatus != MessageStatus.ERROR) {
             val (currentPath, rawProviderConfig) = buildApiPath(parentId, conversationId, isRegenerate, replaceMessageId, config, ctx)
             val providerConfig = if (transcriptionPerformed) rawProviderConfig.copy(includeImages = false) else rawProviderConfig
 
@@ -1994,6 +2003,7 @@ class GenerationManager(
             if (currentStatus != MessageStatus.ERROR) {
                 currentStatus = if (totalText.isNotEmpty() || totalThoughts.isNotEmpty()) MessageStatus.SUCCESS else MessageStatus.ERROR
             }
+            } // else { // called buildApiPath when currentStatus == ERROR
         } catch (e: CancellationException) {
             currentStatus = MessageStatus.STOPPED
             throw e
