@@ -1608,7 +1608,7 @@ class GenerationManager(
         val transcriptionConfig = ProviderConfig(
             apiKey = ctx.transcriptionApiKey,
             modelId = ctx.transcriptionModelId,
-            systemPrompt = null,
+            systemPrompt = "You are an image describer. Describe the given image in detail.",
             thinkingEnabled = false,
             baseUrl = ctx.transcriptionBaseUrl
         )
@@ -1658,9 +1658,7 @@ class GenerationManager(
                             segments = transcriptionSegments.toList(),
                         ))
                     }
-                    is StreamEvent.Error -> throw RuntimeException(
-                        "Transcription failed for image ${processed + 1}/$total: ${event.message}"
-                    )
+                    is StreamEvent.Error -> throw RuntimeException(event.message)
                     else -> {}
                 }
             }
