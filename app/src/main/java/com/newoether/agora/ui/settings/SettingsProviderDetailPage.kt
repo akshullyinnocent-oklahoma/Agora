@@ -288,12 +288,20 @@ fun SettingsProviderDetailPage(
     // Add model dialog
     if (showAddModelDialog && copiedFilePath != null) {
         var modelId by remember { mutableStateOf("") }; var modelAlias by remember { mutableStateOf("") }
+        var addMmprojPath by remember { mutableStateOf("") }
         var nCtx by remember { mutableStateOf("2048") }; var temperature by remember { mutableStateOf("0.7") }; var topP by remember { mutableStateOf("0.9") }; var maxTokens by remember { mutableStateOf("4096") }
         var idError by remember { mutableStateOf<String?>(null) }; var formError by remember { mutableStateOf<String?>(null) }
         val idRegex = remember { Regex("^[a-z0-9._-]+\$") }; val fm = LocalFocusManager.current
+        LaunchedEffect(mmprojPickedUri) { if (mmprojPickedUri != null) { addMmprojPath = mmprojPickedUri!!; mmprojPickedUri = null } }
         AlertDialog(
             containerColor = MaterialTheme.colorScheme.surfaceContainer,
-            onDismissRequest = { scope.launch(Dispatchers.IO) { copiedFilePath?.let { java.io.File(it).delete() } }; showAddModelDialog = false; copiedFilePath = null },
+            onDismissRequest = {
+                scope.launch(Dispatchers.IO) {
+                    copiedFilePath?.let { java.io.File(it).delete() }
+                    if (addMmprojPath.isNotBlank()) java.io.File(addMmprojPath).delete()
+                }
+                showAddModelDialog = false; copiedFilePath = null
+            },
             title = { Text(stringResource(R.string.add_local_chat_model), fontWeight = FontWeight.Bold) },
             text = { Column(Modifier.fillMaxWidth().clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) { fm.clearFocus() }.verticalScroll(rememberScrollState())) {
                 OutlinedTextField(value = modelId, onValueChange = { modelId = it; idError = null }, label = { Text(stringResource(R.string.model_id_label)) }, supportingText = if (idError != null) {{ Text(idError!!, color = MaterialTheme.colorScheme.error) }} else null, isError = idError != null, shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth())
@@ -301,6 +309,17 @@ fun SettingsProviderDetailPage(
                 OutlinedTextField(value = modelAlias, onValueChange = { modelAlias = it }, label = { Text(stringResource(R.string.model_alias_label)) }, shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth())
                 Spacer(modifier = Modifier.height(8.dp))
                 OutlinedTextField(value = nCtx, onValueChange = { nCtx = it }, label = { Text(stringResource(R.string.local_ctx_size)) }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth())
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    val hasMmproj = addMmprojPath.isNotBlank()
+                    OutlinedButton(onClick = { mmprojLauncher.launch(arrayOf("*/*")) }, shape = RoundedCornerShape(16.dp), modifier = Modifier.weight(1f), colors = ButtonDefaults.outlinedButtonColors(contentColor = if (hasMmproj) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)) {
+                        Icon(Icons.Default.Add, null, modifier = Modifier.size(18.dp)); Spacer(modifier = Modifier.width(6.dp)); Text(if (hasMmproj) addMmprojPath.split("/").lastOrNull() ?: "" else stringResource(R.string.local_mmproj_path_label), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                    if (hasMmproj) {
+                        Spacer(modifier = Modifier.width(8.dp))
+                        TextButton(onClick = { java.io.File(addMmprojPath).delete(); addMmprojPath = "" }) { Text(stringResource(R.string.remove), color = MaterialTheme.colorScheme.error) }
+                    }
+                }
                 Spacer(modifier = Modifier.height(8.dp))
                 OutlinedTextField(value = temperature, onValueChange = { temperature = it }, label = { Text(stringResource(R.string.local_temperature)) }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth())
                 Spacer(modifier = Modifier.height(8.dp))
@@ -318,10 +337,16 @@ fun SettingsProviderDetailPage(
                 val t = temperature.toFloatOrNull()?.takeIf { it in 0f..2f } ?: run { formError = "Temperature must be 0–2"; return@TextButton }
                 val p = topP.toFloatOrNull()?.takeIf { it in 0f..1f } ?: run { formError = "Top P must be 0–1"; return@TextButton }
                 val m = maxTokens.toIntOrNull()?.takeIf { it > 0 } ?: run { formError = "Max tokens must be positive"; return@TextButton }
-                viewModel.addLocalChatModel(LocalChatModelConfig(modelId = id, alias = modelAlias.ifBlank { id }, localFilePath = copiedFilePath!!, nCtx = n, temperature = t, topP = p, maxTokens = m))
+                viewModel.addLocalChatModel(LocalChatModelConfig(modelId = id, alias = modelAlias.ifBlank { id }, localFilePath = copiedFilePath!!, mmprojPath = addMmprojPath.trim(), nCtx = n, temperature = t, topP = p, maxTokens = m))
                 showAddModelDialog = false; copiedFilePath = null
             }) { Text(stringResource(R.string.add)) } },
-            dismissButton = { TextButton(onClick = { scope.launch(Dispatchers.IO) { copiedFilePath?.let { java.io.File(it).delete() } }; showAddModelDialog = false; copiedFilePath = null }) { Text(stringResource(R.string.cancel)) } }
+            dismissButton = { TextButton(onClick = {
+                scope.launch(Dispatchers.IO) {
+                    copiedFilePath?.let { java.io.File(it).delete() }
+                    if (addMmprojPath.isNotBlank()) java.io.File(addMmprojPath).delete()
+                }
+                showAddModelDialog = false; copiedFilePath = null
+            }) { Text(stringResource(R.string.cancel)) } }
         )
     }
 
@@ -349,7 +374,10 @@ fun SettingsProviderDetailPage(
                     }
                     if (hasMmproj) {
                         Spacer(modifier = Modifier.width(8.dp))
-                        TextButton(onClick = { java.io.File(editMmprojPath).delete(); editMmprojPath = "" }) { Text(stringResource(R.string.remove), color = MaterialTheme.colorScheme.error) }
+                        TextButton(onClick = {
+                            if (editMmprojPath != model.mmprojPath) java.io.File(editMmprojPath).delete()
+                            editMmprojPath = ""
+                        }) { Text(stringResource(R.string.remove), color = MaterialTheme.colorScheme.error) }
                     }
                 }
                 Spacer(modifier = Modifier.height(8.dp))

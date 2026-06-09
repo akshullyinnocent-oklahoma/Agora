@@ -37,6 +37,8 @@ class LlamaChatEngine(
     private external fun nativeChatGetTemplate(handle: Long): String?
     private external fun nativeChatApplyTemplate(handle: Long, messages: Array<ChatTemplateMessage>, addAss: Boolean): String?
     private external fun nativeChatLoadMmproj(handle: Long, mmprojPath: String): Boolean
+    private external fun nativeChatUnloadMmproj(handle: Long)
+    private external fun nativeChatHasMmproj(handle: Long): Boolean
     private external fun nativeChatGenerateWithImages(
         handle: Long, prompt: String, imagePaths: Array<String>,
         temperature: Float, topP: Float, maxTokens: Int, callback: NativeChatCallback
@@ -135,7 +137,15 @@ class LlamaChatEngine(
 
     fun hasMmproj(): Boolean {
         synchronized(this) {
-            return nativeHandle != 0L && nativeChatLoadMmproj(nativeHandle, "") // dummy call fails if no mmproj loaded
+            return nativeHandle != 0L && nativeChatHasMmproj(nativeHandle)
+        }
+    }
+
+    fun unloadMmproj() {
+        synchronized(this) {
+            if (nativeHandle != 0L) {
+                nativeChatUnloadMmproj(nativeHandle)
+            }
         }
     }
 

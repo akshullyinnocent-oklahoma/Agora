@@ -49,21 +49,17 @@ class LocalProvider(
             return@flow
         }
 
-        // Collect images from messages
-        val imagePaths = messages.flatMap { it.images }.filter { it.isNotBlank() }
-
-        val templateMessages = buildTemplateMessages(messages, config.systemPrompt)
-        val prompt: String
+        // Build template messages, collecting images per-message with <__media__> markers
+        val imagePaths = mutableListOf<String>()
+        val templateMessages = buildTemplateMessages(messages, config.systemPrompt, imagePaths)
         val hasImages = imagePaths.isNotEmpty()
 
+        // Try native chat template first, fall back to ChatML
+        val prompt = engine.applyTemplate(templateMessages, addAss = true)
+            ?: buildPrompt(templateMessages)
         if (hasImages) {
-            // For multimodal: use ChatML with <__media__> markers
-            prompt = buildMultimodalPrompt(templateMessages, imagePaths)
             DebugLog.d(TAG, "Generated multimodal prompt (${prompt.length} chars, ${imagePaths.size} images)")
         } else {
-            // Text-only: try native template first, fall back to ChatML
-            prompt = engine.applyTemplate(templateMessages, addAss = true)
-                ?: buildPrompt(templateMessages)
             DebugLog.d(TAG, "Generated prompt (${prompt.length} chars): ${prompt.take(200)}...")
         }
 
@@ -161,9 +157,11 @@ class LocalProvider(
             val existing = currentEngine
             if (existing != null && existing.modelPath == model.localFilePath) {
                 existing.resetContext()
-                // Reload mmproj if path changed or was previously set
+                // Load or unload mmproj based on current config
                 if (model.mmprojPath.isNotBlank()) {
                     existing.loadMmproj(model.mmprojPath)
+                } else {
+                    existing.unloadMmproj()
                 }
                 existing
             } else {
@@ -185,7 +183,8 @@ class LocalProvider(
 
     private fun buildTemplateMessages(
         messages: List<ChatMessage>,
-        systemPrompt: String?
+        systemPrompt: String?,
+        imagePathsOut: MutableList<String>? = null
     ): List<ChatTemplateMessage> {
         val result = mutableListOf<ChatTemplateMessage>()
 
@@ -241,30 +240,18 @@ class LocalProvider(
                 Participant.ERROR -> "user"
             }
 
-            result.add(ChatTemplateMessage(role = role, content = msg.text))
+            val images = msg.images.filter { it.isNotBlank() }
+            val content = if (role == "user" && images.isNotEmpty() && imagePathsOut != null) {
+                imagePathsOut.addAll(images)
+                images.joinToString("\n") { "<__media__>" } + "\n" + msg.text
+            } else {
+                msg.text
+            }
+
+            result.add(ChatTemplateMessage(role = role, content = content))
         }
 
         return result
-    }
-
-    private fun buildMultimodalPrompt(
-        messages: List<ChatTemplateMessage>,
-        imagePaths: List<String>
-    ): String {
-        // Build ChatML prompt with <__media__> markers for each image.
-        // Images are injected into the FIRST user message's content.
-        val sb = StringBuilder()
-        val mediaMarkers = imagePaths.joinToString("\n") { "<__media__>" } + "\n"
-
-        for (msg in messages) {
-            sb.append("<|im_start|>${msg.role}\n")
-            if (msg.role == "user") {
-                sb.append(mediaMarkers)
-            }
-            sb.append("${msg.content}<|im_end|>\n")
-        }
-        sb.append("<|im_start|>assistant\n")
-        return sb.toString()
     }
 
     private fun buildPrompt(messages: List<ChatTemplateMessage>): String {

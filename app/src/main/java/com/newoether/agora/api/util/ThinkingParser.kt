@@ -17,6 +17,7 @@ package com.newoether.agora.api.util
 class ThinkingParser {
     // State
     private var inThinking = false
+    private var inDiscarding = false  // thinking disabled — skip until end marker
     private var pending = ""
     private var thinkingFormat: ThinkingFormat? = null
 
@@ -36,7 +37,29 @@ class ThinkingParser {
         pending += content
 
         while (pending.isNotEmpty()) {
-            if (!inThinking) {
+            // ── Discarding mode: skip everything until end marker ──
+            if (inDiscarding) {
+                val endMarker = thinkingFormat!!.end
+                val endIdx = pending.indexOf(endMarker)
+
+                if (endIdx != -1) {
+                    // Found end — discard everything up to and including end marker
+                    pending = pending.substring(endIdx + endMarker.length)
+                    inDiscarding = false
+                    thinkingFormat = null
+                } else {
+                    // Check for partial end marker at the end
+                    val lastCh = pending.lastIndexOf(endMarker[0])
+                    if (lastCh != -1 && endMarker.startsWith(pending.substring(lastCh))) {
+                        pending = pending.substring(lastCh)
+                    } else {
+                        pending = "" // discard all
+                    }
+                    break
+                }
+            }
+            // ── Normal mode: scan for thinking start ──
+            else if (!inThinking) {
                 // ── Scan for any thinking start marker ──
                 var bestStart = -1
                 var bestFmt: ThinkingFormat? = null
@@ -66,9 +89,11 @@ class ThinkingParser {
                         inThinking = true
                         thinkingFormat = bestFmt
                     } else {
-                        // Thinking disabled — discard, continue scanning
-                        continue
+                        // Thinking disabled — enter discarding mode, skip until end tag
+                        inDiscarding = true
+                        thinkingFormat = bestFmt
                     }
+                    continue
                 } else if (bestStart != -1 && bestFmt == null) {
                     // Partial match at end — keep in buffer
                     val before = pending.substring(0, bestStart)
@@ -113,16 +138,17 @@ class ThinkingParser {
         onText: suspend (String) -> Unit,
         onThought: suspend (String) -> Unit
     ) {
-        if (pending.isNotEmpty()) {
+        if (pending.isNotEmpty() && !inDiscarding) {
             if (inThinking) onThought(pending)
             else onText(pending)
-            pending = ""
         }
+        pending = ""
     }
 
     // ── reset for reuse ───────────────────────────────────────────
     fun reset() {
         inThinking = false
+        inDiscarding = false
         pending = ""
         thinkingFormat = null
     }

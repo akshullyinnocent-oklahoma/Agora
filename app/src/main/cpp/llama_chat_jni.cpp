@@ -361,27 +361,50 @@ Java_com_newoether_agora_api_LlamaChatEngine_nativeChatLoadMmproj(
     const char * mmproj_str = env->GetStringUTFChars(mmproj_path, nullptr);
     if (!mmproj_str) return JNI_FALSE;
 
-    // Free existing mtmd context if reloading
-    if (handle->mtmd_ctx) {
-        mtmd_free(handle->mtmd_ctx);
-        handle->mtmd_ctx = nullptr;
-    }
-
     mtmd_context_params params = mtmd_context_params_default();
     params.use_gpu = false;
     params.n_threads = 4;
     params.print_timings = false;
 
-    handle->mtmd_ctx = mtmd_init_from_file(mmproj_str, handle->model, params);
+    // Try loading new mmproj first (don't free old one yet)
+    mtmd_context * new_mtmd = mtmd_init_from_file(mmproj_str, handle->model, params);
     env->ReleaseStringUTFChars(mmproj_path, mmproj_str);
 
-    if (!handle->mtmd_ctx) {
-        LOGE("Failed to load mmproj from: %s", mmproj_str);
+    if (!new_mtmd) {
+        LOGE("Failed to load mmproj, keeping previous if any");
         return JNI_FALSE;
     }
 
+    // Success: free old, install new
+    if (handle->mtmd_ctx) {
+        mtmd_free(handle->mtmd_ctx);
+    }
+    handle->mtmd_ctx = new_mtmd;
+
     LOGD("mmproj loaded successfully");
     return JNI_TRUE;
+}
+
+JNIEXPORT void JNICALL
+Java_com_newoether_agora_api_LlamaChatEngine_nativeChatUnloadMmproj(
+    JNIEnv * /*env*/, jclass /*clazz*/, jlong handle_ptr) {
+
+    if (!handle_ptr) return;
+    ChatHandle * handle = reinterpret_cast<ChatHandle *>(handle_ptr);
+    if (handle->mtmd_ctx) {
+        mtmd_free(handle->mtmd_ctx);
+        handle->mtmd_ctx = nullptr;
+        LOGD("mmproj unloaded");
+    }
+}
+
+JNIEXPORT jboolean JNICALL
+Java_com_newoether_agora_api_LlamaChatEngine_nativeChatHasMmproj(
+    JNIEnv * /*env*/, jclass /*clazz*/, jlong handle_ptr) {
+
+    if (!handle_ptr) return JNI_FALSE;
+    ChatHandle * handle = reinterpret_cast<ChatHandle *>(handle_ptr);
+    return handle->mtmd_ctx != nullptr ? JNI_TRUE : JNI_FALSE;
 }
 
 JNIEXPORT jint JNICALL
