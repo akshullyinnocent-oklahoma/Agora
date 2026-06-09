@@ -16,6 +16,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -113,51 +114,50 @@ fun SettingsProviderDetailPage(
                 .padding(horizontal = 16.dp)
         ) {
             Spacer(modifier = Modifier.height(8.dp))
-            // Base URL
-            val providerInstance = viewModel.getProviderInstance(providerName)
-            val savedUrl = providerBaseUrls[providerName]
-            val baseUrlState = remember(providerName, savedUrl) {
-                TextFieldState(if (savedUrl.isNullOrBlank()) providerInstance.defaultBaseUrl else savedUrl)
-            }
-            LaunchedEffect(baseUrlState.text) { delay(500); viewModel.setProviderBaseUrl(providerName, baseUrlState.text.toString()) }
-            SettingsGroup(
-                title = stringResource(R.string.provider_base_url),
-                items = listOf {
-                    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 16.dp)) {
-                        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
-                            Icon(painterResource(R.drawable.link_24), null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(top = 2.dp))
-                            Spacer(modifier = Modifier.width(16.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(stringResource(R.string.provider_base_url), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface)
-                                Box(modifier = Modifier.noOpBringIntoView().padding(top = 8.dp)) {
-                                    OutlinedTextField(
-                                        state = baseUrlState,
-                                        placeholder = { Text(providerInstance.defaultBaseUrl, style = MaterialTheme.typography.bodyMedium) },
-                                        shape = RoundedCornerShape(16.dp),
-                                        modifier = Modifier.fillMaxWidth(),
-                                        textStyle = MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                    )
+            // Base URL (non-Local only)
+            if (!isLocal) {
+                val providerInstance = viewModel.getProviderInstance(providerName)
+                val savedUrl = providerBaseUrls[providerName]
+                val baseUrlState = remember(providerName, savedUrl) {
+                    TextFieldState(if (savedUrl.isNullOrBlank()) providerInstance.defaultBaseUrl else savedUrl)
+                }
+                LaunchedEffect(baseUrlState.text) { delay(500); viewModel.setProviderBaseUrl(providerName, baseUrlState.text.toString()) }
+                SettingsGroup(
+                    title = stringResource(R.string.provider_base_url),
+                    items = listOf {
+                        Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 16.dp)) {
+                            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
+                                Icon(painterResource(R.drawable.link_24), null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(top = 2.dp))
+                                Spacer(modifier = Modifier.width(16.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(stringResource(R.string.provider_base_url), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface)
+                                    Box(modifier = Modifier.noOpBringIntoView().padding(top = 8.dp)) {
+                                        OutlinedTextField(
+                                            state = baseUrlState,
+                                            placeholder = { Text(providerInstance.defaultBaseUrl, style = MaterialTheme.typography.bodyMedium) },
+                                            shape = RoundedCornerShape(16.dp),
+                                            modifier = Modifier.fillMaxWidth(),
+                                            textStyle = MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        )
+                                    }
                                 }
                             }
                         }
                     }
-                }
-            )
+                )
+            }
 
             // Local models
             if (isLocal) {
                 SettingsGroup(
-                    title = stringResource(R.string.local_chat_models),
+                    title = stringResource(R.string.local_models_title),
                     items = buildList {
                         localChatModels.forEach { model ->
                             var showMenu by remember { mutableStateOf(false) }
                             add {
                                 SettingsItem(
-                                    headlineContent = { Text(model.alias, fontWeight = FontWeight.Medium) },
+                                    headlineContent = { Text(model.alias, fontWeight = if (model.id == activeLocalId) FontWeight.Bold else FontWeight.Normal) },
                                     supportingContent = { Text("${model.modelId}  ·  ctx=${model.nCtx}  ·  temp=${model.temperature}") },
-                                    leadingContent = {
-                                        RadioButton(selected = model.id == activeLocalId, onClick = { viewModel.setActiveLocalChatModel(model.id) }, modifier = Modifier.size(20.dp))
-                                    },
                                     trailingContent = {
                                         Box {
                                             IconButton(onClick = { showMenu = true }, modifier = Modifier.size(24.dp)) { Icon(Icons.Default.MoreVert, stringResource(R.string.options), modifier = Modifier.size(16.dp)) }
@@ -198,14 +198,25 @@ fun SettingsProviderDetailPage(
                 if (providerKeys.isEmpty()) {
                     SettingsGroup(
                         title = stringResource(R.string.provider_api_keys),
-                        items = listOf {
-                            Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 16.dp)) {
-                                Text(stringResource(R.string.provider_no_keys, providerName), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface)
-                                Spacer(modifier = Modifier.height(12.dp))
-                                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.clickable { showKeyDialog = ApiKeyEntry(name = "", key = "", provider = providerName) }) {
-                                    Icon(Icons.Default.Add, null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text(stringResource(R.string.provider_add_key), color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelLarge)
+                        items = buildList {
+                            add {
+                                Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 16.dp)) {
+                                    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
+                                        Icon(Icons.Default.Key, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(top = 2.dp))
+                                        Spacer(modifier = Modifier.width(16.dp))
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(stringResource(R.string.provider_no_keys, providerName), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface)
+                                        }
+                                    }
+                                }
+                            }
+                            add {
+                                Box(modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp).clickable { showKeyDialog = ApiKeyEntry(name = "", key = "", provider = providerName) }.padding(horizontal = 16.dp), contentAlignment = Alignment.Center) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(Icons.Default.Add, null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text(stringResource(R.string.provider_add_key), color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelLarge)
+                                    }
                                 }
                             }
                         }
