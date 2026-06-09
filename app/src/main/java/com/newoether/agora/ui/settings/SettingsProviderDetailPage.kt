@@ -55,6 +55,7 @@ fun SettingsProviderDetailPage(
     val activeLocalId by viewModel.activeLocalChatModelId.collectAsState()
 
     val isLocal = providerName == "Local"
+    val isCustom = customProviders.any { it.name == providerName }
 
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -69,6 +70,9 @@ fun SettingsProviderDetailPage(
     var showDeleteModelConfirm by remember { mutableStateOf<LocalChatModelConfig?>(null) }
     var showGgufError by remember { mutableStateOf(false) }
     var mmprojPickedUri by remember { mutableStateOf<String?>(null) }
+    var showRenameProvider by remember { mutableStateOf(false) }
+    var showDeleteProvider by remember { mutableStateOf(false) }
+    var providerMenuExpanded by remember { mutableStateOf(false) }
 
     val filePickerLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) {
@@ -99,6 +103,17 @@ fun SettingsProviderDetailPage(
             TopAppBar(
                 title = { Text(providerName, fontWeight = FontWeight.Bold) },
                 navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back)) } },
+                actions = {
+                    if (isCustom) {
+                        Box {
+                            IconButton(onClick = { providerMenuExpanded = true }) { Icon(Icons.Default.MoreVert, stringResource(R.string.options)) }
+                            DropdownMenu(expanded = providerMenuExpanded, onDismissRequest = { providerMenuExpanded = false }, containerColor = MaterialTheme.colorScheme.surfaceContainer, tonalElevation = 16.dp, shape = RoundedCornerShape(12.dp)) {
+                                DropdownMenuItem(text = { Text(stringResource(R.string.rename)) }, leadingIcon = { Icon(Icons.Default.Edit, null) }, onClick = { providerMenuExpanded = false; showRenameProvider = true })
+                                DropdownMenuItem(text = { Text(stringResource(R.string.delete), color = MaterialTheme.colorScheme.error) }, leadingIcon = { Icon(Icons.Default.Delete, null, tint = MaterialTheme.colorScheme.error) }, onClick = { providerMenuExpanded = false; showDeleteProvider = true })
+                            }
+                        }
+                    }
+                },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background, titleContentColor = MaterialTheme.colorScheme.onBackground)
             )
         }
@@ -127,7 +142,7 @@ fun SettingsProviderDetailPage(
                     items = listOf {
                         Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 16.dp)) {
                             Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
-                                Icon(painterResource(R.drawable.link_24), null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(top = 2.dp))
+                                Icon(painterResource(R.drawable.link_24), null, tint = MaterialTheme.colorScheme.primary)
                                 Spacer(modifier = Modifier.width(16.dp))
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(stringResource(R.string.provider_base_url), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface)
@@ -200,15 +215,11 @@ fun SettingsProviderDetailPage(
                         title = stringResource(R.string.provider_api_keys),
                         items = buildList {
                             add {
-                                Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)) {
-                                    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
-                                        Icon(Icons.Default.Key, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(top = 2.dp))
-                                        Spacer(modifier = Modifier.width(16.dp))
-                                        Column(modifier = Modifier.weight(1f)) {
-                                            Text(stringResource(R.string.provider_no_keys, providerName), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface)
-                                        }
-                                    }
-                                }
+                                SettingsItem(
+                                    headlineContent = { Text(stringResource(R.string.provider_no_keys, providerName), color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)) },
+                                    leadingContent = { Icon(Icons.Default.Key, null, tint = MaterialTheme.colorScheme.primary) },
+                                    modifier = Modifier.heightIn(min = 56.dp)
+                                )
                             }
                             add {
                                 Box(modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp).clickable { showKeyDialog = ApiKeyEntry(name = "", key = "", provider = providerName) }.padding(horizontal = 16.dp), contentAlignment = Alignment.Center) {
@@ -376,5 +387,24 @@ fun SettingsProviderDetailPage(
     // Delete key confirm
     showDeleteKeyConfirm?.let { entry ->
         AlertDialog(containerColor = MaterialTheme.colorScheme.surfaceContainer, onDismissRequest = { showDeleteKeyConfirm = null }, title = { Text(stringResource(R.string.provider_delete_key_title), fontWeight = FontWeight.Bold) }, text = { Text(stringResource(R.string.provider_delete_key_text, entry.name)) }, confirmButton = { TextButton(onClick = { viewModel.deleteApiKey(entry.id); showDeleteKeyConfirm = null }, colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)) { Text(stringResource(R.string.provider_delete)) } }, dismissButton = { TextButton(onClick = { showDeleteKeyConfirm = null }) { Text(stringResource(R.string.cancel)) } })
+    }
+
+    // Rename custom provider
+    if (showRenameProvider) {
+        var renameValue by remember { mutableStateOf(providerName) }
+        var renameError by remember { mutableStateOf(false) }
+        val allNames = listOf("Google", "OpenAI", "Anthropic", "DeepSeek", "Qwen", "Ollama", "Open Router") + customProviders.map { it.name }
+        AlertDialog(containerColor = MaterialTheme.colorScheme.surfaceContainer, onDismissRequest = { showRenameProvider = false }, title = { Text(stringResource(R.string.custom_provider_rename_title), fontWeight = FontWeight.Bold) }, text = {
+            OutlinedTextField(value = renameValue, onValueChange = { renameValue = it; renameError = false }, label = { Text(stringResource(R.string.custom_provider_name_label)) }, isError = renameError, supportingText = if (renameError) {{ Text(stringResource(R.string.custom_provider_name_error)) }} else null, shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth(), singleLine = true)
+        }, confirmButton = { TextButton(onClick = {
+            val trimmed = renameValue.trim()
+            renameError = trimmed.isBlank() || (trimmed != providerName && trimmed in allNames)
+            if (!renameError) { viewModel.renameCustomProvider(providerName, trimmed); showRenameProvider = false; onBack() }
+        }) { Text(stringResource(R.string.custom_provider_rename)) } }, dismissButton = { TextButton(onClick = { showRenameProvider = false }) { Text(stringResource(R.string.cancel)) } })
+    }
+
+    // Delete custom provider
+    if (showDeleteProvider) {
+        AlertDialog(containerColor = MaterialTheme.colorScheme.surfaceContainer, onDismissRequest = { showDeleteProvider = false }, title = { Text(stringResource(R.string.custom_provider_delete_title), fontWeight = FontWeight.Bold) }, text = { Text(stringResource(R.string.custom_provider_delete_text, providerName)) }, confirmButton = { TextButton(onClick = { viewModel.deleteCustomProvider(providerName); showDeleteProvider = false; onBack() }, colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)) { Text(stringResource(R.string.provider_delete)) } }, dismissButton = { TextButton(onClick = { showDeleteProvider = false }) { Text(stringResource(R.string.cancel)) } })
     }
 }

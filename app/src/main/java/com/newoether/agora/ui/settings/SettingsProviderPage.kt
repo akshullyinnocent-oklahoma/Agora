@@ -40,6 +40,7 @@ fun SettingsProviderPage(viewModel: ChatViewModel, onBack: () -> Unit) {
     var selectedProvider by rememberSaveable { mutableStateOf<String?>(null) }
     var showAddCustomDialog by remember { mutableStateOf(false) }
     val showDocFab by viewModel.showDocumentationFab.collectAsState()
+    val scrollState = rememberSaveable(saver = androidx.compose.foundation.ScrollState.Saver) { androidx.compose.foundation.ScrollState(0) }
 
     BackHandler {
         if (selectedProvider != null) {
@@ -98,7 +99,7 @@ fun SettingsProviderPage(viewModel: ChatViewModel, onBack: () -> Unit) {
                         modifier = Modifier
                             .padding(padding)
                             .navigationBarsPadding()
-                            .verticalScroll(rememberScrollState())
+                            .verticalScroll(scrollState)
                             .clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) { fm.clearFocus() }
                             .padding(horizontal = 16.dp)
                     ) {
