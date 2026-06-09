@@ -6,12 +6,10 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Language
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import kotlinx.coroutines.launch
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -78,16 +76,24 @@ fun SettingsLanguagePage(viewModel: ChatViewModel, onBack: () -> Unit) {
                 title = stringResource(R.string.language_title),
                 items = languages.map { lang ->
                     {
-                        SettingsItem(
-                            headlineContent = { Text(lang.label, fontWeight = if (appLanguage == lang.code) FontWeight.Bold else FontWeight.Normal) },
-                            leadingContent = {
-                                RadioButton(
-                                    selected = appLanguage == lang.code,
-                                    onClick = { changeLanguage(lang.code) }
-                                )
-                            },
-                            modifier = Modifier.clickable { changeLanguage(lang.code) }
-                        )
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { changeLanguage(lang.code) }
+                                .padding(horizontal = 16.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            RadioButton(
+                                selected = appLanguage == lang.code,
+                                onClick = { changeLanguage(lang.code) }
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                lang.label,
+                                style = MaterialTheme.typography.bodyLarge,
+                                fontWeight = if (appLanguage == lang.code) FontWeight.Bold else FontWeight.Normal
+                            )
+                        }
                     }
                 }
             )
