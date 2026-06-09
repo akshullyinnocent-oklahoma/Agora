@@ -208,10 +208,10 @@ fun ChatBottomBar(
             pendingVideoQueue = pendingVideoQueue.drop(1).toMutableList()
             val durationMs = try {
                 val retriever = android.media.MediaMetadataRetriever()
+                try {
                 retriever.setDataSource(context, android.net.Uri.parse(uri))
-                val dur = retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 0L
-                retriever.release()
-                dur
+                retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 0L
+                } finally { retriever.release() }
             } catch (_: Exception) { 0L }
             pendingVideoUri = uri
             pendingVideoDurationMs = durationMs
@@ -225,6 +225,7 @@ fun ChatBottomBar(
             val paths = mutableListOf<String>()
             try {
                 val retriever = android.media.MediaMetadataRetriever()
+                try {
                 retriever.setDataSource(context, android.net.Uri.parse(videoUri))
                 var timeUs = 0L
                 val intervalUs = intervalMs * 1000L
@@ -243,7 +244,7 @@ fun ChatBottomBar(
                     timeUs += intervalUs
                     processingStates = processingStates + (videoUri to (i + 1).toFloat() / frameCount)
                 }
-                retriever.release()
+                } finally { retriever.release() }
             } catch (_: Exception) {}
             processingStates = processingStates - videoUri
             paths
@@ -314,7 +315,7 @@ fun ChatBottomBar(
                     onInitPdfSelection?.invoke((0 until minOf(pageCount, 5)).toSet())
                     coroutineScope.launch(Dispatchers.IO) {
                         val paths = com.newoether.agora.util.PdfPageRenderer.renderAllPages(
-                            context, uri, maxPages = 50,
+                            context, uri, maxPages = 20,
                             onProgress = { cur, total -> pendingPdfRenderProgress = cur to total }
                         )
                         pendingPdfRenderedPaths = paths

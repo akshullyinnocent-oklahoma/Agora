@@ -125,6 +125,7 @@ class GenerationManager(
                     mimeType?.startsWith("video/") == true -> {
                         val config = sliceConfigs[uriString]
                         val retriever = android.media.MediaMetadataRetriever()
+                        try {
                         retriever.setDataSource(app, uri)
                         val paths = mutableListOf<String>()
 
@@ -156,13 +157,16 @@ class GenerationManager(
                                 paths.add(file.absolutePath)
                             }
                         }
-                        retriever.release()
                         paths
+                        } finally {
+                            retriever.release()
+                        }
                     }
                     mimeType?.startsWith("image/") == true || mimeType == null -> {
-                        app.contentResolver.openInputStream(uri)?.use { inputStream ->
+                        val bytes = app.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                        if (bytes != null) {
                             val options = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
-                            android.graphics.BitmapFactory.decodeStream(inputStream, null, options)
+                            android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options)
 
                             var scale = 1
                             while (options.outWidth / scale / 2 >= 1024 && options.outHeight / scale / 2 >= 1024) {
@@ -170,18 +174,16 @@ class GenerationManager(
                             }
 
                             val decodeOptions = android.graphics.BitmapFactory.Options().apply { inSampleSize = scale }
-                            app.contentResolver.openInputStream(uri)?.use { stream2 ->
-                                val bitmap = android.graphics.BitmapFactory.decodeStream(stream2, null, decodeOptions)
-                                if (bitmap != null) {
-                                    val file = File(app.filesDir, "img_${UUID.randomUUID()}.jpg")
-                                    file.outputStream().use { out ->
-                                        bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 80, out)
-                                    }
-                                    bitmap.recycle()
-                                    listOf(file.absolutePath)
-                                } else emptyList()
-                            } ?: emptyList()
-                        } ?: emptyList()
+                            val bitmap = android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size, decodeOptions)
+                            if (bitmap != null) {
+                                val file = File(app.filesDir, "img_${UUID.randomUUID()}.jpg")
+                                file.outputStream().use { out ->
+                                    bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 80, out)
+                                }
+                                bitmap.recycle()
+                                listOf(file.absolutePath)
+                            } else emptyList()
+                        } else emptyList()
                     }
                     else -> emptyList()
                 }
@@ -913,7 +915,7 @@ class GenerationManager(
             val html = com.newoether.agora.api.HttpClient.fetchModels(url)
                 ?: return buildJsonObject { put("type", "web_fetch"); put("url", url); put("error", "no_response") }.toString()
             val text = html
-                .take(80000)
+                .take(Constants.MAX_WEB_FETCH_HTML_LENGTH)
                 .replace(Regex("<script[^>]*>[\\s\\S]*?</script>", RegexOption.IGNORE_CASE), " ")
                 .replace(Regex("<style[^>]*>[\\s\\S]*?</style>", RegexOption.IGNORE_CASE), " ")
                 .replace(Regex("<[^>]+>"), " ")

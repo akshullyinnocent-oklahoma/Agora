@@ -3,6 +3,8 @@ package com.newoether.agora.ui.chat
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.ExperimentalAnimationApi
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.Easing
@@ -748,14 +750,20 @@ fun ChatApp(
                         transitionSpec = {
                             val targetNewChat = targetState.first
                             val targetShowLaunch = targetState.second
+                            val initialNewChat = initialState.first
                             val initialShowLaunch = initialState.second
 
-                            if (targetNewChat && (targetShowLaunch != initialShowLaunch || targetNewChat != initialState.first)) {
+                            if (targetNewChat && (targetShowLaunch != initialShowLaunch || targetNewChat != initialNewChat)) {
+                                // Entering new-chat mode: scale+fade animation
                                 val enterSpec = tween<Float>(700, easing = CubicBezierEasing(0.2f, 0.8f, 0.2f, 1.0f))
                                 val fadeInSpec = tween<Float>(500)
                                 (fadeIn(animationSpec = fadeInSpec) + scaleIn(initialScale = 0.6f, transformOrigin = TransformOrigin(0.5f, pivotY), animationSpec = enterSpec))
                                     .togetherWith(fadeOut(animationSpec = tween(300)))
+                            } else if (!targetNewChat && !initialNewChat) {
+                                // Switching between existing conversations: no animation
+                                EnterTransition.None togetherWith ExitTransition.None
                             } else {
+                                // Returning from new-chat to an existing conversation
                                 fadeIn(animationSpec = tween(300))
                                     .togetherWith(fadeOut(animationSpec = tween(300)))
                             }
@@ -904,8 +912,16 @@ fun ChatApp(
                     .drawBehind {
                         val totalH = size.height
                         if (totalH > 0f) {
-                            val transparentEnd = (gradientTopPaddingPx / totalH).coerceIn(0f, 1f)
-                            val fadeEnd = ((gradientTopPaddingPx + gradientWidthPx) / totalH).coerceIn(0f, 1f)
+                            val (transparentEnd, fadeEnd) = if (isExpanded) {
+                                // In expanded mode, keep the gradient compact at the top
+                                val h = gradientTopPaddingPx.coerceAtMost(totalH * 0.12f)
+                                val w = gradientWidthPx.coerceAtMost(totalH * 0.24f)
+                                (h / totalH) to ((h + w) / totalH)
+                            } else {
+                                val te = (gradientTopPaddingPx / totalH).coerceIn(0f, 1f)
+                                val fe = ((gradientTopPaddingPx + gradientWidthPx) / totalH).coerceIn(0f, 1f)
+                                te to fe
+                            }
                             drawRect(
                                 brush = Brush.verticalGradient(
                                     colorStops = arrayOf(

@@ -230,7 +230,7 @@ class AnthropicProvider : LlmProvider {
             DebugLog.d("AgoraAPI", "[Anthropic] REQ → $baseUrl/messages | model=$modelName | msgs=${apiMessages.size} | thinking=${thinking != null} | tools=${anthropicTools?.size ?: 0}")
             DebugLog.d("AgoraAPI", "[Anthropic] BODY: ${requestBodyJson.take(4000)}")
             val maxAttempts = 3
-            val retryableCodes = setOf(401, 429, 502, 503, 504)
+            val retryableCodes = setOf(429, 502, 503, 504)
             var attempt = 0
             var done = false
 

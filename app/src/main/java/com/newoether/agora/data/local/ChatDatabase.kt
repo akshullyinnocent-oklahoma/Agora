@@ -60,7 +60,24 @@ data class EmbeddingEntity(
     val embedding: ByteArray,
     val chunkText: String,
     val dimension: Int
-)
+) {
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other !is EmbeddingEntity) return false
+        return id == other.id && messageId == other.messageId && modelId == other.modelId
+            && embedding.contentEquals(other.embedding) && chunkText == other.chunkText && dimension == other.dimension
+    }
+
+    override fun hashCode(): Int {
+        var result = id.hashCode()
+        result = 31 * result + messageId.hashCode()
+        result = 31 * result + modelId.hashCode()
+        result = 31 * result + embedding.contentHashCode()
+        result = 31 * result + chunkText.hashCode()
+        result = 31 * result + dimension
+        return result
+    }
+}
 
 @Entity(
     tableName = "messages",
@@ -157,6 +174,9 @@ interface ChatDao {
 
     @Query("SELECT m.* FROM messages m INNER JOIN conversations c ON m.conversationId = c.id WHERE m.participant IN ('USER', 'MODEL') AND m.text != '' AND m.id NOT LIKE 'tool_%' AND m.id NOT LIKE 'result_%'")
     suspend fun getAllMessagesForIndexing(): List<MessageEntity>
+
+    @Query("SELECT COUNT(*) FROM messages m INNER JOIN conversations c ON m.conversationId = c.id WHERE m.participant IN ('USER', 'MODEL') AND m.text != '' AND m.id NOT LIKE 'tool_%' AND m.id NOT LIKE 'result_%'")
+    suspend fun getIndexableMessageCount(): Int
 
     @Query("SELECT * FROM messages WHERE id IN (:ids)")
     suspend fun getMessagesByIds(ids: List<String>): List<MessageEntity>

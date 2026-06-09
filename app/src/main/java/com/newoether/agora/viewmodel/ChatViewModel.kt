@@ -195,6 +195,7 @@ class ChatViewModel(
 
     private val generationScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var generationJob: Job? = null
+    private val sendGate = java.util.concurrent.atomic.AtomicBoolean(false)
 
     private val generationManager by lazy {
         GenerationManager(
@@ -235,6 +236,7 @@ class ChatViewModel(
     private fun isProviderConfigured(providerName: String, activeKey: String): Boolean {
         val isCustom = providerName !in builtInProviders
         return when {
+            providerName == "Unknown" -> false
             providerName == "Local" -> true
             isCustom || providerName == "Ollama" -> !getEffectiveBaseUrl(providerName).isNullOrBlank()
             else -> activeKey.isNotBlank()
@@ -276,7 +278,7 @@ class ChatViewModel(
             modelId.contains("deepseek") -> "DeepSeek"
             modelId.contains("qwen") -> "Qwen"
             modelId.contains("models/") || modelId.startsWith("gemini") -> "Google"
-            else -> "Google"
+            else -> "Unknown"
         }
     }
     
@@ -326,7 +328,7 @@ class ChatViewModel(
         viewModelScope.launch(Dispatchers.IO) { refreshCacheCounts() }
     }
     private suspend fun refreshCacheCounts() {
-        val total = chatDao.getAllMessagesForIndexing().count { it.text.isNotBlank() }
+        val total = chatDao.getIndexableMessageCount()
         val counts = embeddingModels.value.associate { model ->
             val cached = chatDao.getEmbeddingCountByModel(model.id).coerceAtMost(total)
             model.id to (cached to total)
@@ -949,7 +951,7 @@ class ChatViewModel(
                         }
                         toProcess.chunked(batchSize).forEach { batch ->
                             if (embeddingModels.value.none { it.id == modelId }) return@launch
-                            val texts = batch.map { it.text.take(8000) }
+                            val texts = batch.map { it.text.take(Constants.MAX_EMBEDDING_TEXT_LENGTH) }
                             val embeddings = LlamaEngine.computeEmbeddings(texts, model.localFilePath) {
                                 localProvider.releaseEngineBlocking()
                             }
@@ -959,7 +961,7 @@ class ChatViewModel(
                                     chatDao.upsertEmbedding(EmbeddingEntity(
                                         messageId = msg.id, modelId = modelId,
                                         embedding = EmbeddingIndexer.floatsToBytes(embd),
-                                        chunkText = msg.text.take(500), dimension = embd.size
+                                        chunkText = msg.text.take(Constants.MAX_CHUNK_TEXT_LENGTH), dimension = embd.size
                                     ))
                                     succeeded++
                                 }
@@ -975,7 +977,7 @@ class ChatViewModel(
                         val baseUrl = model.remoteBaseUrl.ifBlank { resolveEmbeddingBaseUrl() }
                         toProcess.chunked(batchSize).forEach { batch ->
                             if (embeddingModels.value.none { it.id == modelId }) return@launch
-                            val texts = batch.map { it.text.take(8000) }
+                            val texts = batch.map { it.text.take(Constants.MAX_EMBEDDING_TEXT_LENGTH) }
                             val embeddings = EmbeddingClient.computeEmbeddings(
                                 texts, apiKey, model.remoteModelName, baseUrl
                             )
@@ -985,7 +987,7 @@ class ChatViewModel(
                                     chatDao.upsertEmbedding(EmbeddingEntity(
                                         messageId = msg.id, modelId = modelId,
                                         embedding = EmbeddingIndexer.floatsToBytes(embd),
-                                        chunkText = msg.text.take(500), dimension = embd.size
+                                        chunkText = msg.text.take(Constants.MAX_CHUNK_TEXT_LENGTH), dimension = embd.size
                                     ))
                                     succeeded++
                                 }
@@ -1196,7 +1198,7 @@ class ChatViewModel(
                 return@launch
             }
             DebugLog.d("AgoraVM", "RAG index: indexing $messageId with model '${model.name}'")
-            val toEmbed = text.take(8000)
+            val toEmbed = text.take(Constants.MAX_EMBEDDING_TEXT_LENGTH)
             val embedding: FloatArray? = if (model.type == EmbeddingModelType.LOCAL) {
                 if (!LlamaEngine.isModelReady(model.localFilePath)) {
                     DebugLog.w("AgoraVM", "RAG index: local model not ready, skipping")
@@ -1219,7 +1221,7 @@ class ChatViewModel(
                     messageId = messageId,
                     modelId = model.id,
                     embedding = EmbeddingIndexer.floatsToBytes(embedding),
-                    chunkText = text.take(500),
+                    chunkText = text.take(Constants.MAX_CHUNK_TEXT_LENGTH),
                     dimension = embedding.size
                 ))
                 DebugLog.d("AgoraVM", "RAG index: stored embedding (dim=${embedding.size}) for $messageId")
@@ -1264,6 +1266,75 @@ class ChatViewModel(
             shellEnabled = if (shellEnabled.value) (overrides.shellEnabled ?: true) else false
         )
     }
+
+    private fun buildGenerationPair(
+        providerName: String,
+        modelId: String,
+        activeKey: String,
+        resolvedSystemPrompt: String?,
+        resolvedUserPrepend: String?,
+        resolvedUserPostpend: String?,
+        effectiveSettings: ConversationSettings,
+        currentId: String
+    ): Pair<GenerationConfig, GenerationContext> {
+        val config = GenerationConfig(
+            providerName = providerName,
+            modelId = modelId.substringAfter(":"),
+            apiKey = activeKey,
+            effectiveSystemPrompt = resolvedSystemPrompt,
+            maxContextWindow = effectiveSettings.contextWindow ?: maxContextWindow.value,
+            codeExecutionEnabled = effectiveSettings.codeExecutionEnabled ?: codeExecutionEnabled.value,
+            googleSearchEnabled = effectiveSettings.googleSearchEnabled ?: googleSearchEnabled.value,
+            thinkingEnabled = effectiveSettings.thinkingEnabled ?: thinkingEnabled.value,
+            thinkingLevel = effectiveSettings.thinkingLevel ?: thinkingLevel.value,
+            baseUrl = getEffectiveBaseUrl(providerName),
+            userPrepend = resolvedUserPrepend,
+            userPostpend = resolvedUserPostpend,
+            temperature = effectiveSettings.temperature,
+            maxTokens = effectiveSettings.maxTokens,
+            topP = effectiveSettings.topP,
+            frequencyPenalty = effectiveSettings.frequencyPenalty,
+            presencePenalty = effectiveSettings.presencePenalty
+        )
+        val genCtx = com.newoether.agora.viewmodel.GenerationContext(
+            conversationId = currentId,
+            accessSavedMemories = accessSavedMemories.value,
+            accessActiveMemory = accessActiveMemory.value,
+            accessPastConversations = accessPastConversations.value,
+            modelSearchMethod = modelSearchMethod.value,
+            activeEmbeddingConfig = activeEmbeddingModel.value,
+            embeddingApiKey = resolveEmbeddingApiKey() ?: "",
+            ragThreshold = ragThreshold.value,
+            searchMatchLimit = searchMatchLimit.value,
+            searchContextWindow = searchContextWindow.value,
+            webSearchEnabled = effectiveSettings.webSearchEnabled ?: webSearchEnabled.value,
+            webSearchApiKeys = webSearchApiKeys.value,
+            webSearchProvider = webSearchProvider.value,
+            webSearchNumResults = webSearchNumResults.value,
+            webSearchBaseUrl = webSearchBaseUrl.value,
+            shellEnabled = effectiveSettings.shellEnabled ?: shellEnabled.value,
+            shellDevices = shellDevices.value,
+            imageTranscriptionEnabled = imageTranscriptionEnabledModels.value.contains(currentActiveModel.value),
+            imageTranscriptionModel = imageTranscriptionModel.value,
+            imageTranscriptionBatchSize = imageTranscriptionBatchSize.value,
+            transcriptionProviderName = resolveTranscriptionProviderName(),
+            transcriptionModelId = resolveTranscriptionModelId(),
+            transcriptionApiKey = resolveTranscriptionApiKey(),
+            transcriptionBaseUrl = resolveTranscriptionBaseUrl()
+        )
+        return Pair(config, genCtx)
+    }
+
+    private fun onStreamClear() {
+        val msg = _streamingMessage.value
+        if (msg?.status != MessageStatus.STOPPED) {
+            if (msg != null) { _allMessages.update { it.map { m -> if (m.id == msg.id) msg else m } } }
+            _streamingMessage.value = null
+        }
+        val id = activeEmbeddingModelId.value
+        if (id.isNotEmpty()) cacheMessagesForModel(id, silent = true)
+    }
+
     fun addShellDevice(device: com.newoether.agora.data.ShellDeviceConfig) {
         viewModelScope.launch {
             val current = shellDevices.value.toMutableList()
@@ -1664,51 +1735,10 @@ class ChatViewModel(
             }
             val resolved = buildEffectiveSystemPrompt(currentId)
             val effectiveSettings = buildEffectiveConversationSettings(currentId)
-            val config = GenerationConfig(
-                providerName = providerName,
-                modelId = modelId.substringAfter(":"),
-                apiKey = activeKey,
-                effectiveSystemPrompt = resolved.systemPrompt,
-                maxContextWindow = effectiveSettings.contextWindow ?: maxContextWindow.value,
-                codeExecutionEnabled = effectiveSettings.codeExecutionEnabled ?: codeExecutionEnabled.value,
-                googleSearchEnabled = effectiveSettings.googleSearchEnabled ?: googleSearchEnabled.value,
-                thinkingEnabled = effectiveSettings.thinkingEnabled ?: thinkingEnabled.value,
-                thinkingLevel = effectiveSettings.thinkingLevel ?: thinkingLevel.value,
-                baseUrl = getEffectiveBaseUrl(providerName),
-                userPrepend = resolved.userPrepend,
-                userPostpend = resolved.userPostpend,
-                temperature = effectiveSettings.temperature,
-                maxTokens = effectiveSettings.maxTokens,
-                topP = effectiveSettings.topP,
-                frequencyPenalty = effectiveSettings.frequencyPenalty,
-                presencePenalty = effectiveSettings.presencePenalty
-            )
-
-            val genCtx = com.newoether.agora.viewmodel.GenerationContext(
-                conversationId = currentId,
-                accessSavedMemories = accessSavedMemories.value,
-                accessActiveMemory = accessActiveMemory.value,
-                accessPastConversations = accessPastConversations.value,
-                modelSearchMethod = modelSearchMethod.value,
-                activeEmbeddingConfig = activeEmbeddingModel.value,
-                embeddingApiKey = resolveEmbeddingApiKey() ?: "",
-                ragThreshold = ragThreshold.value,
-                searchMatchLimit = searchMatchLimit.value,
-                searchContextWindow = searchContextWindow.value,
-                webSearchEnabled = effectiveSettings.webSearchEnabled ?: webSearchEnabled.value,
-                webSearchApiKeys = webSearchApiKeys.value,
-                webSearchProvider = webSearchProvider.value,
-                webSearchNumResults = webSearchNumResults.value,
-                webSearchBaseUrl = webSearchBaseUrl.value,
-                shellEnabled = effectiveSettings.shellEnabled ?: shellEnabled.value,
-                shellDevices = shellDevices.value,
-                imageTranscriptionEnabled = imageTranscriptionEnabledModels.value.contains(currentActiveModel.value),
-                imageTranscriptionModel = imageTranscriptionModel.value,
-                imageTranscriptionBatchSize = imageTranscriptionBatchSize.value,
-                transcriptionProviderName = resolveTranscriptionProviderName(),
-                transcriptionModelId = resolveTranscriptionModelId(),
-                transcriptionApiKey = resolveTranscriptionApiKey(),
-                transcriptionBaseUrl = resolveTranscriptionBaseUrl()
+            val (config, genCtx) = buildGenerationPair(
+                providerName, modelId, activeKey,
+                resolved.systemPrompt, resolved.userPrepend, resolved.userPostpend,
+                effectiveSettings, currentId
             )
             generationManager.generate(
                 conversationId = currentId,
@@ -1723,7 +1753,7 @@ class ChatViewModel(
                 onStreamUpdate = { _streamingMessage.value = it },
                 onLoadingChange = { _isLoading.value = it },
                 onGeneratingIdChange = { _generatingInConversationId.value = it },
-                onStreamClear = { val msg = _streamingMessage.value; if (msg?.status != MessageStatus.STOPPED) { if (msg != null) { _allMessages.update { it.map { m -> if (m.id == msg.id) msg else m } } }; _streamingMessage.value = null }; val id = activeEmbeddingModelId.value; if (id.isNotEmpty()) cacheMessagesForModel(id, silent = true) }
+                onStreamClear = { onStreamClear() }
             )
             } finally {
                 if (_isLoading.value && generationJob === currentCoroutineContext()[Job]) _isLoading.value = false
@@ -1787,51 +1817,10 @@ class ChatViewModel(
             }
             val resolved = buildEffectiveSystemPrompt(currentId)
             val effectiveSettings = buildEffectiveConversationSettings(currentId)
-            val config = GenerationConfig(
-                providerName = providerName,
-                modelId = modelId.substringAfter(":"),
-                apiKey = activeKey,
-                effectiveSystemPrompt = resolved.systemPrompt,
-                maxContextWindow = effectiveSettings.contextWindow ?: maxContextWindow.value,
-                codeExecutionEnabled = effectiveSettings.codeExecutionEnabled ?: codeExecutionEnabled.value,
-                googleSearchEnabled = effectiveSettings.googleSearchEnabled ?: googleSearchEnabled.value,
-                thinkingEnabled = effectiveSettings.thinkingEnabled ?: thinkingEnabled.value,
-                thinkingLevel = effectiveSettings.thinkingLevel ?: thinkingLevel.value,
-                baseUrl = getEffectiveBaseUrl(providerName),
-                userPrepend = resolved.userPrepend,
-                userPostpend = resolved.userPostpend,
-                temperature = effectiveSettings.temperature,
-                maxTokens = effectiveSettings.maxTokens,
-                topP = effectiveSettings.topP,
-                frequencyPenalty = effectiveSettings.frequencyPenalty,
-                presencePenalty = effectiveSettings.presencePenalty
-            )
-
-            val genCtx = com.newoether.agora.viewmodel.GenerationContext(
-                conversationId = currentId,
-                accessSavedMemories = accessSavedMemories.value,
-                accessActiveMemory = accessActiveMemory.value,
-                accessPastConversations = accessPastConversations.value,
-                modelSearchMethod = modelSearchMethod.value,
-                activeEmbeddingConfig = activeEmbeddingModel.value,
-                embeddingApiKey = resolveEmbeddingApiKey() ?: "",
-                ragThreshold = ragThreshold.value,
-                searchMatchLimit = searchMatchLimit.value,
-                searchContextWindow = searchContextWindow.value,
-                webSearchEnabled = effectiveSettings.webSearchEnabled ?: webSearchEnabled.value,
-                webSearchApiKeys = webSearchApiKeys.value,
-                webSearchProvider = webSearchProvider.value,
-                webSearchNumResults = webSearchNumResults.value,
-                webSearchBaseUrl = webSearchBaseUrl.value,
-                shellEnabled = effectiveSettings.shellEnabled ?: shellEnabled.value,
-                shellDevices = shellDevices.value,
-                imageTranscriptionEnabled = imageTranscriptionEnabledModels.value.contains(currentActiveModel.value),
-                imageTranscriptionModel = imageTranscriptionModel.value,
-                imageTranscriptionBatchSize = imageTranscriptionBatchSize.value,
-                transcriptionProviderName = resolveTranscriptionProviderName(),
-                transcriptionModelId = resolveTranscriptionModelId(),
-                transcriptionApiKey = resolveTranscriptionApiKey(),
-                transcriptionBaseUrl = resolveTranscriptionBaseUrl()
+            val (config, genCtx) = buildGenerationPair(
+                providerName, modelId, activeKey,
+                resolved.systemPrompt, resolved.userPrepend, resolved.userPostpend,
+                effectiveSettings, currentId
             )
             generationManager.generate(
                 conversationId = currentId,
@@ -1846,7 +1835,7 @@ class ChatViewModel(
                 onStreamUpdate = { _streamingMessage.value = it },
                 onLoadingChange = { _isLoading.value = it },
                 onGeneratingIdChange = { _generatingInConversationId.value = it },
-                onStreamClear = { val msg = _streamingMessage.value; if (msg?.status != MessageStatus.STOPPED) { if (msg != null) { _allMessages.update { it.map { m -> if (m.id == msg.id) msg else m } } }; _streamingMessage.value = null }; val id = activeEmbeddingModelId.value; if (id.isNotEmpty()) cacheMessagesForModel(id, silent = true) }
+                onStreamClear = { onStreamClear() }
             )
         }
     }
@@ -1908,6 +1897,9 @@ class ChatViewModel(
     }
 
     fun sendMessage(text: String, images: List<String> = emptyList(), attachments: List<SelectedAttachment> = emptyList()): Boolean {
+        if (!sendGate.compareAndSet(false, true)) return false
+        var committed = false
+        try {
         val modelId = currentActiveModel.value
         if (modelId.isBlank()) {
             emitSnackbar(getApplication<Application>().getString(R.string.no_model_selected))
@@ -1930,7 +1922,9 @@ class ChatViewModel(
         }
         stopGeneration()
 
+        committed = true
         generationJob = generationScope.launch {
+            try {
             val app = getApplication<Application>()
             // mediaUris: URIs that need processImages (images, video content:// URIs)
             // directPaths: paths that skip processImages (pre-extracted frames, PDF copies, rendered pages)
@@ -1949,7 +1943,7 @@ class ChatViewModel(
                         val isText = mimeType.startsWith("text/") || mimeType == "application/json" || mimeType == "application/xml"
                         if (isText) {
                             app.contentResolver.openInputStream(android.net.Uri.parse(uri))?.use { stream ->
-                                val content = stream.bufferedReader().readText().take(500_000)
+                                val content = stream.bufferedReader().readText().take(Constants.MAX_FILE_CONTENT_READ_LENGTH)
                                 if (content.isNotBlank()) {
                                     val fileName = getFileName(app, android.net.Uri.parse(uri))
                                     // Legacy file content stored in text (pre-attachmentMeta)
@@ -2022,7 +2016,7 @@ class ChatViewModel(
                         var textContent: String? = null
                         try {
                             app.contentResolver.openInputStream(android.net.Uri.parse(att.uri))?.use { stream ->
-                                val content = stream.bufferedReader().readText().take(500_000)
+                                val content = stream.bufferedReader().readText().take(Constants.MAX_FILE_CONTENT_READ_LENGTH)
                                 if (content.isNotBlank()) {
                                     val fileName = att.fileName ?: getFileName(app, android.net.Uri.parse(att.uri))
                                     textContent = content
@@ -2146,54 +2140,13 @@ class ChatViewModel(
 
             val resolved = buildEffectiveSystemPrompt(currentId)
             val effectiveSettings = buildEffectiveConversationSettings(currentId)
-            val config = GenerationConfig(
-                providerName = providerName,
-                modelId = modelId.substringAfter(":"),
-                apiKey = activeKey,
-                effectiveSystemPrompt = resolved.systemPrompt,
-                maxContextWindow = effectiveSettings.contextWindow ?: maxContextWindow.value,
-                codeExecutionEnabled = effectiveSettings.codeExecutionEnabled ?: codeExecutionEnabled.value,
-                googleSearchEnabled = effectiveSettings.googleSearchEnabled ?: googleSearchEnabled.value,
-                thinkingEnabled = effectiveSettings.thinkingEnabled ?: thinkingEnabled.value,
-                thinkingLevel = effectiveSettings.thinkingLevel ?: thinkingLevel.value,
-                baseUrl = getEffectiveBaseUrl(providerName),
-                userPrepend = resolved.userPrepend,
-                userPostpend = resolved.userPostpend,
-                temperature = effectiveSettings.temperature,
-                maxTokens = effectiveSettings.maxTokens,
-                topP = effectiveSettings.topP,
-                frequencyPenalty = effectiveSettings.frequencyPenalty,
-                presencePenalty = effectiveSettings.presencePenalty
-            )
-
-            val genCtx = com.newoether.agora.viewmodel.GenerationContext(
-                conversationId = currentId,
-                accessSavedMemories = accessSavedMemories.value,
-                accessActiveMemory = accessActiveMemory.value,
-                accessPastConversations = accessPastConversations.value,
-                modelSearchMethod = modelSearchMethod.value,
-                activeEmbeddingConfig = activeEmbeddingModel.value,
-                embeddingApiKey = resolveEmbeddingApiKey() ?: "",
-                ragThreshold = ragThreshold.value,
-                searchMatchLimit = searchMatchLimit.value,
-                searchContextWindow = searchContextWindow.value,
-                webSearchEnabled = effectiveSettings.webSearchEnabled ?: webSearchEnabled.value,
-                webSearchApiKeys = webSearchApiKeys.value,
-                webSearchProvider = webSearchProvider.value,
-                webSearchNumResults = webSearchNumResults.value,
-                webSearchBaseUrl = webSearchBaseUrl.value,
-                shellEnabled = effectiveSettings.shellEnabled ?: shellEnabled.value,
-                shellDevices = shellDevices.value,
-                imageTranscriptionEnabled = imageTranscriptionEnabledModels.value.contains(currentActiveModel.value),
-                imageTranscriptionModel = imageTranscriptionModel.value,
-                imageTranscriptionBatchSize = imageTranscriptionBatchSize.value,
-                transcriptionProviderName = resolveTranscriptionProviderName(),
-                transcriptionModelId = resolveTranscriptionModelId(),
-                transcriptionApiKey = resolveTranscriptionApiKey(),
-                transcriptionBaseUrl = resolveTranscriptionBaseUrl()
+            val (config, genCtx) = buildGenerationPair(
+                providerName, modelId, activeKey,
+                resolved.systemPrompt, resolved.userPrepend, resolved.userPostpend,
+                effectiveSettings, currentId
             )
             try {
-                withTimeout(120_000L) {
+                withTimeout(Constants.GENERATION_TIMEOUT_MS) {
                     generationManager.generate(
                         conversationId = currentId,
                         modelMessageId = modelMessageId,
@@ -2207,7 +2160,7 @@ class ChatViewModel(
                         onStreamUpdate = { _streamingMessage.value = it },
                         onLoadingChange = { _isLoading.value = it },
                         onGeneratingIdChange = { _generatingInConversationId.value = it },
-                        onStreamClear = { val msg = _streamingMessage.value; if (msg?.status != MessageStatus.STOPPED) { if (msg != null) { _allMessages.update { it.map { m -> if (m.id == msg.id) msg else m } } }; _streamingMessage.value = null }; val id = activeEmbeddingModelId.value; if (id.isNotEmpty()) cacheMessagesForModel(id, silent = true) }
+                        onStreamClear = { onStreamClear() }
                     )
                 }
             } catch (_: TimeoutCancellationException) {
@@ -2220,7 +2173,13 @@ class ChatViewModel(
             if (wasNewChat && titleGenerationEnabled.value && generationJob?.isActive == true && lastMsg?.status != MessageStatus.ERROR) {
                 generateTitle(currentId)
             }
+        } finally {
+            sendGate.set(false)
         }
+        } // end launch
+    } finally {
+        if (!committed) sendGate.set(false)
+    }
         return true
     }
 
