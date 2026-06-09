@@ -194,15 +194,20 @@ fun SettingsProviderDetailPage(
             if (!isLocal) {
                 val providerKeys = apiKeys.filter { it.provider == providerName }
                 if (providerKeys.isEmpty()) {
-                    Text(stringResource(R.string.provider_api_keys), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(vertical = 12.dp))
-                    Text(stringResource(R.string.provider_no_keys, providerName), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(bottom = 8.dp))
-                    Box(modifier = Modifier.clickable { showKeyDialog = ApiKeyEntry(name = "", key = "", provider = providerName) }.padding(bottom = 24.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.Add, null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(stringResource(R.string.provider_add_key), color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelLarge)
+                    SettingsGroup(
+                        title = stringResource(R.string.provider_api_keys),
+                        items = listOf {
+                            Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+                                Text(stringResource(R.string.provider_no_keys, providerName), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Spacer(modifier = Modifier.height(12.dp))
+                                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.clickable { showKeyDialog = ApiKeyEntry(name = "", key = "", provider = providerName) }) {
+                                    Icon(Icons.Default.Add, null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(stringResource(R.string.provider_add_key), color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelLarge)
+                                }
+                            }
                         }
-                    }
+                    )
                 } else {
                     SettingsGroup(
                         title = stringResource(R.string.provider_api_keys),
