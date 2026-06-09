@@ -29,3 +29,4 @@ build.ps1
 deploy.ps1
 build_fdroid.ps1
 logs/
+build-bundle.ps1
