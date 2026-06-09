@@ -528,6 +528,7 @@ fun SettingsProviderPage(viewModel: ChatViewModel, onBack: () -> Unit) {
                 showEditDialog?.let { model ->
                     var editModelId by remember { mutableStateOf(model.modelId) }
                     var editAlias by remember { mutableStateOf(model.alias) }
+                    var editMmprojPath by remember { mutableStateOf(model.mmprojPath) }
                     var editNCtx by remember { mutableStateOf(model.nCtx.toString()) }
                     var editTemp by remember { mutableStateOf(model.temperature.toString()) }
                     var editTopP by remember { mutableStateOf(model.topP.toString()) }
@@ -570,6 +571,15 @@ fun SettingsProviderPage(viewModel: ChatViewModel, onBack: () -> Unit) {
                                     onValueChange = { editNCtx = it },
                                     label = { Text(stringResource(R.string.local_ctx_size)) },
                                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                    shape = RoundedCornerShape(16.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                OutlinedTextField(
+                                    value = editMmprojPath,
+                                    onValueChange = { editMmprojPath = it },
+                                    label = { Text(stringResource(R.string.local_mmproj_path)) },
+                                    placeholder = { Text(stringResource(R.string.local_mmproj_path_hint)) },
                                     shape = RoundedCornerShape(16.dp),
                                     modifier = Modifier.fillMaxWidth()
                                 )
@@ -645,7 +655,8 @@ fun SettingsProviderPage(viewModel: ChatViewModel, onBack: () -> Unit) {
                                 }
                                 viewModel.updateLocalChatModel(
                                     model.id, id, editAlias.ifBlank { id },
-                                    nCtxVal, tempVal, topPVal, maxTokVal
+                                    nCtxVal, tempVal, topPVal, maxTokVal,
+                                    mmprojPath = editMmprojPath.trim()
                                 )
                                 showEditDialog = null
                             }) { Text(stringResource(R.string.save)) }

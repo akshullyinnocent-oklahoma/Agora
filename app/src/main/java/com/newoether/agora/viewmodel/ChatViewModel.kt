@@ -1054,13 +1054,14 @@ class ChatViewModel(
         }
     }
     fun updateLocalChatModel(
-        uuid: String, newModelId: String, newAlias: String, nCtx: Int, temperature: Float, topP: Float, maxTokens: Int
+        uuid: String, newModelId: String, newAlias: String, nCtx: Int, temperature: Float, topP: Float, maxTokens: Int,
+        mmprojPath: String = ""
     ) {
         viewModelScope.launch {
             if (isLocalModelIdTaken(newModelId, excludeId = uuid)) return@launch
             val oldModel = localChatModels.value.find { it.id == uuid } ?: return@launch
             val models = localChatModels.value.map {
-                if (it.id == uuid) it.copy(modelId = newModelId, alias = newAlias, nCtx = nCtx, temperature = temperature, topP = topP, maxTokens = maxTokens)
+                if (it.id == uuid) it.copy(modelId = newModelId, alias = newAlias, nCtx = nCtx, temperature = temperature, topP = topP, maxTokens = maxTokens, mmprojPath = mmprojPath)
                 else it
             }
             settingsManager.saveLocalChatModels(models)

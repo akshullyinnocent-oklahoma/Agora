@@ -4,6 +4,8 @@
 #include <cstring>
 #include <android/log.h>
 #include "llama.h"
+#include "mtmd.h"
+#include "mtmd-helper.h"
 
 #define LOG_TAG "LlamaChatEngine"
 #ifndef NDEBUG
@@ -21,6 +23,7 @@ struct ChatHandle {
     std::string path;
     int32_t n_ctx = 0;
     volatile bool cancelled = false;
+    mtmd_context * mtmd_ctx = nullptr;  // multimodal context (for vision models)
 };
 
 static bool abort_callback(void * data) {
@@ -347,6 +350,181 @@ Java_com_newoether_agora_api_LlamaChatEngine_nativeChatReset(
     }
 }
 
+JNIEXPORT jboolean JNICALL
+Java_com_newoether_agora_api_LlamaChatEngine_nativeChatLoadMmproj(
+    JNIEnv * env, jclass /*clazz*/, jlong handle_ptr, jstring mmproj_path) {
+
+    if (!handle_ptr) return JNI_FALSE;
+    ChatHandle * handle = reinterpret_cast<ChatHandle *>(handle_ptr);
+    if (!handle->model) return JNI_FALSE;
+
+    const char * mmproj_str = env->GetStringUTFChars(mmproj_path, nullptr);
+    if (!mmproj_str) return JNI_FALSE;
+
+    // Free existing mtmd context if reloading
+    if (handle->mtmd_ctx) {
+        mtmd_free(handle->mtmd_ctx);
+        handle->mtmd_ctx = nullptr;
+    }
+
+    mtmd_context_params params = mtmd_context_params_default();
+    params.use_gpu = false;
+    params.n_threads = 4;
+    params.print_timings = false;
+
+    handle->mtmd_ctx = mtmd_init_from_file(mmproj_str, handle->model, params);
+    env->ReleaseStringUTFChars(mmproj_path, mmproj_str);
+
+    if (!handle->mtmd_ctx) {
+        LOGE("Failed to load mmproj from: %s", mmproj_str);
+        return JNI_FALSE;
+    }
+
+    LOGD("mmproj loaded successfully");
+    return JNI_TRUE;
+}
+
+JNIEXPORT jint JNICALL
+Java_com_newoether_agora_api_LlamaChatEngine_nativeChatGenerateWithImages(
+    JNIEnv * env, jclass /*clazz*/, jlong handle_ptr,
+    jstring prompt, jobjectArray image_paths,
+    jfloat temperature, jfloat top_p, jint max_tokens,
+    jobject callback) {
+
+    if (!handle_ptr) return -1;
+    ChatHandle * handle = reinterpret_cast<ChatHandle *>(handle_ptr);
+    if (!handle->ctx || !handle->vocab) return -1;
+    if (!handle->mtmd_ctx) {
+        env->CallVoidMethod(callback,
+            env->GetMethodID(env->GetObjectClass(callback), "onError", "(Ljava/lang/String;)V"),
+            env->NewStringUTF("Vision projector not loaded. Add mmproj file in model settings."));
+        return -1;
+    }
+
+    handle->cancelled = false;
+
+    const char * prompt_str = env->GetStringUTFChars(prompt, nullptr);
+    if (!prompt_str) return -1;
+    std::string prompt_text(prompt_str);
+    env->ReleaseStringUTFChars(prompt, prompt_str);
+
+    // --- Build bitmaps from image paths ---
+    jint n_images = env->GetArrayLength(image_paths);
+    std::vector<mtmd_bitmap *> bitmaps(n_images, nullptr);
+    std::vector<std::string> image_path_storage(n_images);
+
+    for (jint i = 0; i < n_images; i++) {
+        jstring jpath = (jstring)env->GetObjectArrayElement(image_paths, i);
+        const char * cpath = env->GetStringUTFChars(jpath, nullptr);
+        image_path_storage[i] = std::string(cpath);
+        env->ReleaseStringUTFChars(jpath, cpath);
+        env->DeleteLocalRef(jpath);
+
+        bitmaps[i] = mtmd_helper_bitmap_init_from_file(handle->mtmd_ctx,
+                                                       image_path_storage[i].c_str());
+        if (!bitmaps[i]) {
+            LOGE("Failed to load image: %s", image_path_storage[i].c_str());
+            // Clean up already-loaded bitmaps
+            for (jint j = 0; j < i; j++) {
+                if (bitmaps[j]) mtmd_bitmap_free(bitmaps[j]);
+            }
+            env->CallVoidMethod(callback,
+                env->GetMethodID(env->GetObjectClass(callback), "onError", "(Ljava/lang/String;)V"),
+                env->NewStringUTF("Failed to load image for multimodal input."));
+            return -1;
+        }
+    }
+
+    // --- Tokenize prompt with image markers ---
+    mtmd_input_text text_input;
+    text_input.text         = prompt_text.c_str();
+    text_input.add_special  = true;
+    text_input.parse_special = true;
+
+    std::vector<const mtmd_bitmap *> bitmap_ptrs;
+    for (auto & b : bitmaps) bitmap_ptrs.push_back(b);
+
+    mtmd_input_chunks * chunks = mtmd_input_chunks_init();
+    int32_t tok_ret = mtmd_tokenize(handle->mtmd_ctx, chunks, &text_input,
+                                    bitmap_ptrs.data(), bitmap_ptrs.size());
+    if (tok_ret != 0) {
+        LOGE("mtmd_tokenize failed with code %d (images=%d)", tok_ret, n_images);
+        for (auto & b : bitmaps) if (b) mtmd_bitmap_free(b);
+        mtmd_input_chunks_free(chunks);
+        env->CallVoidMethod(callback,
+            env->GetMethodID(env->GetObjectClass(callback), "onError", "(Ljava/lang/String;)V"),
+            env->NewStringUTF("Failed to tokenize multimodal prompt."));
+        return -1;
+    }
+
+    // --- Eval all chunks (text + image) via mtmd helper ---
+    jclass cb_class = env->GetObjectClass(callback);
+    jmethodID on_token = env->GetMethodID(cb_class, "onToken", "(Ljava/lang/String;)V");
+    jmethodID on_done  = env->GetMethodID(cb_class, "onDone", "()V");
+    jmethodID on_error = env->GetMethodID(cb_class, "onError", "(Ljava/lang/String;)V");
+
+    llama_pos n_past = 0;
+    int32_t n_ctx = llama_n_ctx(handle->ctx);
+    int32_t eval_ret = mtmd_helper_eval_chunks(handle->mtmd_ctx, handle->ctx,
+                                                chunks, n_past, 0, n_ctx,
+                                                true, &n_past);
+    // Free bitmaps and chunks after evaluation
+    for (auto & b : bitmaps) if (b) mtmd_bitmap_free(b);
+    mtmd_input_chunks_free(chunks);
+
+    if (eval_ret != 0) {
+        LOGE("mtmd_helper_eval_chunks failed with code %d", eval_ret);
+        env->CallVoidMethod(callback, on_error,
+            env->NewStringUTF("Multimodal prefill failed."));
+        env->DeleteLocalRef(cb_class);
+        return -1;
+    }
+
+    LOGD("Multimodal prefill done: n_past=%lld, starting generation", (long long)n_past);
+
+    // --- Generation loop (same as text-only path) ---
+    auto sparams = llama_sampler_chain_default_params();
+    llama_sampler * smpl = llama_sampler_chain_init(sparams);
+    llama_sampler_chain_add(smpl, llama_sampler_init_min_p(0.05f, 1));
+    llama_sampler_chain_add(smpl, llama_sampler_init_top_p(top_p, 1));
+    llama_sampler_chain_add(smpl, llama_sampler_init_temp(temperature));
+    llama_sampler_chain_add(smpl, llama_sampler_init_dist(LLAMA_DEFAULT_SEED));
+
+    int32_t generated = 0;
+    while (generated < max_tokens) {
+        if (handle->cancelled) break;
+
+        int32_t n_ctx_used = llama_memory_seq_pos_max(llama_get_memory(handle->ctx), 0) + 1;
+        if (n_ctx_used + 1 > n_ctx) break;
+
+        llama_synchronize(handle->ctx);
+        llama_token new_token_id = llama_sampler_sample(smpl, handle->ctx, -1);
+
+        if (llama_vocab_is_eog(handle->vocab, new_token_id)) break;
+
+        char piece[256];
+        int32_t n = llama_token_to_piece(handle->vocab, new_token_id, piece, sizeof(piece), 0, true);
+        if (n < 0) break;
+
+        jstring jtoken = env->NewStringUTF(std::string(piece, n).c_str());
+        env->CallVoidMethod(callback, on_token, jtoken);
+        env->DeleteLocalRef(jtoken);
+
+        if (env->ExceptionCheck()) { env->ExceptionClear(); break; }
+
+        generated++;
+        llama_batch single = llama_batch_get_one(&new_token_id, 1);
+        if (llama_decode(handle->ctx, single) != 0) break;
+    }
+
+    llama_sampler_free(smpl);
+    env->CallVoidMethod(callback, on_done);
+    env->DeleteLocalRef(cb_class);
+
+    LOGD("Multimodal generation complete: %d tokens", generated);
+    return generated;
+}
+
 JNIEXPORT void JNICALL
 Java_com_newoether_agora_api_LlamaChatEngine_nativeChatFreeModel(
     JNIEnv * /*env*/, jclass /*clazz*/, jlong handle_ptr) {
@@ -354,6 +532,7 @@ Java_com_newoether_agora_api_LlamaChatEngine_nativeChatFreeModel(
     if (!handle_ptr) return;
     ChatHandle * handle = reinterpret_cast<ChatHandle *>(handle_ptr);
 
+    if (handle->mtmd_ctx) mtmd_free(handle->mtmd_ctx);
     if (handle->ctx)   llama_free(handle->ctx);
     if (handle->model) llama_model_free(handle->model);
 

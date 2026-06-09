@@ -36,6 +36,11 @@ class LlamaChatEngine(
     private external fun nativeChatLoadModel(path: String, nCtx: Int): Long
     private external fun nativeChatGetTemplate(handle: Long): String?
     private external fun nativeChatApplyTemplate(handle: Long, messages: Array<ChatTemplateMessage>, addAss: Boolean): String?
+    private external fun nativeChatLoadMmproj(handle: Long, mmprojPath: String): Boolean
+    private external fun nativeChatGenerateWithImages(
+        handle: Long, prompt: String, imagePaths: Array<String>,
+        temperature: Float, topP: Float, maxTokens: Int, callback: NativeChatCallback
+    ): Int
     private external fun nativeChatGenerate(
         handle: Long, prompt: String, temperature: Float, topP: Float, maxTokens: Int,
         callback: NativeChatCallback
@@ -113,6 +118,63 @@ class LlamaChatEngine(
                 if (nativeHandle != 0L) {
                     nativeChatCancel(nativeHandle)
                 }
+            }
+        }
+    }
+
+    fun loadMmproj(mmprojPath: String): Boolean {
+        synchronized(this) {
+            if (nativeHandle == 0L) return false
+            if (!File(mmprojPath).exists()) {
+                DebugLog.e(TAG, "mmproj file not found: $mmprojPath")
+                return false
+            }
+            return nativeChatLoadMmproj(nativeHandle, mmprojPath)
+        }
+    }
+
+    fun hasMmproj(): Boolean {
+        synchronized(this) {
+            return nativeHandle != 0L && nativeChatLoadMmproj(nativeHandle, "") // dummy call fails if no mmproj loaded
+        }
+    }
+
+    fun generateWithImages(
+        prompt: String,
+        imagePaths: List<String>,
+        temperature: Float = 0.7f,
+        topP: Float = 0.9f,
+        maxTokens: Int = 4096
+    ): Flow<String> = callbackFlow {
+        if (nativeHandle == 0L) {
+            close(RuntimeException("Model not loaded"))
+            return@callbackFlow
+        }
+
+        val callback = object : NativeChatCallback {
+            override fun onToken(token: String) { trySend(token) }
+            override fun onDone() { close() }
+            override fun onError(message: String) {
+                DebugLog.e(TAG, "Generation error: $message")
+                close(RuntimeException(message))
+            }
+        }
+
+        launch(Dispatchers.IO) {
+            try {
+                nativeChatGenerateWithImages(
+                    nativeHandle, prompt, imagePaths.toTypedArray(),
+                    temperature, topP, maxTokens, callback
+                )
+            } catch (e: Exception) {
+                DebugLog.e(TAG, "nativeChatGenerateWithImages crashed", e)
+                close(e)
+            }
+        }
+
+        awaitClose {
+            synchronized(this@LlamaChatEngine) {
+                if (nativeHandle != 0L) nativeChatCancel(nativeHandle)
             }
         }
     }

@@ -49,13 +49,23 @@ class LocalProvider(
             return@flow
         }
 
-        // Convert messages, then try the model's native chat template first,
-        // fall back to ChatML if the model has no template.
-        val templateMessages = buildTemplateMessages(messages, config.systemPrompt)
-        val prompt = engine.applyTemplate(templateMessages, addAss = true)
-            ?: buildPrompt(templateMessages)
+        // Collect images from messages
+        val imagePaths = messages.flatMap { it.images }.filter { it.isNotBlank() }
 
-        DebugLog.d(TAG, "Generated prompt (${prompt.length} chars): ${prompt.take(200)}...")
+        val templateMessages = buildTemplateMessages(messages, config.systemPrompt)
+        val prompt: String
+        val hasImages = imagePaths.isNotEmpty()
+
+        if (hasImages) {
+            // For multimodal: use ChatML with <__media__> markers
+            prompt = buildMultimodalPrompt(templateMessages, imagePaths)
+            DebugLog.d(TAG, "Generated multimodal prompt (${prompt.length} chars, ${imagePaths.size} images)")
+        } else {
+            // Text-only: try native template first, fall back to ChatML
+            prompt = engine.applyTemplate(templateMessages, addAss = true)
+                ?: buildPrompt(templateMessages)
+            DebugLog.d(TAG, "Generated prompt (${prompt.length} chars): ${prompt.take(200)}...")
+        }
 
         // Generate tokens with unified thinking parsing
         var totalTokens = 0
@@ -64,12 +74,23 @@ class LocalProvider(
         val STOP_PATTERNS = listOf("<|im_end|>", "<|im_start|>")
         val thinkParser = ThinkingParser()
         try {
-            engine.generate(
-                prompt = prompt,
-                temperature = config.temperature ?: modelConfig.temperature,
-                topP = config.topP ?: modelConfig.topP,
-                maxTokens = config.maxTokens ?: modelConfig.maxTokens
-            ).collect { token ->
+            val tokenFlow = if (hasImages) {
+                engine.generateWithImages(
+                    prompt = prompt,
+                    imagePaths = imagePaths,
+                    temperature = config.temperature ?: modelConfig.temperature,
+                    topP = config.topP ?: modelConfig.topP,
+                    maxTokens = config.maxTokens ?: modelConfig.maxTokens
+                )
+            } else {
+                engine.generate(
+                    prompt = prompt,
+                    temperature = config.temperature ?: modelConfig.temperature,
+                    topP = config.topP ?: modelConfig.topP,
+                    maxTokens = config.maxTokens ?: modelConfig.maxTokens
+                )
+            }
+            tokenFlow.collect { token ->
                 if (!coroutineContext.isActive) {
                     engine.cancel()
                     return@collect
@@ -140,11 +161,19 @@ class LocalProvider(
             val existing = currentEngine
             if (existing != null && existing.modelPath == model.localFilePath) {
                 existing.resetContext()
+                // Reload mmproj if path changed or was previously set
+                if (model.mmprojPath.isNotBlank()) {
+                    existing.loadMmproj(model.mmprojPath)
+                }
                 existing
             } else {
                 existing?.close()
                 val engine = LlamaChatEngine(model.localFilePath, model.nCtx)
                 if (engine.load()) {
+                    if (model.mmprojPath.isNotBlank()) {
+                        val loaded = engine.loadMmproj(model.mmprojPath)
+                        DebugLog.d(TAG, "mmproj load: $loaded for ${model.mmprojPath}")
+                    }
                     currentEngine = engine
                     engine
                 } else {
@@ -216,6 +245,26 @@ class LocalProvider(
         }
 
         return result
+    }
+
+    private fun buildMultimodalPrompt(
+        messages: List<ChatTemplateMessage>,
+        imagePaths: List<String>
+    ): String {
+        // Build ChatML prompt with <__media__> markers for each image.
+        // Images are injected into the FIRST user message's content.
+        val sb = StringBuilder()
+        val mediaMarkers = imagePaths.joinToString("\n") { "<__media__>" } + "\n"
+
+        for (msg in messages) {
+            sb.append("<|im_start|>${msg.role}\n")
+            if (msg.role == "user") {
+                sb.append(mediaMarkers)
+            }
+            sb.append("${msg.content}<|im_end|>\n")
+        }
+        sb.append("<|im_start|>assistant\n")
+        return sb.toString()
     }
 
     private fun buildPrompt(messages: List<ChatTemplateMessage>): String {

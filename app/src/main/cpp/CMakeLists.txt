@@ -19,6 +19,8 @@ add_compile_options(
 set(LLAMA_BUILD_NUMBER 0)
 set(LLAMA_BUILD_COMMIT "unknown")
 
+# Set version variable needed by llama-common and mtmd CMakeLists.txt
+set(LLAMA_INSTALL_VERSION "0.0.0")
 # Build llama.cpp as a static library
 set(LLAMA_BUILD_EXAMPLES OFF CACHE BOOL "")
 set(LLAMA_BUILD_TESTS OFF CACHE BOOL "")
@@ -26,6 +28,33 @@ set(LLAMA_BUILD_SERVER OFF CACHE BOOL "")
 set(BUILD_SHARED_LIBS OFF CACHE BOOL "")
 set(GGML_OPENMP OFF CACHE BOOL "" FORCE)
 add_subdirectory(${LLAMA_CPP_DIR} ${CMAKE_CURRENT_BINARY_DIR}/llama)
+# Build llama-common (needed by mtmd CLI executables)
+add_subdirectory(${LLAMA_CPP_DIR}/common ${CMAKE_CURRENT_BINARY_DIR}/common)
+add_subdirectory(${LLAMA_CPP_DIR}/tools/mtmd ${CMAKE_CURRENT_BINARY_DIR}/mtmd)
+# Exclude mtmd CLI executables from default build — they pull in common/arg.h,
+# nlohmann/json, and other dependencies we don't need for the library.
+foreach(cli llama-mtmd-cli llama-mtmd-debug
+         llama-llava-cli llama-gemma3-cli llama-minicpmv-cli llama-qwen2vl-cli)
+    if(TARGET ${cli})
+        set_target_properties(${cli} PROPERTIES EXCLUDE_FROM_ALL TRUE)
+    endif()
+endforeach()
+# Fix include paths for the CLIs (arg.h → common, nlohmann → vendor)
+# deprecation warning CLIs just need arg.h
+foreach(cli llama-llava-cli llama-gemma3-cli llama-minicpmv-cli llama-qwen2vl-cli)
+    if(TARGET ${cli})
+        target_include_directories(${cli} PRIVATE ${LLAMA_CPP_DIR}/common)
+    endif()
+endforeach()
+# mtmd-cli needs common/chat.h + vendor/nlohmann
+if(TARGET llama-mtmd-cli)
+    target_include_directories(llama-mtmd-cli PRIVATE
+        ${LLAMA_CPP_DIR}/common ${LLAMA_CPP_DIR}/vendor)
+endif()
+if(TARGET llama-mtmd-debug)
+    target_include_directories(llama-mtmd-debug PRIVATE
+        ${LLAMA_CPP_DIR}/common ${LLAMA_CPP_DIR}/vendor)
+endif()
 
 # Reproducible build: override ggml git commit embedded as #define
 # ggml/CMakeLists.txt runs git rev-parse unconditionally and embeds
@@ -34,9 +63,12 @@ target_compile_definitions(ggml-base PRIVATE GGML_COMMIT="unknown")
 
 # Build our JNI wrapper as a shared library
 add_library(agora_llama SHARED llama_jni.cpp llama_chat_jni.cpp)
-target_link_libraries(agora_llama llama log)
+target_link_libraries(agora_llama llama mtmd log)
 
-target_include_directories(agora_llama PRIVATE ${LLAMA_CPP_DIR}/include)
+target_include_directories(agora_llama PRIVATE
+    ${LLAMA_CPP_DIR}/include
+    ${LLAMA_CPP_DIR}/tools/mtmd
+)
 
 # Reproducible build: deterministic linker output
 target_link_options(agora_llama PRIVATE
