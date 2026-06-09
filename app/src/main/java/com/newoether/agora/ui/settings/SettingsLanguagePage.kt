@@ -87,7 +87,7 @@ fun SettingsLanguagePage(viewModel: ChatViewModel, onBack: () -> Unit) {
                                 selected = appLanguage == lang.code,
                                 onClick = { changeLanguage(lang.code) }
                             )
-                            Spacer(modifier = Modifier.width(4.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
                             Text(
                                 lang.label,
                                 style = MaterialTheme.typography.bodyLarge,
