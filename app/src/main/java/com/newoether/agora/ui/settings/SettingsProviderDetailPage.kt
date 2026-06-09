@@ -113,7 +113,9 @@ fun SettingsProviderDetailPage(
                 .imePadding()
                 .verticalScroll(rememberScrollState())
                 .clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) { fm.clearFocus() }
+                .padding(horizontal = 16.dp)
         ) {
+            Spacer(modifier = Modifier.height(8.dp))
             // Base URL (Ollama + custom)
             if (needBaseUrl) {
                 val providerInstance = viewModel.getProviderInstance(providerName)
