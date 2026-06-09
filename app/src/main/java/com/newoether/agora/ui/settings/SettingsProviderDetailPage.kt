@@ -1,5 +1,6 @@
 package com.newoether.agora.ui.settings
 
+import androidx.compose.ui.draw.alpha
 import com.newoether.agora.util.DebugLog
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -18,6 +19,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -143,7 +145,7 @@ fun SettingsProviderDetailPage(
                 val providerInstance = viewModel.getProviderInstance(providerName)
                 val savedUrl = providerBaseUrls[providerName]
                 val baseUrlState = remember(providerName, savedUrl) {
-                    TextFieldState(if (savedUrl.isNullOrBlank()) providerInstance.defaultBaseUrl else savedUrl)
+                    TextFieldState(savedUrl ?: "")
                 }
                 LaunchedEffect(baseUrlState.text) { delay(500); viewModel.setProviderBaseUrl(providerName, baseUrlState.text.toString()) }
                 SettingsGroup(
@@ -180,8 +182,50 @@ fun SettingsProviderDetailPage(
                             var showMenu by remember { mutableStateOf(false) }
                             add {
                                 SettingsItem(
-                                    headlineContent = { Text(model.alias) },
-                                    supportingContent = { Text("${model.modelId}  ·  ctx=${model.nCtx}  ·  temp=${model.temperature}") },
+                                    modifier = Modifier.clickable { showEditModelDialog = model },
+                                    headlineContent = { Text(model.alias, fontWeight = FontWeight.Medium) },
+                                    supportingContent = {
+                                        Row(
+                                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            if (model.mmprojPath.isNotBlank()) {
+                                                Surface(
+                                                    shape = RoundedCornerShape(5.dp),
+                                                    color = MaterialTheme.colorScheme.tertiaryContainer,
+                                                    contentColor = MaterialTheme.colorScheme.onTertiaryContainer
+                                                ) {
+                                                    Row(modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+                                                        Icon(Icons.Default.Visibility, null, modifier = Modifier.size(10.dp))
+                                                        Spacer(Modifier.width(3.dp))
+                                                        Text("Vision", style = MaterialTheme.typography.labelSmall)
+                                                    }
+                                                }
+                                            }
+                                            Surface(
+                                                shape = RoundedCornerShape(5.dp),
+                                                color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                                                contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                            ) {
+                                                Text(
+                                                    "Context=${model.nCtx}",
+                                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                                    style = MaterialTheme.typography.labelSmall
+                                                )
+                                            }
+                                            Surface(
+                                                shape = RoundedCornerShape(5.dp),
+                                                color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                                                contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                            ) {
+                                                Text(
+                                                    "T=${model.temperature}",
+                                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                                    style = MaterialTheme.typography.labelSmall
+                                                )
+                                            }
+                                        }
+                                    },
                                     trailingContent = {
                                         Box {
                                             IconButton(onClick = { showMenu = true }, modifier = Modifier.size(24.dp)) { Icon(Icons.Default.MoreVert, stringResource(R.string.options), modifier = Modifier.size(16.dp)) }
@@ -246,11 +290,12 @@ fun SettingsProviderDetailPage(
                         items = buildList {
                             providerKeys.forEach { entry ->
                                 var showMenu by remember { mutableStateOf(false) }
+                                val isCurrentActive = entry.id == activeApiKeyIds[providerName]
                                 add {
                                     SettingsItem(
                                         headlineContent = { Text(entry.name, fontWeight = FontWeight.Medium) },
                                         supportingContent = { Text(entry.key.take(4) + "••••••••" + entry.key.takeLast(4)) },
-                                        leadingContent = { RadioButton(selected = entry.id == activeApiKeyIds[providerName], onClick = { viewModel.setActiveApiKey(providerName, entry.id) }, modifier = Modifier.size(20.dp)) },
+                                        leadingContent = { Box(modifier = Modifier.size(24.dp), contentAlignment = Alignment.Center) { RadioButton(selected = isCurrentActive, onClick = { viewModel.setActiveApiKey(providerName, entry.id) }, modifier = Modifier.size(20.dp)) } },
                                         trailingContent = {
                                             Box {
                                                 IconButton(onClick = { showMenu = true }, modifier = Modifier.size(24.dp)) { Icon(Icons.Default.MoreVert, stringResource(R.string.options), modifier = Modifier.size(16.dp)) }
@@ -260,7 +305,9 @@ fun SettingsProviderDetailPage(
                                                 }
                                             }
                                         },
-                                        modifier = Modifier.clickable { viewModel.setActiveApiKey(providerName, entry.id) }
+                                        modifier = Modifier
+                                            .clickable { viewModel.setActiveApiKey(providerName, entry.id) }
+                                            .alpha(if (isCurrentActive) 1f else 0.45f)
                                     )
                                 }
                             }

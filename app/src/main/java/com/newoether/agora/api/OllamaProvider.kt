@@ -59,14 +59,16 @@ internal data class OllamaModelInfo(
 
 class OllamaProvider : LlmProvider {
     override val name: String = "Ollama"
-    override val defaultBaseUrl: String = "http://localhost:11434"
+    override val defaultBaseUrl: String = ""
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true; explicitNulls = false }
 
     override fun generateResponse(
         messages: List<ChatMessage>,
         config: ProviderConfig
     ): Flow<StreamEvent> = flow {
-        val baseUrl = config.baseUrl?.trimEnd('/') ?: "http://localhost:11434"
+        val baseUrl = config.baseUrl?.trimEnd('/')
+            ?: defaultBaseUrl.ifEmpty { null }
+            ?: return@flow emit(StreamEvent.Error("Ollama base URL not configured"))
         val modelName = config.modelId
 
         val validatedPath = prepareMessages(messages, config.maxContextWindow)
