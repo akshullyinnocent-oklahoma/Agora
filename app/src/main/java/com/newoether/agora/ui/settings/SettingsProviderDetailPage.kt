@@ -371,7 +371,10 @@ fun SettingsProviderDetailPage(
                 viewModel.updateLocalChatModel(model.id, id, editAlias.ifBlank { id }, n, t, p, m, mmprojPath = editMmprojPath.trim())
                 showEditModelDialog = null
             }) { Text(stringResource(R.string.save)) } },
-            dismissButton = { TextButton(onClick = { showEditModelDialog = null }) { Text(stringResource(R.string.cancel)) } }
+            dismissButton = { TextButton(onClick = {
+                if (editMmprojPath.isNotBlank() && editMmprojPath != model.mmprojPath) java.io.File(editMmprojPath).delete()
+                showEditModelDialog = null
+            }) { Text(stringResource(R.string.cancel)) } }
         )
     }
 
