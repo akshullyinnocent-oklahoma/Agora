@@ -16,6 +16,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -37,7 +38,7 @@ private fun providerIcon(name: String): Int = when (name.lowercase()) {
     "qwen" -> R.drawable.provider_qwen
     "ollama" -> R.drawable.provider_ollama
     "open router" -> R.drawable.provider_openrouter
-    else -> R.drawable.agora
+    else -> 0  // custom providers use Cloud icon below
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -145,7 +146,7 @@ fun SettingsProviderPage(viewModel: ChatViewModel, onBack: () -> Unit) {
                                     SettingsItem(
                                         headlineContent = { Text(config.name) },
                                         supportingContent = { Text(providerBaseUrls[config.name]?.takeIf { it.isNotBlank() } ?: stringResource(R.string.not_configured)) },
-                                        leadingContent = { Icon(painterResource(providerIcon(config.name)), null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp)) },
+                                        leadingContent = { Icon(Icons.Default.Cloud, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp)) },
                                         trailingContent = {
                                             Row(verticalAlignment = Alignment.CenterVertically) {
                                                 Surface(shape = RoundedCornerShape(4.dp), color = MaterialTheme.colorScheme.primaryContainer) { Text(stringResource(R.string.custom_provider_badge), modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onPrimaryContainer) }

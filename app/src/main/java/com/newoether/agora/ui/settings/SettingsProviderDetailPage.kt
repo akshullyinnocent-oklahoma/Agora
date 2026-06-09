@@ -337,7 +337,7 @@ fun SettingsProviderDetailPage(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     val hasMmproj = editMmprojPath.isNotBlank()
                     OutlinedButton(onClick = { mmprojLauncher.launch(arrayOf("*/*")) }, shape = RoundedCornerShape(16.dp), modifier = Modifier.weight(1f), colors = ButtonDefaults.outlinedButtonColors(contentColor = if (hasMmproj) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)) {
-                        Icon(Icons.Default.Add, null, modifier = Modifier.size(18.dp)); Spacer(modifier = Modifier.width(6.dp)); Text(if (hasMmproj) editMmprojPath.split("/").lastOrNull() ?: "" else stringResource(R.string.local_mmproj_path), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Icon(Icons.Default.Add, null, modifier = Modifier.size(18.dp)); Spacer(modifier = Modifier.width(6.dp)); Text(if (hasMmproj) editMmprojPath.split("/").lastOrNull() ?: "" else stringResource(R.string.local_mmproj_path_label), maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                 }
                 if (editMmprojPath.isNotBlank()) TextButton(onClick = { editMmprojPath = "" }) { Text(stringResource(R.string.remove), color = MaterialTheme.colorScheme.error) }

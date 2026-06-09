@@ -503,6 +503,17 @@
     <string name="local_chat_delete_text">确定要删除 \'%1$s\' 吗？这将同时删除模型文件。</string>
     <string name="model_id_label">ID</string>
     <string name="model_alias_label">别名</string>
+    <string name="local_title">本地</string>
+    <string name="not_configured">未配置</string>
+    <string name="provider_built_in">内置提供商</string>
+    <string name="custom_provider_section">自定义提供商</string>
+    <string name="provider_local_models_summary">%1$d 个本地模型</string>
+    <string name="provider_keys_summary">%1$d 个 API 密钥</string>
+    <string name="provider_connection">连接</string>
+    <string name="local_models_title">本地模型</string>
+    <string name="local_mmproj_path">Vision Projector 路径（可选）</string>
+    <string name="local_mmproj_path_hint">选择 vision 的 mmproj .gguf 文件</string>
+    <string name="local_mmproj_path_label">Vision projector (.mmproj)</string>
 
     <!-- Video Slicing -->
     <string name="video_slice_title">视频帧提取</string>
