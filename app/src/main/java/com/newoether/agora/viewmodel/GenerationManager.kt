@@ -113,6 +113,8 @@ class GenerationManager(
         memoryToolProvider, webSearchToolProvider, ragToolProvider, shellToolProvider
     )
 
+    private val transcriptionManager = TranscriptionManager(providers, chatDao, context)
+
     companion object {
         private val FILE_TOOL_NAMES = setOf("file_read", "file_write", "file_edit", "file_glob", "file_grep")
     }
@@ -730,157 +732,6 @@ class GenerationManager(
         return Pair(currentPath, providerConfig)
     }
 
-    private data class TranscriptionTarget(
-        val messageId: String,
-        val imagePath: String,
-        val metaItemIndex: Int
-    )
-
-    private suspend fun collectImagesNeedingTranscription(
-        conversationId: String,
-        parentId: String?
-    ): List<TranscriptionTarget> {
-        val allMessages = chatDao.getMessagesForConversation(conversationId).first()
-        val pathMessages = mutableListOf<MessageEntity>()
-        var currentId = parentId
-        while (currentId != null) {
-            val msg = allMessages.find { it.id == currentId } ?: break
-            pathMessages.add(0, msg)
-            currentId = msg.parentId
-        }
-        val latestUserMsg = pathMessages.lastOrNull { it.participant == Participant.USER }
-        val targets = mutableListOf<TranscriptionTarget>()
-        for (msg in pathMessages) {
-            if (msg.participant != Participant.USER) continue
-            if (msg.images.isEmpty()) continue
-            val meta = msg.attachmentMeta?.let {
-                try { Json.decodeFromString<com.newoether.agora.model.AttachmentMeta>(it) } catch (_: Exception) { null }
-            } ?: continue
-            val isLatest = msg.id == latestUserMsg?.id
-            meta.items.forEachIndexed { index, item ->
-                val imageIndex = item.imageIndex
-                val imageType = item.type
-                if (imageIndex == null || (imageType != "image" && imageType != "pdf" && imageType != "video")) return@forEachIndexed
-                val count = when (imageType) {
-                    "pdf" -> item.pageCount ?: 1
-                    "video" -> item.pageCount ?: 1
-                    else -> 1
-                }
-                for (i in 0 until count) {
-                    val offset = imageIndex + i
-                    if (offset !in msg.images.indices) break
-                    val imagePath = msg.images[offset]
-                    if (isLatest || item.transcription.isNullOrEmpty()) {
-                        targets.add(TranscriptionTarget(msg.id, imagePath, index))
-                    }
-                }
-            }
-        }
-        return targets
-    }
-
-    private suspend fun runTranscriptionStage(
-        targets: List<TranscriptionTarget>,
-        conversationId: String,
-        ctx: GenerationContext,
-        generationJob: kotlinx.coroutines.Job?,
-        modelMessageId: String,
-        startTime: Long,
-        onStreamUpdate: (ChatMessage) -> Unit
-    ): Pair<List<MessageSegment>, String?> { // segments, errorMessage
-        val provider = getProviderInstance(ctx.transcriptionProviderName)
-        val transcriptionConfig = ProviderConfig(
-            apiKey = ctx.transcriptionApiKey,
-            modelId = ctx.transcriptionModelId,
-            systemPrompt = "You are an image describer. Describe the given image in detail.",
-            thinkingEnabled = false,
-            baseUrl = ctx.transcriptionBaseUrl
-        )
-        val placeholder = chatDao.getMessagesForConversation(conversationId).first().find { it.id == modelMessageId }
-        val parentId = placeholder?.parentId
-        val results = mutableMapOf<String, MutableList<Pair<Int, String>>>()
-        val transcriptionSegments = mutableListOf<MessageSegment>()
-        var processed = 0
-        val total = targets.size
-        for (target in targets) {
-            if (generationJob?.isCancelled == true) throw kotlinx.coroutines.CancellationException("Transcription cancelled")
-            if (!kotlinx.coroutines.currentCoroutineContext().isActive) throw kotlinx.coroutines.CancellationException("Transcription cancelled")
-
-            withContext(Dispatchers.Main) {
-                AgoraForegroundService.updateText(context.getString(R.string.transcription_progress, processed + 1, total))
-            }
-
-            // Stream initial segment with placeholder
-            val currentSegment = MessageSegment(type = "transcription", content = "Transcribing...")
-            transcriptionSegments.add(currentSegment)
-            onStreamUpdate(ChatMessage(
-                id = modelMessageId, parentId = parentId, text = "",
-                participant = Participant.MODEL, status = MessageStatus.TRANSCRIBING, timestamp = startTime,
-                retryText = "${processed + 1}/$total",
-                thoughtTitle = "Image Transcription",
-                segments = transcriptionSegments.toList(),
-            ))
-
-            val promptMessages = listOf(ChatMessage(
-                text = "Please describe this image in detail. Include all visible text, data, charts, layout, and visual elements. Preserve the original language of any text shown.",
-                images = listOf(target.imagePath),
-                participant = Participant.USER,
-                status = MessageStatus.SUCCESS
-            ))
-            val transcription = StringBuilder()
-            var streamError: String? = null
-            provider.generateResponse(promptMessages, transcriptionConfig).collect { event ->
-                when (event) {
-                    is StreamEvent.TextChunk -> {
-                        transcription.append(event.text)
-                        // Stream update with current content
-                        transcriptionSegments[transcriptionSegments.lastIndex] = currentSegment.copy(content = transcription.toString())
-                        onStreamUpdate(ChatMessage(
-                            id = modelMessageId, parentId = parentId, text = "",
-                            participant = Participant.MODEL, status = MessageStatus.TRANSCRIBING, timestamp = startTime,
-                            retryText = "${processed + 1}/$total",
-                            thoughtTitle = "Image Transcription",
-                            segments = transcriptionSegments.toList(),
-                        ))
-                    }
-                    is StreamEvent.Error -> { streamError = event.message }
-                    else -> {}
-                }
-            }
-            if (streamError != null) return Pair(transcriptionSegments, streamError)
-            val text = transcription.toString().trim()
-            // Finalize segment
-            transcriptionSegments[transcriptionSegments.lastIndex] = currentSegment.copy(content = text)
-            results.getOrPut(target.messageId) { mutableListOf() }
-                .add(target.metaItemIndex to text)
-            processed++
-        }
-        for ((messageId, updates) in results) {
-            val entity = chatDao.getMessagesForConversation(conversationId).first().find { it.id == messageId }
-            if (entity != null) {
-                val meta = entity.attachmentMeta?.let {
-                    try { Json.decodeFromString<com.newoether.agora.model.AttachmentMeta>(it) } catch (_: Exception) { null }
-                } ?: com.newoether.agora.model.AttachmentMeta()
-                val items = meta.items.toMutableList()
-                val grouped = updates.groupBy({ it.first }, { it.second })
-                for ((index, texts) in grouped) {
-                    if (index in items.indices) {
-                        val joined = if (texts.size == 1) texts.first()
-                        else texts.mapIndexed { i, t -> "[Page ${i + 1}]\n$t" }.joinToString("\n\n")
-                        items[index] = items[index].copy(transcription = joined)
-                    }
-                }
-                chatDao.upsertMessage(entity.copy(
-                    attachmentMeta = Json.encodeToString(
-                        com.newoether.agora.model.AttachmentMeta.serializer(),
-                        com.newoether.agora.model.AttachmentMeta(items = items)
-                    )
-                ))
-            }
-        }
-        return Pair(transcriptionSegments, null)
-    }
-
     suspend fun generate(
         conversationId: String,
         modelMessageId: String,
@@ -926,9 +777,14 @@ class GenerationManager(
             var transcriptionPerformed = false
             if (ctx.imageTranscriptionEnabled && ctx.transcriptionModelId.isNotEmpty()) {
                 kotlinx.coroutines.delay(500) // let foreground service fully start
-                val targets = collectImagesNeedingTranscription(conversationId, parentId)
+                val targets = transcriptionManager.collectTargets(conversationId, parentId)
                 if (targets.isNotEmpty()) {
-                    val (transcriptionSegments, transcriptionError) = runTranscriptionStage(targets, conversationId, ctx, generationJob, modelMessageId, startTime, onStreamUpdate)
+                    val (transcriptionSegments, transcriptionError) = transcriptionManager.transcribe(
+                        targets, conversationId,
+                        ctx.transcriptionProviderName, ctx.transcriptionModelId,
+                        ctx.transcriptionApiKey, ctx.transcriptionBaseUrl,
+                        generationJob, modelMessageId, startTime, onStreamUpdate
+                    )
                     if (transcriptionError != null) {
                         totalText = transcriptionError
                         currentStatus = MessageStatus.ERROR
