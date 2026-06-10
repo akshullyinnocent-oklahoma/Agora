@@ -806,6 +806,20 @@ class ChatViewModel(
         }
     }
     fun cacheMessagesForModel(modelId: String, recache: Boolean = false, silent: Boolean = false) {
+        // Enqueue WorkManager backup — survives process death if user leaves app
+        val workRequest = androidx.work.OneTimeWorkRequestBuilder<com.newoether.agora.service.EmbeddingCacheWorker>()
+            .setInputData(androidx.work.Data.Builder()
+                .putString(com.newoether.agora.service.EmbeddingCacheWorker.KEY_MODEL_ID, modelId)
+                .build())
+            .addTag(com.newoether.agora.service.EmbeddingCacheWorker.TAG)
+            .build()
+        androidx.work.WorkManager.getInstance(appContext)
+            .enqueueUniqueWork(
+                com.newoether.agora.service.EmbeddingCacheWorker.workNameFor(modelId),
+                androidx.work.ExistingWorkPolicy.REPLACE,
+                workRequest
+            )
+
         viewModelScope.launch(Dispatchers.IO) {
             val mutex = cacheMutexes.computeIfAbsent(modelId) { Mutex() }
             mutex.withLock {

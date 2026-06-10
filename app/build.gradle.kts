@@ -136,6 +136,7 @@ dependencies {
     implementation(libs.okhttp)
     implementation(libs.material.color.utilities)
     implementation(libs.lottie.compose)
+    implementation(libs.work.runtime.ktx)
     debugImplementation(libs.androidx.compose.ui.tooling)
 
     // Unit tests
