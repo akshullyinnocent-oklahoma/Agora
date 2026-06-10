@@ -137,6 +137,12 @@ dependencies {
     implementation(libs.material.color.utilities)
     implementation(libs.lottie.compose)
     debugImplementation(libs.androidx.compose.ui.tooling)
+
+    // Unit tests
+    testImplementation("junit:junit:4.13.2")
+    testImplementation("io.mockk:mockk:1.13.12")
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.9.0")
+    testImplementation("androidx.arch.core:core-testing:2.2.0")
 }
 
 tasks.whenTaskAdded {

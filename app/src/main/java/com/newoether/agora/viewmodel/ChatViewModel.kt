@@ -405,6 +405,7 @@ class ChatViewModel(
         _previewFileContent.value = null
     }
 
+    // Legacy state — to be replaced by _conversationUiState
     private val _streamingMessage = MutableStateFlow<ChatMessage?>(null)
     private val _selectedChildren = MutableStateFlow<Map<String?, String>>(emptyMap())
 
@@ -1914,6 +1915,8 @@ class ChatViewModel(
             }
         }
         stopGeneration()
+        // Set loading immediately so UI shows sending state during attachment processing
+        _isLoading.value = true
 
         committed = true
         generationJob = generationScope.launch {
@@ -1923,7 +1926,7 @@ class ChatViewModel(
             // directPaths: paths that skip processImages (pre-extracted frames, PDF copies, rendered pages)
             val mediaUris = mutableListOf<String>()
             val directPaths = mutableListOf<String>()
-            val sliceConfigs = mutableMapOf<String, GenerationManager.VideoSliceConfig>()
+            val sliceConfigs = mutableMapOf<String, VideoSliceConfig>()
             val metaItems = mutableListOf<com.newoether.agora.model.AttachmentItem>()
             var nextImageIndex = 0
 
@@ -1997,7 +2000,7 @@ class ChatViewModel(
                             ))
                             mediaUris.add(att.uri)
                             if (att.frameCount != null && att.frameCount > 1 && att.sliceIntervalMs != null) {
-                                sliceConfigs[att.uri] = GenerationManager.VideoSliceConfig(
+                                sliceConfigs[att.uri] = VideoSliceConfig(
                                     intervalMicros = att.sliceIntervalMs * 1000L,
                                     frameCount = att.frameCount
                                 )
@@ -2164,6 +2167,7 @@ class ChatViewModel(
                 generateTitle(currentId)
             }
         } finally {
+            _isLoading.value = false
             sendGate.set(false)
         }
         } // end launch

@@ -94,12 +94,9 @@ fun MessageList(
                         onEditMessage(id, text)
                         editingMessageId = null
                     },
-                    // Exclude terminal messages from isStreaming to prevent checkmark flash
-                    // when isLoading flips true before the new message is in the DB.
-                    isStreaming = isLastMessage && isLoading && message.participant == Participant.MODEL
-                        && message.status != MessageStatus.SUCCESS
-                        && message.status != MessageStatus.ERROR
-                        && message.status != MessageStatus.STOPPED,
+                    // isStreaming driven by message status, not isLoading flag
+                    isStreaming = isLastMessage && message.participant == Participant.MODEL
+                        && message.status in setOf(MessageStatus.SENDING, MessageStatus.THINKING, MessageStatus.TOOL_CALLING, MessageStatus.TRANSCRIBING),
                     isLoading = isLoading,
                     isEditingAllowed = (editingMessageId == null || editingMessageId == message.id) && !isLoading,
                     isEditing = editingMessageId == message.id,
