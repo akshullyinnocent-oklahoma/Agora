@@ -78,7 +78,7 @@ fun SettingsTitleGenPage(viewModel: ChatViewModel, onBack: () -> Unit) {
                                 supportingContent = {
                                     val displayName = if (titleGenModel == null) stringResource(R.string.title_gen_current_model) else {
                                         val alias = modelAliases[titleGenModel!!]
-                                        alias ?: titleGenModel!!.substringAfter(":").removePrefix("models/")
+                                        alias ?: com.newoether.agora.model.ModelId.parse(titleGenModel!!).modelName.removePrefix("models/")
                                     }
                                     Text(displayName)
                                 },
@@ -118,10 +118,11 @@ fun SettingsTitleGenPage(viewModel: ChatViewModel, onBack: () -> Unit) {
                     }
                     items(enabledModelsList) { model ->
                         val alias = modelAliases[model]
-                        val displayName = alias ?: model.substringAfter(":").removePrefix("models/")
+                        val titleParsed = com.newoether.agora.model.ModelId.parse(model)
+                        val displayName = alias ?: titleParsed.modelName.removePrefix("models/")
                         SettingsItem(
                             headlineContent = { Text(displayName, fontWeight = if (titleGenModel == model) FontWeight.Bold else FontWeight.Normal) },
-                            supportingContent = { Text(model.substringBefore(":"), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)) },
+                            supportingContent = { Text(titleParsed.providerName, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)) },
                             leadingContent = {
                                 RadioButton(selected = titleGenModel == model, onClick = {
                                     viewModel.setTitleGenerationModel(model)

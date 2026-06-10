@@ -74,10 +74,11 @@ fun SettingsTranscriptionPage(viewModel: ChatViewModel, onBack: () -> Unit) {
                 title = stringResource(R.string.transcription_model),
                 items = listOf({
                     val displayName = transcriptionModel?.let {
+                        val parsed = com.newoether.agora.model.ModelId.parse(it)
                         val alias = modelAliases[it]
-                        alias ?: it.substringAfter(":").removePrefix("models/")
+                        alias ?: parsed.modelName.removePrefix("models/")
                     } ?: stringResource(R.string.transcription_no_model)
-                    val selectedProvider = transcriptionModel?.substringBefore(":")
+                    val selectedProvider = transcriptionModel?.let { com.newoether.agora.model.ModelId.parse(it).providerName }
                     val selectedIconRes = selectedProvider?.let { providerIcon(it) } ?: 0
                     val isSelectedLocal = selectedProvider.equals("Local", ignoreCase = true)
                     SettingsItem(
@@ -119,8 +120,9 @@ fun SettingsTranscriptionPage(viewModel: ChatViewModel, onBack: () -> Unit) {
                         val sorted = transcriptionEnabledModels.toList().sortedBy { it }
                         for (model in sorted) {
                             val alias = modelAliases[model]
-                            val displayName = alias ?: model.substringAfter(":").removePrefix("models/")
-                            val providerName = model.substringBefore(":")
+                            val parsedModel = com.newoether.agora.model.ModelId.parse(model)
+                            val displayName = alias ?: parsedModel.modelName.removePrefix("models/")
+                            val providerName = parsedModel.providerName
                             add {
                                 val iconRes = providerIcon(providerName)
                                 val isLocal = providerName.equals("Local", ignoreCase = true)
@@ -247,10 +249,11 @@ fun SettingsTranscriptionPage(viewModel: ChatViewModel, onBack: () -> Unit) {
                 LazyColumn(modifier = Modifier.fillMaxWidth()) {
                     items(enabledModelsList) { model ->
                         val alias = modelAliases[model]
-                        val displayName = alias ?: model.substringAfter(":").removePrefix("models/")
+                        val dialogParsed = com.newoether.agora.model.ModelId.parse(model)
+                        val displayName = alias ?: dialogParsed.modelName.removePrefix("models/")
                         SettingsItem(
                             headlineContent = { Text(displayName, fontWeight = if (transcriptionModel == model) FontWeight.Bold else FontWeight.Normal) },
-                            supportingContent = { Text(model.substringBefore(":"), style = MaterialTheme.typography.bodySmall) },
+                            supportingContent = { Text(dialogParsed.providerName, style = MaterialTheme.typography.bodySmall) },
                             leadingContent = {
                                 RadioButton(selected = transcriptionModel == model, onClick = {
                                     viewModel.setImageTranscriptionModel(model)
@@ -280,11 +283,12 @@ fun SettingsTranscriptionPage(viewModel: ChatViewModel, onBack: () -> Unit) {
                 LazyColumn(modifier = Modifier.fillMaxWidth()) {
                     items(availableList) { model ->
                         val alias = modelAliases[model]
-                        val displayName = alias ?: model.substringAfter(":").removePrefix("models/")
+                        val addParsed = com.newoether.agora.model.ModelId.parse(model)
+                        val displayName = alias ?: addParsed.modelName.removePrefix("models/")
                         val checked = model in selected
                         SettingsItem(
                             headlineContent = { Text(displayName) },
-                            supportingContent = { Text(model.substringBefore(":"), style = MaterialTheme.typography.bodySmall) },
+                            supportingContent = { Text(addParsed.providerName, style = MaterialTheme.typography.bodySmall) },
                             leadingContent = {
                                 Checkbox(checked = checked, onCheckedChange = {
                                     selected = if (checked) selected - model else selected + model

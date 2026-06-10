@@ -587,7 +587,7 @@ private fun ModelPage(models: List<String>, selectedId: String?, onSelect: (Stri
                 Column(Modifier.verticalScroll(scrollState)) {
                     Spacer(Modifier.height(10.dp))
                     models.forEach { m ->
-                        val name = m.substringAfter(":").removePrefix("models/")
+                        val name = com.newoether.agora.model.ModelId.parse(m).modelName.removePrefix("models/")
                         Row(Modifier.fillMaxWidth().padding(start = 8.dp, end = 20.dp).clip(RoundedCornerShape(28.dp)).clickable { onSelect(m) }.padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                             RadioButton(selected = selectedId == m, onClick = { onSelect(m) })
                             Spacer(Modifier.width(8.dp))

@@ -553,8 +553,9 @@ fun MessageItem(
         val sdf = remember { SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()) }
         val dateString = sdf.format(Date(message.timestamp))
         val modelDisplay = if (message.modelName != null) {
-            val modelId = message.modelName.removePrefix("models/").substringAfter(":")
-            val provider = message.modelName.removePrefix("models/").substringBefore(":")
+            val parsed = message.modelName?.let { com.newoether.agora.model.ModelId.parse(it) }
+            val modelId = parsed?.modelName?.removePrefix("models/") ?: message.modelName
+            val provider = parsed?.providerName ?: "Unknown"
             modelAliases[message.modelName] ?: ("$modelId ($provider)")
         } else stringResource(R.string.unknown)
 

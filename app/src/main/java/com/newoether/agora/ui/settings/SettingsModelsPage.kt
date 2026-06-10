@@ -99,8 +99,9 @@ fun SettingsModelsPage(viewModel: ChatViewModel, onBack: () -> Unit) {
 
             item(key = "default_model") {
                 val activeAlias = modelAliases[selectedModel]
-                val cleanId = selectedModel.substringAfter(":")
-                val providerName = selectedModel.substringBefore(":")
+                val activeParsed = com.newoether.agora.model.ModelId.parse(selectedModel)
+                val cleanId = activeParsed.modelName
+                val providerName = activeParsed.providerName
                 val activeDisplayName = activeAlias ?: cleanId.removePrefix("models/")
                 val activeIconRes = providerIcon(providerName)
                 val isActiveLocal = providerName.equals("Local", ignoreCase = true)
@@ -223,7 +224,7 @@ fun SettingsModelsPage(viewModel: ChatViewModel, onBack: () -> Unit) {
                                 CardSurface(shape = modelShape, addTopGap = false) {
                                     val isEnabled = enabledModels.contains(model)
                                     val alias = modelAliases[model]
-                                    val cleanId = model.substringAfter(":")
+                                    val cleanId = com.newoether.agora.model.ModelId.parse(model).modelName
                                     val displayName = alias ?: cleanId.removePrefix("models/")
 
                                     SettingsItem(
@@ -268,15 +269,16 @@ fun SettingsModelsPage(viewModel: ChatViewModel, onBack: () -> Unit) {
                 LazyColumn(modifier = Modifier.fillMaxWidth()) {
                     items(enabledModels.toList()) { model ->
                         val alias = modelAliases[model]
-                        val cleanId = model.substringAfter(":")
+                        val cleanId = com.newoether.agora.model.ModelId.parse(model).modelName
                         val displayName = alias ?: cleanId.removePrefix("models/")
+                        val providerName = com.newoether.agora.model.ModelId.parse(model).providerName
 
                         SettingsItem(
                             headlineContent = {
                                 Text(displayName, fontWeight = if (model == selectedModel) FontWeight.Bold else FontWeight.Normal)
                             },
                             supportingContent = {
-                                Text(model.substringBefore(":"), style = MaterialTheme.typography.bodySmall)
+                                Text(providerName, style = MaterialTheme.typography.bodySmall)
                             },
                             leadingContent = {
                                 RadioButton(

@@ -262,24 +262,17 @@ class ChatViewModel(
     }.stateIn(viewModelScope, SharingStarted.Eagerly, "gemini-1.5-flash")
 
     fun getProviderForModel(modelId: String): String {
-        // If the modelId already has a prefix (e.g., "OpenAI:gpt-4"), extract it.
+        // Prefixed IDs (e.g. "OpenAI:gpt-4"): extract provider directly
         if (modelId.contains(":")) {
-            return modelId.substringBefore(":")
+            return com.newoether.agora.model.ModelId.parse(modelId).providerName
         }
-        
-        // Fallback for existing or unprefixed models
+        // Check available models for unprefixed IDs first —
+        // user-registered providers take priority over heuristics
         availableModels.value.forEach { (providerName, models) ->
             if (models.contains(modelId)) return providerName
         }
-        
-        return when {
-            modelId.startsWith("gpt-") || modelId.startsWith("o1") || modelId.startsWith("o3") -> "OpenAI"
-            modelId.startsWith("claude-") -> "Anthropic"
-            modelId.contains("deepseek") -> "DeepSeek"
-            modelId.contains("qwen") -> "Qwen"
-            modelId.contains("models/") || modelId.startsWith("gemini") -> "Google"
-            else -> "Unknown"
-        }
+        // Heuristic fallback for legacy unprefixed IDs
+        return com.newoether.agora.model.ModelId.parse(modelId).providerName
     }
     
     val availableModels = settingsManager.availableModels.stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
@@ -827,7 +820,7 @@ class ChatViewModel(
         imageTranscriptionModel.value?.let { getProviderForModel(it) } ?: ""
 
     private fun resolveTranscriptionModelId(): String =
-        imageTranscriptionModel.value?.substringAfter(":") ?: ""
+        imageTranscriptionModel.value?.let { com.newoether.agora.model.ModelId.parse(it).modelName } ?: ""
 
     private fun resolveTranscriptionApiKey(): String {
         val model = imageTranscriptionModel.value ?: return ""
@@ -1273,7 +1266,7 @@ class ChatViewModel(
     ): Pair<GenerationConfig, GenerationContext> {
         val config = GenerationConfig(
             providerName = providerName,
-            modelId = modelId.substringAfter(":"),
+            modelId = com.newoether.agora.model.ModelId.parse(modelId).modelName,
             apiKey = activeKey,
             effectiveSystemPrompt = resolvedSystemPrompt,
             maxContextWindow = effectiveSettings.contextWindow ?: maxContextWindow.value,
@@ -1430,7 +1423,7 @@ class ChatViewModel(
             val titleModelId = titleGenerationModel.value
             val modelIdWithPrefix = if (!titleModelId.isNullOrBlank()) titleModelId else (conversation.modelId ?: firstModelMsg?.modelName ?: selectedModel.value)
             val providerName = getProviderForModel(modelIdWithPrefix)
-            val modelId = modelIdWithPrefix.substringAfter(":")
+            val modelId = com.newoether.agora.model.ModelId.parse(modelIdWithPrefix).modelName
             val activeKeyId = activeApiKeyIds.value[providerName]
             val activeKey = apiKeys.value.find { it.id == activeKeyId }?.key ?: ""
             if (!isProviderConfigured(providerName, activeKey)) {
@@ -1846,7 +1839,7 @@ class ChatViewModel(
         val entry = systemPrompts.value.find { it.id == targetPromptId }
         val activeMemory = memoryManager.getActiveMemory()
         val includeActiveMemory = accessActiveMemory.value
-        val modelId = currentActiveModel.value.substringAfter(":")
+        val modelId = com.newoether.agora.model.ModelId.parse(currentActiveModel.value).modelName
 
         val sdf = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.US)
         val dateSdf = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US)

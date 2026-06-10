@@ -618,8 +618,9 @@ fun ChatBottomBar(
                 var lastModelDismissTime by remember { mutableLongStateOf(0L) }
                 var lastToolsDismissTime by remember { mutableLongStateOf(0L) }
 
-                val modelId = selectedModel.removePrefix("models/").substringAfter(":")
-                val provider = selectedModel.removePrefix("models/").substringBefore(":")
+                val parsed = com.newoether.agora.model.ModelId.parse(selectedModel)
+                val modelId = parsed.modelName.removePrefix("models/")
+                val provider = parsed.providerName
                 
                 val displayText = when {
                     isModelValid -> modelAliases[selectedModel] ?: ("$modelId ($provider)")
@@ -677,8 +678,9 @@ fun ChatBottomBar(
                             enabledModels.forEach { model ->
                                 DropdownMenuItem(
                                     text = {
-                                        val modelId = model.removePrefix("models/").substringAfter(":")
-                                        val provider = model.removePrefix("models/").substringBefore(":")
+                                        val parsed = com.newoether.agora.model.ModelId.parse(model)
+                                        val modelId = parsed.modelName.removePrefix("models/")
+                                        val provider = parsed.providerName
                                         Text(modelAliases[model] ?: ("$modelId ($provider)"))
                                     },
                                     onClick = {

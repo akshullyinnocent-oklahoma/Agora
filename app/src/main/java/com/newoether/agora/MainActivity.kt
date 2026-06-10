@@ -44,13 +44,13 @@ import com.newoether.agora.data.SettingsManager
 import com.newoether.agora.service.AgoraForegroundService
 import com.newoether.agora.service.AppForegroundTracker
 import com.newoether.agora.data.local.ChatDatabase
+import com.newoether.agora.di.AppContainer
 import com.newoether.agora.ui.chat.ChatApp
 import com.newoether.agora.ui.chat.FullScreenMediaViewer
 import com.newoether.agora.ui.onboarding.WelcomeScreen
 import com.newoether.agora.ui.settings.SettingsScreen
 import com.newoether.agora.ui.theme.AgoraTheme
 import com.newoether.agora.viewmodel.ChatViewModel
-import com.newoether.agora.viewmodel.ChatViewModelFactory
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.first
 
@@ -154,9 +154,9 @@ class MainActivity : ComponentActivity() {
                         showOnboarding = !settingsManager.onboardingCompleted.first()
                     }
 
-                    // Create ViewModel early — WelcomeScreen may need it for onboarding config
-                    val database = remember { ChatDatabase.build(this@MainActivity) }
-                    val factory = remember { ChatViewModelFactory(application, settingsManager, database.chatDao(), memoryManager, this@MainActivity) }
+                    // Create ViewModel via DI container
+                    val container = remember { AppContainer(this@MainActivity) }
+                    val factory = remember { container.chatViewModelFactory() }
                     val viewModel: ChatViewModel = viewModel(factory = factory)
 
                     when (showOnboarding) {
