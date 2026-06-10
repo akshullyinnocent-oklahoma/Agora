@@ -1,10 +1,13 @@
-package com.newoether.agora.api
+package com.newoether.agora.api.openai
+
+import com.newoether.agora.api.*
 
 import com.newoether.agora.api.util.StreamingThinkTagParser
 
-class DeepSeekProvider : BaseOpenAiProvider() {
-    override val name: String = "DeepSeek"
-    override val defaultBaseUrl: String = "https://api.deepseek.com"
+class CustomOpenAiProvider(
+    override val name: String,
+    override val defaultBaseUrl: String
+) : BaseOpenAiProvider() {
 
     override suspend fun parseDeltaContent(
         delta: OpenAiDelta,

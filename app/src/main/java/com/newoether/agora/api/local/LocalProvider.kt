@@ -1,4 +1,6 @@
-package com.newoether.agora.api
+package com.newoether.agora.api.local
+
+import com.newoether.agora.api.*
 
 import android.content.Context
 import com.newoether.agora.util.DebugLog

@@ -1,4 +1,6 @@
-package com.newoether.agora.api
+package com.newoether.agora.api.openai
+
+import com.newoether.agora.api.*
 
 import com.newoether.agora.api.util.StreamingThinkTagParser
 

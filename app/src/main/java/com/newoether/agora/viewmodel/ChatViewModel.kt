@@ -8,6 +8,11 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.newoether.agora.api.*
+import com.newoether.agora.api.anthropic.*
+import com.newoether.agora.api.gemini.*
+import com.newoether.agora.api.local.*
+import com.newoether.agora.api.ollama.*
+import com.newoether.agora.api.openai.*
 import com.newoether.agora.data.ClaudeChatImporter
 import com.newoether.agora.data.GptChatImporter
 import com.newoether.agora.data.ApiKeyEntry
@@ -24,7 +29,7 @@ import com.newoether.agora.data.SettingsManager
 import com.newoether.agora.data.PredefinedVariables
 import com.newoether.agora.data.PromptTemplateItem
 import com.newoether.agora.data.SystemPromptEntry
-import com.newoether.agora.api.LlamaEngine
+import com.newoether.agora.api.local.LlamaEngine
 import com.newoether.agora.data.local.ChatDao
 import com.newoether.agora.data.local.ChatEntity
 import com.newoether.agora.data.local.EmbeddingEntity

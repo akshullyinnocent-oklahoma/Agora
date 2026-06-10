@@ -1,6 +1,6 @@
 package com.newoether.agora.viewmodel.delegate
 
-import com.newoether.agora.api.CustomOpenAiProvider
+import com.newoether.agora.api.openai.CustomOpenAiProvider
 import com.newoether.agora.api.LlmProvider
 import com.newoether.agora.data.ApiKeyEntry
 import com.newoether.agora.data.ConversationSettings
