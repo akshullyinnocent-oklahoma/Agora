@@ -29,7 +29,7 @@ import com.newoether.agora.data.SettingsManager
 import com.newoether.agora.data.PredefinedVariables
 import com.newoether.agora.data.PromptTemplateItem
 import com.newoether.agora.data.SystemPromptEntry
-import com.newoether.agora.api.local.LlamaEngine
+import com.newoether.agora.api.LlamaEngine
 import com.newoether.agora.data.local.ChatDao
 import com.newoether.agora.data.local.ChatEntity
 import com.newoether.agora.data.local.EmbeddingEntity

@@ -18,7 +18,7 @@ import com.newoether.agora.R
 import com.newoether.agora.service.AgoraForegroundService
 import com.newoether.agora.service.AppForegroundTracker
 import com.newoether.agora.api.EmbeddingClient
-import com.newoether.agora.api.local.LlamaEngine
+import com.newoether.agora.api.LlamaEngine
 import com.newoether.agora.data.EmbeddingIndexer
 import com.newoether.agora.util.Constants
 import com.newoether.agora.util.SearchResultFormatter
