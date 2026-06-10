@@ -19,11 +19,9 @@ build_output.txt
 
 # Personal tooling
 /.gemini/
-build.ps1
+build*.ps1
 deploy.ps1
-build_fdroid.ps1
 logs/
-build-bundle.ps1
 
 # Claude Code
 /.claude/
