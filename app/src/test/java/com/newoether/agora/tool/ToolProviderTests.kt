@@ -50,10 +50,11 @@ class RagToolProviderTest {
     }
 
     @Test
-    fun handles_returnsTrueForRagTools() {
-        assertTrue(provider.handles("search_conversations"))
-        assertTrue(provider.handles("list_conversations"))
-        assertTrue(provider.handles("read_conversation"))
+    fun handles_returnsFalseForAllTools() {
+        // RagToolProvider.handles is always false — execution is in GenerationManager's when block
+        assertFalse(provider.handles("search_conversations"))
+        assertFalse(provider.handles("list_conversations"))
+        assertFalse(provider.handles("read_conversation"))
         assertFalse(provider.handles("web_search"))
     }
 }

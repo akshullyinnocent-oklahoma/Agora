@@ -60,7 +60,6 @@ class RagToolProvider : ToolProvider {
         return "Unknown tool: $name"
     }
 
-    override fun handles(name: String): Boolean = name in setOf(
-        "search_conversations", "list_conversations", "read_conversation"
-    )
+    override fun handles(name: String): Boolean = false
+    // Execution is handled by GenerationManager.executeTool()'s when block
 }
