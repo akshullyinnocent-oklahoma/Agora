@@ -64,6 +64,7 @@ import kotlinx.serialization.json.Json
 import java.io.File
 import java.util.UUID
 import androidx.compose.foundation.lazy.LazyListState
+import com.newoether.agora.viewmodel.delegate.SettingsDelegate
 
 private inline fun <reified T : Enum<T>> safeValueOf(name: String): T? =
     try { enumValueOf<T>(name) } catch (_: Exception) { null }
@@ -90,6 +91,9 @@ class ChatViewModel(
     )
 
     private val providers = builtInProviders.toMutableMap()
+
+    // Settings delegate — handles all settings CRUD (~700 lines extracted)
+    private val settingsDelegate = SettingsDelegate(settingsManager, chatDao, viewModelScope)
 
     init {
         // Auto-check for updates on launch (at most once per day)
@@ -648,173 +652,58 @@ class ChatViewModel(
         }
     }
 
-    // Settings logic
-        fun setSelectedModel(model: String) {
-            viewModelScope.launch { settingsManager.saveSelectedModel(model) }
-        }
-    
-    fun setEnabledModels(models: Set<String>) { 
-        viewModelScope.launch { 
-            settingsManager.saveEnabledModels(models) 
-            if (!models.contains(selectedModel.value)) {
-                settingsManager.saveSelectedModel(models.firstOrNull() ?: "")
-            }
-        } 
-    }
+    // Settings logic — delegated to SettingsDelegate
+        fun setSelectedModel(model: String) = settingsDelegate.setSelectedModel(model)
 
-    fun updateModelAlias(model: String, alias: String) {
-        viewModelScope.launch {
-            val currentAliases = modelAliases.value.toMutableMap()
-            if (alias.isBlank()) {
-                currentAliases.remove(model)
-            } else {
-                currentAliases[model] = alias
-            }
-            settingsManager.saveModelAliases(currentAliases)
-        }
-    }
+    fun setEnabledModels(models: Set<String>) = settingsDelegate.setEnabledModels(models, selectedModel.value)
 
-    fun addApiKey(name: String, key: String, provider: String) {
-        viewModelScope.launch {
-            val entry = ApiKeyEntry(name = name, key = key, provider = provider)
-            val newList = apiKeys.value + entry
-            settingsManager.saveApiKeys(newList)
-            settingsManager.setActiveApiKeyId(provider, entry.id)
-        }
-    }
-    fun deleteApiKey(id: String) {
-        viewModelScope.launch {
-            val entry = apiKeys.value.find { it.id == id } ?: return@launch
-            val provider = entry.provider
-            val newList = apiKeys.value.filter { it.id != id }
-            // Update active key FIRST so the auto-clear collector sees the
-            // replacement key (if any) before the old key is removed from the list.
-            if (activeApiKeyIds.value[provider] == id) {
-                val other = newList.firstOrNull { it.provider == provider }
-                settingsManager.setActiveApiKeyId(provider, other?.id)
-            }
-            settingsManager.saveApiKeys(newList)
-        }
-    }
-    fun updateApiKey(id: String, name: String, key: String) {
-        viewModelScope.launch {
-            val newList = apiKeys.value.map { if (it.id == id) it.copy(name = name, key = key) else it }
-            settingsManager.saveApiKeys(newList)
-        }
-    }
-    fun setActiveApiKey(provider: String, id: String) { viewModelScope.launch { settingsManager.setActiveApiKeyId(provider, id) } }
+    fun updateModelAlias(model: String, alias: String) = settingsDelegate.updateModelAlias(model, alias, modelAliases.value)
+
+    fun addApiKey(name: String, key: String, provider: String) = settingsDelegate.addApiKey(name, key, provider, apiKeys.value)
+    fun deleteApiKey(id: String) = settingsDelegate.deleteApiKey(id, apiKeys.value, activeApiKeyIds.value)
+    fun updateApiKey(id: String, name: String, key: String) = settingsDelegate.updateApiKey(id, name, key, apiKeys.value)
+    fun setActiveApiKey(provider: String, id: String) = settingsDelegate.setActiveApiKey(provider, id)
 
     fun addSystemPrompt(
         title: String,
         systemItems: List<PromptTemplateItem>,
         userPrependItems: List<PromptTemplateItem>,
         userPostpendItems: List<PromptTemplateItem>
-    ) {
-        viewModelScope.launch {
-            val newList = systemPrompts.value + SystemPromptEntry(
-                title = title,
-                systemItems = systemItems,
-                userPrependItems = userPrependItems,
-                userPostpendItems = userPostpendItems
-            )
-            settingsManager.saveSystemPrompts(newList)
-            if (activeSystemPromptId.value == null) settingsManager.setActiveSystemPromptId(newList.last().id)
-        }
-    }
-    fun deleteSystemPrompt(id: String) {
-        viewModelScope.launch {
-            val newList = systemPrompts.value.filter { it.id != id }
-            settingsManager.saveSystemPrompts(newList)
-            if (activeSystemPromptId.value == id) settingsManager.setActiveSystemPromptId(newList.firstOrNull()?.id)
-        }
-    }
+    ) = settingsDelegate.addSystemPrompt(title, systemItems, userPrependItems, userPostpendItems, systemPrompts.value, activeSystemPromptId.value)
+    fun deleteSystemPrompt(id: String) = settingsDelegate.deleteSystemPrompt(id, systemPrompts.value, activeSystemPromptId.value)
     fun updateSystemPrompt(
         id: String,
         title: String,
         systemItems: List<PromptTemplateItem>,
         userPrependItems: List<PromptTemplateItem>,
         userPostpendItems: List<PromptTemplateItem>
-    ) {
-        viewModelScope.launch {
-            val newList = systemPrompts.value.map {
-                if (it.id == id) it.copy(
-                    title = title,
-                    systemItems = systemItems,
-                    userPrependItems = userPrependItems,
-                    userPostpendItems = userPostpendItems
-                ) else it
-            }
-            settingsManager.saveSystemPrompts(newList)
-        }
-    }
-    fun setActiveSystemPrompt(id: String) { viewModelScope.launch { settingsManager.setActiveSystemPromptId(id) } }
-    fun setMaxContextWindow(window: Int) { viewModelScope.launch { settingsManager.saveMaxContextWindow(window) } }
-    fun setVisualizeContextRollout(enabled: Boolean) { viewModelScope.launch { settingsManager.saveVisualizeContextRollout(enabled) } }
-    fun setProviderBaseUrl(provider: String, url: String) { viewModelScope.launch { settingsManager.saveProviderBaseUrl(provider, url) } }
+    ) = settingsDelegate.updateSystemPrompt(id, title, systemItems, userPrependItems, userPostpendItems, systemPrompts.value)
+    fun setActiveSystemPrompt(id: String) = settingsDelegate.setActiveSystemPrompt(id)
+    fun setMaxContextWindow(window: Int) = settingsDelegate.setMaxContextWindow(window)
+    fun setVisualizeContextRollout(enabled: Boolean) = settingsDelegate.setVisualizeContextRollout(enabled)
+    fun setProviderBaseUrl(provider: String, url: String) = settingsDelegate.setProviderBaseUrl(provider, url)
     fun addCustomProvider(name: String, baseUrl: String) {
         providers[name] = CustomOpenAiProvider(name, baseUrl)
-        viewModelScope.launch {
-            settingsManager.saveProviderBaseUrl(name, baseUrl)
-            val current = customProviders.value.toMutableList()
-            current.add(CustomProviderConfig(name))
-            settingsManager.saveCustomProviders(current)
-        }
+        settingsDelegate.addCustomProvider(name, baseUrl, customProviders.value) { n, p -> providers[n] = p }
     }
     fun renameCustomProvider(oldName: String, newName: String) {
         val url = providerBaseUrls.value[oldName] ?: return
         providers.remove(oldName)
         providers[newName] = CustomOpenAiProvider(newName, url)
-        viewModelScope.launch {
-            val current = customProviders.value.toMutableList()
-            val idx = current.indexOfFirst { it.name == oldName }
-            if (idx >= 0) {
-                current[idx] = CustomProviderConfig(newName)
-                settingsManager.saveCustomProviders(current)
-                settingsManager.saveProviderBaseUrl(oldName, "")
-                settingsManager.saveProviderBaseUrl(newName, url)
-                val models = availableModels.value.toMutableMap()
-                models[newName] = models.remove(oldName) ?: emptyList()
-                settingsManager.saveAvailableModels(newName, models[newName] ?: emptyList())
-                settingsManager.saveAvailableModels(oldName, emptyList())
-                val enabled = enabledModels.value.map { if (it.startsWith("$oldName:")) it.replace("$oldName:", "$newName:") else it }.toSet()
-                setEnabledModels(enabled)
-                val aliases = modelAliases.value.mapKeys { if (it.key.startsWith("$oldName:")) it.key.replace("$oldName:", "$newName:") else it.key }
-                settingsManager.saveModelAliases(aliases)
-                settingsManager.setActiveApiKeyId(oldName, null)
-                val keys = apiKeys.value.map { if (it.provider == oldName) it.copy(provider = newName) else it }
-                settingsManager.saveApiKeys(keys)
-                val activeKeyIds = activeApiKeyIds.value.toMutableMap()
-                activeKeyIds[oldName]?.let { activeKeyIds[newName] = it; activeKeyIds.remove(oldName) }
-                activeKeyIds.forEach { (provider, id) -> settingsManager.setActiveApiKeyId(provider, id) }
-            }
-        }
+        settingsDelegate.renameCustomProvider(oldName, newName, providerBaseUrls.value, customProviders.value,
+            availableModels.value, enabledModels.value, modelAliases.value, apiKeys.value, activeApiKeyIds.value,
+            { providers.remove(it) }, { n, p -> providers[n] = p })
     }
     fun deleteCustomProvider(name: String) {
-        viewModelScope.launch {
-            val current = customProviders.value.toMutableList()
-            current.removeAll { it.name == name }
-            settingsManager.saveCustomProviders(current)
-            providers.remove(name)
-            // Clean up associated data
-            settingsManager.saveAvailableModels(name, emptyList())
-            val enabled = enabledModels.value.filter { !it.startsWith("$name:") }.toSet()
-            setEnabledModels(enabled)
-            val aliases = modelAliases.value.filterKeys { !it.startsWith("$name:") }
-            settingsManager.saveModelAliases(aliases)
-            val baseUrls = providerBaseUrls.value.toMutableMap()
-            baseUrls.remove(name)
-            settingsManager.saveProviderBaseUrl(name, "")
-            val keys = apiKeys.value.filter { it.provider != name }
-            settingsManager.saveApiKeys(keys)
-            settingsManager.setActiveApiKeyId(name, null)
-        }
+        settingsDelegate.deleteCustomProvider(name, customProviders.value, enabledModels.value,
+            modelAliases.value, providerBaseUrls.value, apiKeys.value) { providers.remove(it) }
     }
-    fun setTitleGenerationEnabled(enabled: Boolean) { viewModelScope.launch { settingsManager.saveTitleGenerationEnabled(enabled) } }
-    fun setTitleGenerationModel(model: String?) { viewModelScope.launch { settingsManager.saveTitleGenerationModel(model) } }
-    fun setImageTranscriptionModel(model: String?) { viewModelScope.launch { settingsManager.saveImageTranscriptionModel(model) } }
-    fun setImageTranscriptionBatchSize(size: Int) { viewModelScope.launch { settingsManager.saveImageTranscriptionBatchSize(size) } }
-    fun addImageTranscriptionModels(models: Set<String>) { viewModelScope.launch { settingsManager.saveImageTranscriptionEnabledModels(imageTranscriptionEnabledModels.value + models) } }
-    fun removeImageTranscriptionModel(model: String) { viewModelScope.launch { settingsManager.saveImageTranscriptionEnabledModels(imageTranscriptionEnabledModels.value - model) } }
+    fun setTitleGenerationEnabled(enabled: Boolean) = settingsDelegate.setTitleGenerationEnabled(enabled)
+    fun setTitleGenerationModel(model: String?) = settingsDelegate.setTitleGenerationModel(model)
+    fun setImageTranscriptionModel(model: String?) = settingsDelegate.setImageTranscriptionModel(model)
+    fun setImageTranscriptionBatchSize(size: Int) = settingsDelegate.setImageTranscriptionBatchSize(size)
+    fun addImageTranscriptionModels(models: Set<String>) = settingsDelegate.addImageTranscriptionModels(models, imageTranscriptionEnabledModels.value)
+    fun removeImageTranscriptionModel(model: String) = settingsDelegate.removeImageTranscriptionModel(model, imageTranscriptionEnabledModels.value)
 
     private fun resolveTranscriptionProviderName(): String =
         imageTranscriptionModel.value?.let { getProviderForModel(it) } ?: ""
@@ -838,12 +727,12 @@ class ChatViewModel(
             else null
     }
 
-    fun setAccessPastConversations(enabled: Boolean) { viewModelScope.launch { settingsManager.saveAccessPastConversations(enabled) } }
-    fun setAccessSavedMemories(enabled: Boolean) { viewModelScope.launch { settingsManager.saveAccessSavedMemories(enabled) } }
-    fun setAccessActiveMemory(enabled: Boolean) { viewModelScope.launch { settingsManager.saveAccessActiveMemory(enabled) } }
-    fun setRagSearchEnabled(enabled: Boolean) { viewModelScope.launch { settingsManager.saveRagSearchEnabled(enabled) } }
-    fun setAutoCacheEnabled(enabled: Boolean) { viewModelScope.launch { settingsManager.saveAutoCacheEnabled(enabled) } }
-    fun setAutoUpdateCheck(enabled: Boolean) { viewModelScope.launch { settingsManager.saveAutoUpdateCheck(enabled) } }
+    fun setAccessPastConversations(enabled: Boolean) = settingsDelegate.setAccessPastConversations(enabled)
+    fun setAccessSavedMemories(enabled: Boolean) = settingsDelegate.setAccessSavedMemories(enabled)
+    fun setAccessActiveMemory(enabled: Boolean) = settingsDelegate.setAccessActiveMemory(enabled)
+    fun setRagSearchEnabled(enabled: Boolean) = settingsDelegate.setRagSearchEnabled(enabled)
+    fun setAutoCacheEnabled(enabled: Boolean) = settingsDelegate.setAutoCacheEnabled(enabled)
+    fun setAutoUpdateCheck(enabled: Boolean) = settingsDelegate.setAutoUpdateCheck(enabled)
     fun getCurrentVersion(): String {
         return try { appContext.packageManager.getPackageInfo(appContext.packageName, 0).versionName ?: "?" } catch (_: Exception) { "?" }
     }
@@ -851,8 +740,8 @@ class ChatViewModel(
         val current = getCurrentVersion()
         return com.newoether.agora.util.UpdateChecker.check(current)
     }
-    fun setModelSearchMethod(method: String) { viewModelScope.launch { settingsManager.saveModelSearchMethod(method) } }
-    fun setManualSearchMethod(method: String) { viewModelScope.launch { settingsManager.saveManualSearchMethod(method) } }
+    fun setModelSearchMethod(method: String) = settingsDelegate.setModelSearchMethod(method)
+    fun setManualSearchMethod(method: String) = settingsDelegate.setManualSearchMethod(method)
     fun addEmbeddingModel(config: EmbeddingModelConfig) {
         viewModelScope.launch {
             val wasEmpty = embeddingModels.value.isEmpty()
@@ -1216,24 +1105,22 @@ class ChatViewModel(
         }
     }
     suspend fun searchMessages(query: String, limit: Int = 20) = chatDao.searchMessages(query, limit)
-    fun setAppLanguage(language: String) { viewModelScope.launch { settingsManager.saveAppLanguage(language) } }
-    fun setWebSearchEnabled(enabled: Boolean) { viewModelScope.launch { settingsManager.saveWebSearchEnabled(enabled) } }
-    fun setWebSearchProvider(provider: String) { viewModelScope.launch { settingsManager.saveWebSearchProvider(provider) } }
-    fun setWebSearchApiKey(provider: String, apiKey: String) { viewModelScope.launch { settingsManager.saveWebSearchApiKey(provider, apiKey) } }
-    fun setWebSearchNumResults(n: Int) { viewModelScope.launch { settingsManager.saveWebSearchNumResults(n) } }
-    fun setWebSearchBaseUrl(url: String) { viewModelScope.launch { settingsManager.saveWebSearchBaseUrl(url) } }
-    fun setShowDocumentationFab(enabled: Boolean) { viewModelScope.launch { settingsManager.saveShowDocumentationFab(enabled) } }
-    fun setShellEnabled(enabled: Boolean) { viewModelScope.launch { settingsManager.saveShellEnabled(enabled) } }
-    fun setThinkingEnabled(enabled: Boolean) { viewModelScope.launch { settingsManager.saveThinkingEnabled(enabled) } }
-    fun setThinkingLevel(level: String) { viewModelScope.launch { settingsManager.saveThinkingLevel(level) } }
-    fun setDefaultTemperature(v: Float?) { viewModelScope.launch { settingsManager.saveDefaultTemperature(v) } }
-    fun setDefaultMaxTokens(v: Int?) { viewModelScope.launch { settingsManager.saveDefaultMaxTokens(v) } }
-    fun setDefaultTopP(v: Float?) { viewModelScope.launch { settingsManager.saveDefaultTopP(v) } }
-    fun setDefaultFrequencyPenalty(v: Float?) { viewModelScope.launch { settingsManager.saveDefaultFrequencyPenalty(v) } }
-    fun setDefaultPresencePenalty(v: Float?) { viewModelScope.launch { settingsManager.saveDefaultPresencePenalty(v) } }
-    fun setConversationSettings(convId: String, settings: ConversationSettings?) {
-        viewModelScope.launch { settingsManager.saveConversationSettings(convId, settings) }
-    }
+    fun setAppLanguage(language: String) = settingsDelegate.setAppLanguage(language)
+    fun setWebSearchEnabled(enabled: Boolean) = settingsDelegate.setWebSearchEnabled(enabled)
+    fun setWebSearchProvider(provider: String) = settingsDelegate.setWebSearchProvider(provider)
+    fun setWebSearchApiKey(provider: String, apiKey: String) = settingsDelegate.setWebSearchApiKey(provider, apiKey)
+    fun setWebSearchNumResults(n: Int) = settingsDelegate.setWebSearchNumResults(n)
+    fun setWebSearchBaseUrl(url: String) = settingsDelegate.setWebSearchBaseUrl(url)
+    fun setShowDocumentationFab(enabled: Boolean) = settingsDelegate.setShowDocumentationFab(enabled)
+    fun setShellEnabled(enabled: Boolean) = settingsDelegate.setShellEnabled(enabled)
+    fun setThinkingEnabled(enabled: Boolean) = settingsDelegate.setThinkingEnabled(enabled)
+    fun setThinkingLevel(level: String) = settingsDelegate.setThinkingLevel(level)
+    fun setDefaultTemperature(v: Float?) = settingsDelegate.setDefaultTemperature(v)
+    fun setDefaultMaxTokens(v: Int?) = settingsDelegate.setDefaultMaxTokens(v)
+    fun setDefaultTopP(v: Float?) = settingsDelegate.setDefaultTopP(v)
+    fun setDefaultFrequencyPenalty(v: Float?) = settingsDelegate.setDefaultFrequencyPenalty(v)
+    fun setDefaultPresencePenalty(v: Float?) = settingsDelegate.setDefaultPresencePenalty(v)
+    fun setConversationSettings(convId: String, settings: ConversationSettings?) = settingsDelegate.setConversationSettings(convId, settings)
     fun buildEffectiveConversationSettings(conversationId: String): ConversationSettings {
         val overrides = conversationSettings.value[conversationId]
             ?: _pendingConversationSettings.value  // new chat: may not be saved to map yet
@@ -1336,18 +1223,14 @@ class ChatViewModel(
             if (idx >= 0) { current[idx] = device; settingsManager.saveShellDevices(current) }
         }
     }
-    fun setThemeMode(mode: String) { viewModelScope.launch { settingsManager.saveThemeMode(mode) } }
-    fun setColorScheme(scheme: String) { viewModelScope.launch { settingsManager.saveColorScheme(scheme) } }
-    fun setDynamicColor(enabled: Boolean) { viewModelScope.launch { settingsManager.saveDynamicColor(enabled) } }
-    fun setSchemeStyle(style: String) { viewModelScope.launch { settingsManager.saveSchemeStyle(style) } }
-    fun removeShellDevice(deviceId: String) {
-        viewModelScope.launch {
-            settingsManager.saveShellDevices(shellDevices.value.filter { it.id != deviceId })
-        }
-    }
-    fun setSearchMatchLimit(n: Int) { viewModelScope.launch { settingsManager.saveSearchMatchLimit(n) } }
-    fun setSearchContextWindow(n: Int) { viewModelScope.launch { settingsManager.saveSearchContextWindow(n) } }
-    fun setRagThreshold(threshold: Float) { viewModelScope.launch { settingsManager.saveRagThreshold(threshold) } }
+    fun setThemeMode(mode: String) = settingsDelegate.setThemeMode(mode)
+    fun setColorScheme(scheme: String) = settingsDelegate.setColorScheme(scheme)
+    fun setDynamicColor(enabled: Boolean) = settingsDelegate.setDynamicColor(enabled)
+    fun setSchemeStyle(style: String) = settingsDelegate.setSchemeStyle(style)
+    fun removeShellDevice(deviceId: String) = settingsDelegate.removeShellDevice(deviceId, shellDevices.value)
+    fun setSearchMatchLimit(n: Int) = settingsDelegate.setSearchMatchLimit(n)
+    fun setSearchContextWindow(n: Int) = settingsDelegate.setSearchContextWindow(n)
+    fun setRagThreshold(threshold: Float) = settingsDelegate.setRagThreshold(threshold)
     suspend fun testRemoteEmbedding(modelName: String, baseUrl: String, apiKey: String = ""): String? {
         val effectiveKey = apiKey.ifBlank { resolveEmbeddingApiKey() ?: "" }
         val url = baseUrl.ifBlank { resolveEmbeddingBaseUrl() }
