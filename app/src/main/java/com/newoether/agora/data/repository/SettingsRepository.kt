@@ -63,6 +63,7 @@ class SettingsRepository(
     val showDocumentationFab: Flow<Boolean> = settingsManager.showDocumentationFab
     val shellEnabled: Flow<Boolean> = settingsManager.shellEnabled
     val shellDevices: Flow<List<ShellDeviceConfig>> = settingsManager.shellDevices
+    val sandboxEnabled: Flow<Boolean> = settingsManager.sandboxEnabled
     val defaultTemperature: Flow<Float?> = settingsManager.defaultTemperature
     val defaultMaxTokens: Flow<Int?> = settingsManager.defaultMaxTokens
     val defaultTopP: Flow<Float?> = settingsManager.defaultTopP
@@ -118,6 +119,7 @@ class SettingsRepository(
     suspend fun saveShowDocumentationFab(enabled: Boolean) = settingsManager.saveShowDocumentationFab(enabled)
     suspend fun saveShellEnabled(enabled: Boolean) = settingsManager.saveShellEnabled(enabled)
     suspend fun saveShellDevices(devices: List<ShellDeviceConfig>) = settingsManager.saveShellDevices(devices)
+    suspend fun saveSandboxEnabled(enabled: Boolean) = settingsManager.saveSandboxEnabled(enabled)
     suspend fun saveThinkingEnabled(enabled: Boolean) = settingsManager.saveThinkingEnabled(enabled)
     suspend fun saveThinkingLevel(level: String) = settingsManager.saveThinkingLevel(level)
     suspend fun saveDefaultTemperature(v: Float?) = settingsManager.saveDefaultTemperature(v)

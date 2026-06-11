@@ -23,6 +23,9 @@ build*.ps1
 deploy.ps1
 logs/
 
+# Proot build artifacts
+/.build-proot/
+
 # Claude Code
 /.claude/
 signing.properties

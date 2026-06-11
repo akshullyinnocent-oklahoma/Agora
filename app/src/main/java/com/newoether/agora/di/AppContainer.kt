@@ -9,6 +9,7 @@ import com.newoether.agora.data.local.ChatDatabase
 import com.newoether.agora.data.repository.ConversationRepository
 import com.newoether.agora.data.repository.MemoryRepository
 import com.newoether.agora.data.repository.SettingsRepository
+import com.newoether.agora.sandbox.SandboxManagerFactory
 import com.newoether.agora.viewmodel.ChatViewModel
 import com.newoether.agora.viewmodel.ChatViewModelFactory
 
@@ -45,8 +46,28 @@ class AppContainer(private val appContext: Context) {
         MemoryRepository(memoryManager)
     }
 
+    // ── Sandbox (flavor-specific) ─────────────────────────────
+
+    val sandboxManagerFactory: SandboxManagerFactory? by lazy {
+        try {
+            // fdroid flavor provides FdroidSandboxManagerFactory
+            Class.forName("com.newoether.agora.sandbox.FdroidSandboxManagerFactory")
+                .getDeclaredConstructor(android.content.Context::class.java)
+                .newInstance(appContext) as SandboxManagerFactory
+        } catch (_: Exception) {
+            // play flavor provides PlaySandboxManagerFactory
+            try {
+                Class.forName("com.newoether.agora.sandbox.PlaySandboxManagerFactory")
+                    .getDeclaredConstructor()
+                    .newInstance() as SandboxManagerFactory
+            } catch (_: Exception) {
+                null
+            }
+        }
+    }
+
     // ── ViewModel Factory ─────────────────────────────────────
 
     fun chatViewModelFactory(): ChatViewModelFactory =
-        ChatViewModelFactory(application, settingsManager, chatDao, memoryManager, appContext)
+        ChatViewModelFactory(application, settingsManager, chatDao, memoryManager, appContext, sandboxManagerFactory)
 }

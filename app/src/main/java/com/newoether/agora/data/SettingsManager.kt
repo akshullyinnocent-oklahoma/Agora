@@ -37,10 +37,17 @@ data class ShellDeviceConfig(
     val id: String = UUID.randomUUID().toString(),
     val name: String,
     val description: String = "",
+    val type: String = "conch",          // "conch" | "ssh"
+    // Conch fields (type=conch)
     val serverUrl: String = "",
     val apiKey: String = "",
     val timeout: Int = 30,
-    val conchPublicKey: String = ""
+    val conchPublicKey: String = "",
+    // SSH fields (type=ssh)
+    val sshHost: String = "",
+    val sshPort: Int = 22,
+    val sshUser: String = "root",
+    val sshPassword: String = ""
 )
 
 @Serializable
@@ -129,6 +136,7 @@ class SettingsManager(private val context: Context) {
         val CUSTOM_PROVIDERS_JSON = stringPreferencesKey("custom_providers_json")
         val SHELL_ENABLED = booleanPreferencesKey("shell_enabled")
         val SHELL_DEVICES_JSON = stringPreferencesKey("shell_devices_json")
+        val SANDBOX_ENABLED = booleanPreferencesKey("sandbox_enabled")
         val THEME_MODE = stringPreferencesKey("theme_mode")
         val COLOR_SCHEME = stringPreferencesKey("color_scheme")
         val DYNAMIC_COLOR = booleanPreferencesKey("dynamic_color")
@@ -248,6 +256,7 @@ class SettingsManager(private val context: Context) {
         val jsonStr = pref[SHELL_DEVICES_JSON] ?: "[]"
         try { json.decodeFromString<List<ShellDeviceConfig>>(jsonStr) } catch (e: Exception) { emptyList() }
     }
+    val sandboxEnabled: Flow<Boolean> = context.dataStore.data.map { it[SANDBOX_ENABLED] ?: false }
 
     val themeMode: Flow<String> = context.dataStore.data.map { it[THEME_MODE] ?: "FOLLOW_DEVICE" }
     val colorScheme: Flow<String> = context.dataStore.data.map { it[COLOR_SCHEME] ?: "DEFAULT" }
@@ -484,6 +493,10 @@ class SettingsManager(private val context: Context) {
 
     suspend fun saveShellDevices(devices: List<ShellDeviceConfig>) {
         context.dataStore.edit { it[SHELL_DEVICES_JSON] = json.encodeToString(devices) }
+    }
+
+    suspend fun saveSandboxEnabled(enabled: Boolean) {
+        context.dataStore.edit { it[SANDBOX_ENABLED] = enabled }
     }
 
     suspend fun saveThemeMode(mode: String) {

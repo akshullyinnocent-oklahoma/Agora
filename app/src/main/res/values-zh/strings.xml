@@ -252,6 +252,33 @@
     <string name="shell_result_error">错误: %1$s</string>
     <string name="shell_result_exit_code">退出码: %1$d</string>
     <string name="shell_result_server">服务器: %1$s</string>
+    <string name="shell_device_type">类型</string>
+
+    <!-- Settings - Linux Sandbox -->
+    <string name="sandbox_title">本地沙箱</string>
+    <string name="sandbox_enable">启用本地沙箱</string>
+    <string name="sandbox_enable_desc">在设备上运行隔离的 Alpine Linux 环境</string>
+    <string name="shell_device_host">SSH 主机</string>
+    <string name="shell_device_host_hint">192.168.1.100</string>
+    <string name="shell_device_port">端口</string>
+    <string name="shell_device_user">用户名</string>
+    <string name="shell_device_password">密码</string>
+
+    <!-- Settings - Sandbox Management -->
+    <string name="sandbox_mgmt_title">沙箱管理</string>
+    <string name="sandbox_env">环境信息</string>
+    <string name="sandbox_alpine_version">Alpine Linux</string>
+    <string name="sandbox_disk_usage">磁盘使用</string>
+    <string name="sandbox_install">安装</string>
+    <string name="sandbox_install_packages">安装包</string>
+    <string name="sandbox_package_name">包名</string>
+    <string name="sandbox_quick_install">快速安装</string>
+    <string name="sandbox_installed">已安装包</string>
+    <string name="sandbox_no_packages">未安装任何包，仅 Alpine 基础系统。</string>
+    <string name="sandbox_danger_zone">危险区域</string>
+    <string name="sandbox_reset">重置环境</string>
+    <string name="sandbox_reset_desc">删除 Alpine rootfs 及所有包</string>
+    <string name="sandbox_reset_confirm">这将删除 Alpine Linux rootfs 和所有已安装的包。此操作不可撤销。</string>
 
     <!-- Settings - Title Generation -->
     <string name="title_gen_auto">自动生成标题</string>

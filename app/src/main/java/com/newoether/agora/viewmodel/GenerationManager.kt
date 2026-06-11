@@ -86,6 +86,7 @@ data class GenerationContext(
     val webSearchBaseUrl: String = "",
     val shellEnabled: Boolean = false,
     val shellDevices: List<com.newoether.agora.data.ShellDeviceConfig> = emptyList(),
+    val sandboxEnabled: Boolean = false,
     val imageTranscriptionEnabled: Boolean = false,
     val imageTranscriptionModel: String? = null,
     val imageTranscriptionBatchSize: Int = 3,
@@ -100,7 +101,8 @@ class GenerationManager(
     private val chatDao: ChatDao,
     private val memoryManager: MemoryManager,
     private val providers: Map<String, LlmProvider>,
-    private val context: android.content.Context
+    private val context: android.content.Context,
+    private val sandboxFactory: com.newoether.agora.sandbox.SandboxManagerFactory? = null
 ) {
     private var generationId = 0
     var onMessagePersisted: ((messageId: String, text: String) -> Unit)? = null
@@ -108,7 +110,7 @@ class GenerationManager(
     private val memoryToolProvider = MemoryToolProvider(memoryManager)
     private val webSearchToolProvider = WebSearchToolProvider()
     private val ragToolProvider = RagToolProvider()
-    private val shellToolProvider = ShellToolProvider()
+    private val shellToolProvider = ShellToolProvider(sandboxFactory)
     private val toolProviders: List<ToolProvider> = listOf(
         memoryToolProvider, webSearchToolProvider, ragToolProvider, shellToolProvider
     )

@@ -25,8 +25,8 @@ android {
         applicationId = "com.newoether.agora"
         minSdk = 24
         targetSdk = 36
-        versionCode = 16
-        versionName = "1.2.3"
+        versionCode = 17
+        versionName = "1.2.4"
 
 
         ndk {
@@ -37,7 +37,7 @@ android {
             cmake {
                 cppFlags += "-std=c++17"
                 arguments += listOf("-DANDROID_STL=c++_shared")
-                targets += listOf("agora_llama")
+                targets += listOf("agora_llama", "agora_proot")
             }
         }
     }
@@ -68,6 +68,17 @@ android {
             )
         }
     }
+
+    flavorDimensions += "store"
+    productFlavors {
+        create("play") {
+            dimension = "store"
+        }
+        create("fdroid") {
+            dimension = "store"
+        }
+    }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
@@ -80,6 +91,14 @@ android {
         compose = true
     }
 
+    // Extract .so files to disk for ProcessBuilder exec (Kai approach)
+    @Suppress("UnstableApiUsage")
+    packaging {
+        jniLibs {
+            useLegacyPackaging = true
+        }
+    }
+
     externalNativeBuild {
         cmake {
             path = file("src/main/cpp/CMakeLists.txt")
@@ -87,24 +106,38 @@ android {
     }
 }
 
-tasks.register<Copy>("copyReleaseApk") {
-    from("build/outputs/apk/release")
+// Proot binaries (libproot_exec.so, libproot_loader.so, libtalloc.so) are
+// built via GNUmakefile (see .build-proot/) and placed directly in jniLibs.
+// No CMake target is needed — the binaries are manually managed prebuilts.
+// talloc is built with SONAME=libtalloc.so (no version) so AGP packaging works.
+
+tasks.register<Copy>("copyPlayApk") {
+    from("build/outputs/apk/play/release")
     into("release")
     include("*.apk")
 }
 
-tasks.register<Copy>("copyReleaseBundle") {
-    from("build/outputs/bundle/release")
+tasks.register<Copy>("copyFdroidApk") {
+    from("build/outputs/apk/fdroid/release")
+    into("release")
+    include("*.apk")
+}
+
+tasks.register<Copy>("copyPlayBundle") {
+    from("build/outputs/bundle/play/release")
     into("release")
     include("*.aab")
 }
 
 afterEvaluate {
-    tasks.named("assembleRelease") {
-        finalizedBy("copyReleaseApk")
+    tasks.named("assemblePlayRelease") {
+        finalizedBy("copyPlayApk")
     }
-    tasks.named("bundleRelease") {
-        finalizedBy("copyReleaseBundle")
+    tasks.named("assembleFdroidRelease") {
+        finalizedBy("copyFdroidApk")
+    }
+    tasks.named("bundlePlayRelease") {
+        finalizedBy("copyPlayBundle")
     }
 }
 
@@ -137,6 +170,8 @@ dependencies {
     implementation(libs.material.color.utilities)
     implementation(libs.lottie.compose)
     implementation(libs.work.runtime.ktx)
+    implementation(libs.jsch)
+    implementation(libs.commons.compress)
     debugImplementation(libs.androidx.compose.ui.tooling)
 
     // Unit tests

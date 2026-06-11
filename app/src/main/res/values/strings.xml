@@ -288,6 +288,33 @@
     <string name="shell_result_error">Error: %1$s</string>
     <string name="shell_result_exit_code">Exit code: %1$d</string>
     <string name="shell_result_server">Server: %1$s</string>
+    <string name="shell_device_type">Type</string>
+
+    <!-- Settings - Linux Sandbox -->
+    <string name="sandbox_title">Local Sandbox</string>
+    <string name="sandbox_enable">Enable Local Sandbox</string>
+    <string name="sandbox_enable_desc">Run commands in isolated Alpine Linux on-device</string>
+    <string name="shell_device_host">SSH Host</string>
+    <string name="shell_device_host_hint">192.168.1.100</string>
+    <string name="shell_device_port">Port</string>
+    <string name="shell_device_user">Username</string>
+    <string name="shell_device_password">Password</string>
+
+    <!-- Settings - Sandbox Management -->
+    <string name="sandbox_mgmt_title">Sandbox Management</string>
+    <string name="sandbox_env">Environment</string>
+    <string name="sandbox_alpine_version">Alpine Linux</string>
+    <string name="sandbox_disk_usage">Disk Usage</string>
+    <string name="sandbox_install">Install</string>
+    <string name="sandbox_install_packages">Install Packages</string>
+    <string name="sandbox_package_name">Package name</string>
+    <string name="sandbox_quick_install">Quick Install</string>
+    <string name="sandbox_installed">Installed Packages</string>
+    <string name="sandbox_no_packages">No packages installed. Alpine base only.</string>
+    <string name="sandbox_danger_zone">Danger Zone</string>
+    <string name="sandbox_reset">Reset Environment</string>
+    <string name="sandbox_reset_desc">Remove Alpine rootfs and all packages</string>
+    <string name="sandbox_reset_confirm">This will delete the Alpine Linux rootfs and all installed packages. This action cannot be undone.</string>
 
     <!-- Settings - Title Generation -->
     <string name="title_gen_auto">Auto-Generate Title</string>

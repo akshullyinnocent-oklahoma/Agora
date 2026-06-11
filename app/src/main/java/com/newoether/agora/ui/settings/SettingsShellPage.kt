@@ -19,11 +19,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import com.newoether.agora.R
 import com.newoether.agora.data.ShellDeviceConfig
 import com.newoether.agora.viewmodel.ChatViewModel
@@ -36,296 +40,322 @@ import java.util.UUID
 fun SettingsShellPage(viewModel: ChatViewModel, onBack: () -> Unit) {
     val shellEnabled by viewModel.shellEnabled.collectAsState()
     val shellDevices by viewModel.shellDevices.collectAsState()
+    val sandboxEnabled by viewModel.sandboxEnabled.collectAsState()
     val density = androidx.compose.ui.platform.LocalDensity.current
     var newlyAddedDeviceId by remember { mutableStateOf<String?>(null) }
     var deleteConfirmDeviceId by remember { mutableStateOf<String?>(null) }
     val showDocFab by viewModel.showDocumentationFab.collectAsState()
 
-    Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
-        contentWindowInsets = WindowInsets(0.dp),
-        topBar = {
-            TopAppBar(
-                title = { Text(stringResource(R.string.shell_title), fontWeight = FontWeight.Bold) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background,
-                    titleContentColor = MaterialTheme.colorScheme.onBackground,
+    // ── Sandbox navigation ──
+    var showSandboxMgmt by remember { mutableStateOf(false) }
+    var sandboxEntryCount by remember { mutableIntStateOf(0) }
+    BackHandler(enabled = showSandboxMgmt) { showSandboxMgmt = false }
+
+    AnimatedContent(
+        targetState = showSandboxMgmt,
+        transitionSpec = {
+            if (targetState) {
+                (slideInHorizontally { it }) togetherWith (slideOutHorizontally { -it })
+            } else {
+                (slideInHorizontally { -it }) togetherWith (slideOutHorizontally { it })
+            }
+        }
+    ) { isMgmt ->
+        if (isMgmt && viewModel.sandboxManager != null) {
+            key(sandboxEntryCount) {
+                SettingsSandboxPage(
+                    sandboxManager = viewModel.sandboxManager!!,
+                    onBack = { showSandboxMgmt = false }
                 )
-            )
-        },
-        floatingActionButton = { if (showDocFab) DocumentationFab("shell.md") },
-        floatingActionButtonPosition = FabPosition.Center,
-    ) { padding ->
-        val fm = androidx.compose.ui.platform.LocalFocusManager.current
-        val scrollState = rememberScrollState()
-        Column(
-            modifier = Modifier
-                .padding(padding)
-                .navigationBarsPadding()
-                .imePadding()
-                .verticalScroll(scrollState)
-                .clickable(indication = null, interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }) { fm.clearFocus() }
-                .padding(horizontal = 16.dp, vertical = 16.dp)
-        ) {
+            }
+        } else {
+            Scaffold(
+                containerColor = MaterialTheme.colorScheme.background,
+                contentWindowInsets = WindowInsets(0.dp),
+                topBar = {
+                    TopAppBar(
+                        title = { Text(stringResource(R.string.shell_title), fontWeight = FontWeight.Bold) },
+                        navigationIcon = {
+                            IconButton(onClick = onBack) {
+                                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
+                            }
+                        },
+                        colors = TopAppBarDefaults.topAppBarColors(
+                            containerColor = MaterialTheme.colorScheme.background,
+                            titleContentColor = MaterialTheme.colorScheme.onBackground,
+                        )
+                    )
+                },
+                floatingActionButton = { if (showDocFab) DocumentationFab("shell.md") },
+                floatingActionButtonPosition = FabPosition.Center,
+            ) { padding ->
+                val fm = androidx.compose.ui.platform.LocalFocusManager.current
+                val scrollState = rememberScrollState()
+                Column(
+                    modifier = Modifier
+                        .padding(padding)
+                        .navigationBarsPadding()
+                        .imePadding()
+                        .verticalScroll(scrollState)
+                        .clickable(indication = null, interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }) { fm.clearFocus() }
+                        .padding(horizontal = 16.dp, vertical = 16.dp)
+                ) {
             SettingsGroup(title = stringResource(R.string.shell_title), items = listOf({
                 SettingsItem(
                     headlineContent = { Text(stringResource(R.string.shell_enable)) },
                     supportingContent = { Text(stringResource(R.string.shell_enable_desc)) },
                     leadingContent = { Icon(Icons.Default.Terminal, null, tint = MaterialTheme.colorScheme.primary) },
-                    trailingContent = {
-                        Switch(checked = shellEnabled, onCheckedChange = { viewModel.setShellEnabled(it) })
-                    },
+                    trailingContent = { Switch(checked = shellEnabled, onCheckedChange = { viewModel.setShellEnabled(it) }) },
                     modifier = Modifier.clickable { viewModel.setShellEnabled(!shellEnabled) }
                 )
             }))
 
             if (shellEnabled) {
-                if (shellDevices.isEmpty()) {
-                    Text(
-                        stringResource(R.string.shell_no_devices),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(top = 8.dp, bottom = 16.dp)
-                    )
-                } else {
-                    val shellDeviceItems: List<@Composable () -> Unit> = buildList {
-                        shellDevices.forEach { device ->
-                            add {
-                                val isNewlyAdded = device.id == newlyAddedDeviceId
-                                var expanded by remember(device.id) { mutableStateOf(false) }
-                                var nameInput by remember(device.id) { mutableStateOf(device.name) }
-                                var descInput by remember(device.id) { mutableStateOf(device.description) }
-                                var urlInput by remember(device.id) { mutableStateOf(device.serverUrl) }
-                                var keyInput by remember(device.id) { mutableStateOf(device.apiKey) }
-                                val nameFocusRequester = remember { FocusRequester() }
-
-                                LaunchedEffect(device) {
-                                    nameInput = device.name
-                                    descInput = device.description
-                                    urlInput = device.serverUrl
-                                    keyInput = device.apiKey
-                                }
-
-                                LaunchedEffect(isNewlyAdded) {
-                                    if (isNewlyAdded) {
-                                        expanded = true
-                                        delay(50)
-                                        nameFocusRequester.requestFocus()
-                                        val expandedH = (200 * density.density).toInt()
-                                        scrollState.animateScrollTo(
-                                            scrollState.maxValue + expandedH,
-                                            animationSpec = tween(500)
-                                        )
-                                        newlyAddedDeviceId = null
-                                    }
-                                }
-
-                                Column {
-                                    SettingsItem(
-                                        headlineContent = {
-                                            Text(
-                                                device.name.ifBlank { stringResource(R.string.search_untitled) },
-                                                fontWeight = FontWeight.Medium
-                                            )
-                                        },
-                                        supportingContent = {
-                                            if (device.description.isNotBlank()) Text(device.description)
-                                        },
-                                        leadingContent = {
-                                            Icon(Icons.Default.Devices, null, tint = MaterialTheme.colorScheme.primary)
-                                        },
-                                        trailingContent = {
-                                            IconButton(onClick = { expanded = !expanded }) {
-                                                Icon(
-                                                    if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                                                    stringResource(R.string.edit)
-                                                )
-                                            }
-                                        },
-                                        modifier = Modifier.clickable { expanded = !expanded }
-                                    )
-
-                                    AnimatedVisibility(
-                                    visible = expanded,
-                                    enter = expandVertically(),
-                                    exit = shrinkVertically()
-                                ) {
-                                    Column(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(start = 16.dp, end = 16.dp, bottom = 16.dp)
-                                    ) {
-                                        Spacer(Modifier.height(8.dp))
-
-                                        OutlinedTextField(
-                                            value = nameInput,
-                                            onValueChange = { nameInput = it },
-                                            label = { Text(stringResource(R.string.shell_device_name)) },
-                                            placeholder = { Text(stringResource(R.string.shell_device_name_hint)) },
-                                            leadingIcon = { Icon(Icons.AutoMirrored.Filled.Label, null) },
-                                            singleLine = true,
-                                            shape = RoundedCornerShape(16.dp),
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .focusRequester(nameFocusRequester)
-                                        )
-
-                                        Spacer(Modifier.height(10.dp))
-                                        OutlinedTextField(
-                                            value = descInput,
-                                            onValueChange = { descInput = it },
-                                            label = { Text(stringResource(R.string.shell_device_desc)) },
-                                            placeholder = { Text(stringResource(R.string.shell_device_desc_hint)) },
-                                            leadingIcon = { Icon(Icons.Default.Description, null) },
-                                            singleLine = true,
-                                            shape = RoundedCornerShape(16.dp),
-                                            modifier = Modifier.fillMaxWidth()
-                                        )
-
-                                        Spacer(Modifier.height(10.dp))
-                                        OutlinedTextField(
-                                            value = urlInput,
-                                            onValueChange = { urlInput = it },
-                                            label = { Text(stringResource(R.string.shell_device_url)) },
-                                            placeholder = { Text(stringResource(R.string.shell_device_url_hint)) },
-                                            leadingIcon = { Icon(Icons.Default.Link, null) },
-                                            singleLine = true,
-                                            shape = RoundedCornerShape(16.dp),
-                                            modifier = Modifier.fillMaxWidth()
-                                        )
-
-                                        Spacer(Modifier.height(10.dp))
-                                        OutlinedTextField(
-                                            value = keyInput,
-                                            onValueChange = { keyInput = it },
-                                            label = { Text(stringResource(R.string.shell_device_key)) },
-                                            placeholder = { Text(stringResource(R.string.shell_device_key_hint)) },
-                                            leadingIcon = { Icon(Icons.Default.Key, null) },
-                                            visualTransformation = PasswordVisualTransformation(),
-                                            singleLine = true,
-                                            shape = RoundedCornerShape(16.dp),
-                                            modifier = Modifier.fillMaxWidth()
-                                        )
-
-                                        Spacer(Modifier.height(10.dp))
-                                        Text(
-                                            stringResource(R.string.shell_device_timeout),
-                                            style = MaterialTheme.typography.labelMedium,
-                                            color = MaterialTheme.colorScheme.onSurface
-                                        )
-                                        Row(
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            modifier = Modifier.fillMaxWidth()
-                                        ) {
-                                            Icon(
-                                                Icons.Default.Schedule, null,
-                                                tint = MaterialTheme.colorScheme.primary,
-                                                modifier = Modifier.size(18.dp)
-                                            )
-                                            Spacer(Modifier.width(8.dp))
-                                            Text(
-                                                stringResource(R.string.shell_timeout_value, device.timeout),
-                                                style = MaterialTheme.typography.bodyMedium,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                                modifier = Modifier.width(48.dp)
-                                            )
-                                            Slider(
-                                                value = device.timeout.toFloat(),
-                                                onValueChange = { value ->
-                                                    val snapped = (value / 5f).roundToInt() * 5
-                                                    viewModel.updateShellDevice(device.copy(timeout = snapped))
-                                                },
-                                                valueRange = 5f..120f,
-                                                steps = 22,
-                                                modifier = Modifier.weight(1f)
-                                            )
-                                        }
-
-                                        Spacer(Modifier.height(12.dp))
-                                        Row(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                        ) {
-                                            OutlinedButton(
-                                                onClick = { deleteConfirmDeviceId = device.id },
-                                                modifier = Modifier.weight(1f),
-                                                colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)
-                                            ) {
-                                                Icon(Icons.Default.Delete, null, modifier = Modifier.size(18.dp))
-                                                Spacer(Modifier.width(6.dp))
-                                                Text(stringResource(R.string.shell_remove_device))
-                                            }
-                                            Button(
-                                                onClick = {
-                                                    viewModel.updateShellDevice(device.copy(
-                                                        name = nameInput.trim(),
-                                                        description = descInput.trim(),
-                                                        serverUrl = urlInput.trim(),
-                                                        apiKey = keyInput.trim()
-                                                    ))
-                                                    expanded = false
-                                                },
-                                                modifier = Modifier.weight(1f)
-                                            ) {
-                                                Text(stringResource(R.string.save))
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                            }
-                        }
-                    }
-                    SettingsGroup(title = stringResource(R.string.shell_devices), items = shellDeviceItems)
+                // ── Local Sandbox (fdroid only) ──────────────
+                if (viewModel.isSandboxFlavor) {
+                    SandboxSection(viewModel, sandboxEnabled, onManage = { sandboxEntryCount++; showSandboxMgmt = true })
                 }
 
-                OutlinedButton(
-                    onClick = {
-                        val newId = UUID.randomUUID().toString()
-                        newlyAddedDeviceId = newId
-                        viewModel.addShellDevice(ShellDeviceConfig(
-                            id = newId,
-                            name = "",
-                            description = ""
-                        ))
-                    },
-                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
-                ) {
+                // ── Remote Devices ──────────────────────────
+                if (shellDevices.isEmpty()) {
+                    Text(stringResource(R.string.shell_no_devices), style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 8.dp, bottom = 16.dp))
+                } else {
+                    val items: List<@Composable () -> Unit> = buildList {
+                        shellDevices.forEach { device -> add { DeviceEditor(viewModel, device, scrollState, density, newlyAddedDeviceId, onNewDeviceId = { newlyAddedDeviceId = it }, onDeleteConfirm = { deleteConfirmDeviceId = it }) } }
+                    }
+                    SettingsGroup(title = stringResource(R.string.shell_devices), items = items)
+                }
+
+                OutlinedButton(onClick = {
+                    val newId = UUID.randomUUID().toString()
+                    newlyAddedDeviceId = newId
+                    viewModel.addShellDevice(ShellDeviceConfig(id = newId, name = "", description = ""))
+                }, modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
                     Icon(Icons.Default.Add, null, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(8.dp))
                     Text(stringResource(R.string.shell_add_device))
                 }
             }
 
-            if (deleteConfirmDeviceId != null) {
-                val deviceToDelete = shellDevices.find { it.id == deleteConfirmDeviceId }
-                val deviceName = deviceToDelete?.name?.ifBlank { stringResource(R.string.search_untitled) } ?: ""
+            // ── Delete confirm dialog ──
+            deleteConfirmDeviceId?.let { deviceId ->
+                val device = shellDevices.find { it.id == deviceId }
                 AlertDialog(
                     containerColor = MaterialTheme.colorScheme.surfaceContainer,
                     onDismissRequest = { deleteConfirmDeviceId = null },
                     title = { Text(stringResource(R.string.shell_delete_confirm_title), fontWeight = FontWeight.Bold) },
-                    text = { Text(stringResource(R.string.shell_delete_confirm_message, deviceName)) },
+                    text = { Text(stringResource(R.string.shell_delete_confirm_message, device?.name?.ifBlank { stringResource(R.string.search_untitled) } ?: "")) },
                     confirmButton = {
-                        TextButton(
-                            onClick = {
-                                viewModel.removeShellDevice(deleteConfirmDeviceId!!)
-                                deleteConfirmDeviceId = null
-                            },
-                            colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
-                        ) { Text(stringResource(R.string.delete)) }
+                        TextButton(onClick = { viewModel.removeShellDevice(deviceId); deleteConfirmDeviceId = null },
+                            colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)) { Text(stringResource(R.string.delete)) }
                     },
-                    dismissButton = {
-                        TextButton(onClick = { deleteConfirmDeviceId = null }) { Text(stringResource(R.string.cancel)) }
-                    }
+                    dismissButton = { TextButton(onClick = { deleteConfirmDeviceId = null }) { Text(stringResource(R.string.cancel)) } }
                 )
             }
 
-            if (showDocFab) { Spacer(modifier = Modifier.height(80.dp)) }
+            if (showDocFab) Spacer(Modifier.height(80.dp))
+                } // Column
+            } // Scaffold content
+        } // else
+    } // AnimatedContent
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Sandbox Section — toggle + manage link, all detail on dedicated page
+// ═══════════════════════════════════════════════════════════════
+
+@Composable
+private fun SandboxSection(viewModel: ChatViewModel, sandboxEnabled: Boolean, onManage: () -> Unit) {
+    SettingsGroup(title = stringResource(R.string.sandbox_title), items = buildList {
+        add {
+            SettingsItem(
+                headlineContent = { Text(stringResource(R.string.sandbox_enable)) },
+                supportingContent = { Text(stringResource(R.string.sandbox_enable_desc)) },
+                leadingContent = { Icon(Icons.Default.Terminal, null, tint = MaterialTheme.colorScheme.primary) },
+                trailingContent = { Switch(checked = sandboxEnabled, onCheckedChange = { viewModel.setSandboxEnabled(it) }) },
+                modifier = Modifier.clickable { viewModel.setSandboxEnabled(!sandboxEnabled) }
+            )
+        }
+        if (sandboxEnabled) {
+            add {
+                SettingsItem(
+                    headlineContent = { Text("Manage Local Sandbox") },
+                    supportingContent = { Text("Install, configure packages, or reset") },
+                    leadingContent = { Icon(Icons.Default.Settings, null, tint = MaterialTheme.colorScheme.primary) },
+                    trailingContent = {
+                        Icon(Icons.Default.ChevronRight, stringResource(R.string.edit), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    },
+                    modifier = Modifier.clickable { onManage() }
+                )
+            }
+        }
+    })
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Device Editor (extracted for readability)
+// ═══════════════════════════════════════════════════════════════
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun DeviceEditor(
+    viewModel: ChatViewModel,
+    device: ShellDeviceConfig,
+    scrollState: androidx.compose.foundation.ScrollState,
+    density: androidx.compose.ui.unit.Density,
+    newlyAddedDeviceId: String?,
+    onNewDeviceId: (String?) -> Unit,
+    onDeleteConfirm: (String?) -> Unit
+) {
+    val isNewlyAdded = device.id == newlyAddedDeviceId
+    var expanded by remember(device.id) { mutableStateOf(false) }
+    var nameInput by remember(device.id) { mutableStateOf(device.name) }
+    var descInput by remember(device.id) { mutableStateOf(device.description) }
+    var typeInput by remember(device.id) { mutableStateOf(device.type) }
+    var typeMenuExpanded by remember(device.id) { mutableStateOf(false) }
+    var urlInput by remember(device.id) { mutableStateOf(device.serverUrl) }
+    var keyInput by remember(device.id) { mutableStateOf(device.apiKey) }
+    var sshHostInput by remember(device.id) { mutableStateOf(device.sshHost) }
+    var sshPortInput by remember(device.id) { mutableStateOf(device.sshPort.toString()) }
+    var sshUserInput by remember(device.id) { mutableStateOf(device.sshUser) }
+    var sshPwInput by remember(device.id) { mutableStateOf(device.sshPassword) }
+    var timeoutInput by remember(device.id) { mutableStateOf(device.timeout) }
+    val nameFocusRequester = remember { FocusRequester() }
+
+    LaunchedEffect(device) {
+        nameInput = device.name; descInput = device.description; typeInput = device.type
+        urlInput = device.serverUrl; keyInput = device.apiKey
+        sshHostInput = device.sshHost; sshPortInput = device.sshPort.toString()
+        sshUserInput = device.sshUser; sshPwInput = device.sshPassword; timeoutInput = device.timeout
+    }
+
+    LaunchedEffect(isNewlyAdded) {
+        if (isNewlyAdded) {
+            expanded = true; delay(50); nameFocusRequester.requestFocus()
+            scrollState.animateScrollTo(scrollState.maxValue + (200 * density.density).toInt(), tween(500))
+            onNewDeviceId(null)
+        }
+    }
+
+    Column {
+        SettingsItem(
+            headlineContent = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(device.name.ifBlank { stringResource(R.string.search_untitled) }, fontWeight = FontWeight.Medium)
+                    Spacer(Modifier.width(8.dp))
+                    Surface(shape = RoundedCornerShape(4.dp),
+                        color = if (typeInput == "ssh") MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.primaryContainer
+                    ) {
+                        Text(if (typeInput == "ssh") "SSH" else "Conch",
+                            Modifier.padding(horizontal = 6.dp, vertical = 1.dp),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = if (typeInput == "ssh") MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onPrimaryContainer)
+                    }
+                }
+            },
+            supportingContent = {
+                if (device.description.isNotBlank()) Text(device.description)
+                else if (typeInput == "ssh" && sshHostInput.isNotBlank()) Text("$sshUserInput@$sshHostInput:$sshPortInput")
+            },
+            leadingContent = { Icon(Icons.Default.Devices, null, tint = MaterialTheme.colorScheme.primary) },
+            trailingContent = {
+                IconButton(onClick = { expanded = !expanded }) {
+                    Icon(if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore, stringResource(R.string.edit))
+                }
+            },
+            modifier = Modifier.clickable { expanded = !expanded }
+        )
+
+        AnimatedVisibility(visible = expanded, enter = expandVertically(), exit = shrinkVertically()) {
+            Column(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 16.dp)) {
+                Spacer(Modifier.height(8.dp))
+
+                // Type selector
+                ExposedDropdownMenuBox(expanded = typeMenuExpanded, onExpandedChange = { typeMenuExpanded = it }) {
+                    OutlinedTextField(
+                        value = if (typeInput == "ssh") "SSH / SFTP" else "Conch (Encrypted)",
+                        onValueChange = {}, readOnly = true,
+                        label = { Text(stringResource(R.string.shell_device_type)) },
+                        leadingIcon = { Icon(if (typeInput == "ssh") Icons.Default.Dns else Icons.Default.Lock, null) },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(typeMenuExpanded) },
+                        shape = RoundedCornerShape(16.dp),
+                        modifier = Modifier.menuAnchor().fillMaxWidth()
+                    )
+                    ExposedDropdownMenu(expanded = typeMenuExpanded, onDismissRequest = { typeMenuExpanded = false }) {
+                        DropdownMenuItem(text = { Text("Conch (HTTP + Encryption)") }, onClick = { typeInput = "conch"; typeMenuExpanded = false }, leadingIcon = { Icon(Icons.Default.Lock, null) })
+                        DropdownMenuItem(text = { Text("SSH / SFTP") }, onClick = { typeInput = "ssh"; typeMenuExpanded = false }, leadingIcon = { Icon(Icons.Default.Dns, null) })
+                    }
+                }
+                Spacer(Modifier.height(10.dp))
+
+                // Conditional fields
+                if (typeInput == "conch") {
+                    OutlinedTextField(value = urlInput, onValueChange = { urlInput = it }, label = { Text(stringResource(R.string.shell_device_url)) },
+                        placeholder = { Text(stringResource(R.string.shell_device_url_hint)) }, leadingIcon = { Icon(Icons.Default.Link, null) },
+                        singleLine = true, shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth())
+                    Spacer(Modifier.height(10.dp))
+                    OutlinedTextField(value = keyInput, onValueChange = { keyInput = it }, label = { Text(stringResource(R.string.shell_device_key)) },
+                        placeholder = { Text(stringResource(R.string.shell_device_key_hint)) }, leadingIcon = { Icon(Icons.Default.Key, null) },
+                        visualTransformation = PasswordVisualTransformation(), singleLine = true, shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth())
+                } else {
+                    OutlinedTextField(value = sshHostInput, onValueChange = { sshHostInput = it }, label = { Text(stringResource(R.string.shell_device_host)) },
+                        placeholder = { Text(stringResource(R.string.shell_device_host_hint)) }, leadingIcon = { Icon(Icons.Default.Dns, null) },
+                        singleLine = true, shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth())
+                    Spacer(Modifier.height(10.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedTextField(value = sshPortInput, onValueChange = { sshPortInput = it.filter { c -> c.isDigit() } },
+                            label = { Text(stringResource(R.string.shell_device_port)) }, leadingIcon = { Icon(Icons.Default.SettingsEthernet, null) },
+                            singleLine = true, shape = RoundedCornerShape(16.dp), modifier = Modifier.weight(0.4f))
+                        OutlinedTextField(value = sshUserInput, onValueChange = { sshUserInput = it },
+                            label = { Text(stringResource(R.string.shell_device_user)) }, leadingIcon = { Icon(Icons.Default.Person, null) },
+                            singleLine = true, shape = RoundedCornerShape(16.dp), modifier = Modifier.weight(0.6f))
+                    }
+                    Spacer(Modifier.height(10.dp))
+                    OutlinedTextField(value = sshPwInput, onValueChange = { sshPwInput = it }, label = { Text(stringResource(R.string.shell_device_password)) },
+                        leadingIcon = { Icon(Icons.Default.Password, null) }, visualTransformation = PasswordVisualTransformation(),
+                        singleLine = true, shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth())
+                }
+
+                Spacer(Modifier.height(10.dp))
+                OutlinedTextField(value = nameInput, onValueChange = { nameInput = it }, label = { Text(stringResource(R.string.shell_device_name)) },
+                    placeholder = { Text(stringResource(R.string.shell_device_name_hint)) }, leadingIcon = { Icon(Icons.AutoMirrored.Filled.Label, null) },
+                    singleLine = true, shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth().focusRequester(nameFocusRequester))
+                Spacer(Modifier.height(10.dp))
+                OutlinedTextField(value = descInput, onValueChange = { descInput = it }, label = { Text(stringResource(R.string.shell_device_desc)) },
+                    placeholder = { Text(stringResource(R.string.shell_device_desc_hint)) }, leadingIcon = { Icon(Icons.Default.Description, null) },
+                    singleLine = true, shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth())
+
+                // Timeout
+                Spacer(Modifier.height(10.dp))
+                Text(stringResource(R.string.shell_device_timeout), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurface)
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                    Icon(Icons.Default.Schedule, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text(stringResource(R.string.shell_timeout_value, timeoutInput), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.width(48.dp))
+                    Slider(value = timeoutInput.toFloat(), onValueChange = { timeoutInput = (it / 5f).roundToInt() * 5 }, valueRange = 5f..120f, steps = 22, modifier = Modifier.weight(1f))
+                }
+
+                Spacer(Modifier.height(12.dp))
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(onClick = { onDeleteConfirm(device.id) }, modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)) {
+                        Icon(Icons.Default.Delete, null, modifier = Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text(stringResource(R.string.shell_remove_device))
+                    }
+                    Button(onClick = {
+                        viewModel.updateShellDevice(device.copy(
+                            name = nameInput.trim(), description = descInput.trim(), type = typeInput,
+                            serverUrl = if (typeInput == "conch") urlInput.trim() else "",
+                            apiKey = if (typeInput == "conch") keyInput.trim() else "",
+                            sshHost = if (typeInput == "ssh") sshHostInput.trim() else "",
+                            sshPort = sshPortInput.toIntOrNull() ?: 22,
+                            sshUser = if (typeInput == "ssh") sshUserInput.trim().ifBlank { "root" } else "root",
+                            sshPassword = if (typeInput == "ssh") sshPwInput else "",
+                            timeout = timeoutInput
+                        )); expanded = false
+                    }, modifier = Modifier.weight(1f)) { Text(stringResource(R.string.save)) }
+                }
+            }
         }
     }
 }

@@ -79,7 +79,8 @@ class ChatViewModel(
     private val settingsManager: SettingsManager,
     private val chatDao: ChatDao,
     val memoryManager: MemoryManager,
-    private val appContext: Context
+    private val appContext: Context,
+    private val sandboxFactory: com.newoether.agora.sandbox.SandboxManagerFactory? = null
 ) : AndroidViewModel(application) {
 
     private val localProvider = LocalProvider(appContext, settingsManager)
@@ -212,7 +213,8 @@ class ChatViewModel(
             chatDao = chatDao,
             memoryManager = memoryManager,
             providers = providers,
-            context = appContext
+            context = appContext,
+            sandboxFactory = sandboxFactory
         ).also { gm ->
             gm.onMessagePersisted = { messageId, text ->
                 if (autoCacheEnabled.value && (modelSearchMethod.value == "rag" || manualSearchMethod.value == "rag")) {
@@ -222,8 +224,14 @@ class ChatViewModel(
         }
     }
 
+    val sandboxManager: com.newoether.agora.sandbox.SandboxManager? by lazy {
+        sandboxFactory?.create()
+    }
+    val isSandboxFlavor: Boolean = sandboxFactory?.isAvailable() == true
+
     override fun onCleared() {
         super.onCleared()
+        sandboxManager?.close()
         localProvider.close()
         generationScope.coroutineContext[Job]?.cancel()
     }
@@ -345,6 +353,7 @@ class ChatViewModel(
     val showDocumentationFab = settingsManager.showDocumentationFab.stateIn(viewModelScope, SharingStarted.Eagerly, true)
     val shellEnabled = settingsManager.shellEnabled.stateIn(viewModelScope, SharingStarted.Eagerly, false)
     val shellDevices = settingsManager.shellDevices.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+    val sandboxEnabled = settingsManager.sandboxEnabled.stateIn(viewModelScope, SharingStarted.Eagerly, false)
     val defaultTemperature = settingsManager.defaultTemperature.stateIn(viewModelScope, SharingStarted.Eagerly, null)
     val defaultMaxTokens = settingsManager.defaultMaxTokens.stateIn(viewModelScope, SharingStarted.Eagerly, null)
     val defaultTopP = settingsManager.defaultTopP.stateIn(viewModelScope, SharingStarted.Eagerly, null)
@@ -1132,6 +1141,7 @@ class ChatViewModel(
     fun setWebSearchBaseUrl(url: String) = settingsDelegate.setWebSearchBaseUrl(url)
     fun setShowDocumentationFab(enabled: Boolean) = settingsDelegate.setShowDocumentationFab(enabled)
     fun setShellEnabled(enabled: Boolean) = settingsDelegate.setShellEnabled(enabled)
+    fun setSandboxEnabled(enabled: Boolean) = settingsDelegate.setSandboxEnabled(enabled)
     fun setThinkingEnabled(enabled: Boolean) = settingsDelegate.setThinkingEnabled(enabled)
     fun setThinkingLevel(level: String) = settingsDelegate.setThinkingLevel(level)
     fun setDefaultTemperature(v: Float?) = settingsDelegate.setDefaultTemperature(v)
@@ -1207,6 +1217,7 @@ class ChatViewModel(
             webSearchBaseUrl = webSearchBaseUrl.value,
             shellEnabled = effectiveSettings.shellEnabled ?: shellEnabled.value,
             shellDevices = shellDevices.value,
+            sandboxEnabled = sandboxEnabled.value,
             imageTranscriptionEnabled = imageTranscriptionEnabledModels.value.contains(currentActiveModel.value),
             imageTranscriptionModel = imageTranscriptionModel.value,
             imageTranscriptionBatchSize = imageTranscriptionBatchSize.value,
