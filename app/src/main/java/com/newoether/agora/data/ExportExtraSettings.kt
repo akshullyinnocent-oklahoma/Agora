@@ -75,6 +75,13 @@ object ExportExtraSettings {
         put("dynamicColor", JsonPrimitive(sm.dynamicColor.first()))
         put("schemeStyle", JsonPrimitive(sm.schemeStyle.first()))
         put("autoUpdateCheck", JsonPrimitive(sm.autoUpdateCheck.first()))
+
+        val aliases = sm.modelAliases.first()
+        if (aliases.isNotEmpty()) {
+            putJsonObject("modelAliases") {
+                aliases.forEach { (k, v) -> put(k, JsonPrimitive(v)) }
+            }
+        }
     }
 
     suspend fun restoreFromJsonObject(obj: JsonObject, sm: SettingsManager) {
@@ -122,5 +129,12 @@ object ExportExtraSettings {
         obj["dynamicColor"]?.jsonPrimitive?.boolean?.let { sm.saveDynamicColor(it) }
         obj["schemeStyle"]?.jsonPrimitive?.contentOrNull?.let { sm.saveSchemeStyle(it) }
         obj["autoUpdateCheck"]?.jsonPrimitive?.boolean?.let { sm.saveAutoUpdateCheck(it) }
+
+        obj["modelAliases"]?.jsonObject?.let { aliasesObj ->
+            val map = aliasesObj.mapNotNull { (k, v) ->
+                v.jsonPrimitive?.contentOrNull?.let { k to it }
+            }.toMap()
+            if (map.isNotEmpty()) sm.saveModelAliases(map)
+        }
     }
 }

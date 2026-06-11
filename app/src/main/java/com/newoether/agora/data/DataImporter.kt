@@ -28,6 +28,8 @@ class DataImporter(
 ) {
     enum class ImportStrategy { MERGE, REPLACE, SKIP }
 
+    private val importJson = Json { ignoreUnknownKeys = true }
+
     @Serializable
     data class ImportManifest(
         @SerialName("agora_export_version") val version: Int = 1,
@@ -110,7 +112,7 @@ class DataImporter(
             if (entries.isEmpty()) return@withContext null
             val manifestJson = entries["manifest.json"]?.decodeToString() ?: return@withContext null
             try {
-                Json.decodeFromString<ImportManifest>(manifestJson)
+                importJson.decodeFromString<ImportManifest>(manifestJson)
             } catch (_: Exception) {
                 null
             }
@@ -124,7 +126,7 @@ class DataImporter(
                 ImportManifest(version = 0)
             )
             val manifest = try {
-                Json.decodeFromString<ImportManifest>(manifestJson)
+                importJson.decodeFromString<ImportManifest>(manifestJson)
             } catch (_: Exception) {
                 return@withContext ImportPreview(ImportManifest(version = 0))
             }
@@ -137,14 +139,14 @@ class DataImporter(
 
             entries["conversations.json"]?.let { json ->
                 try {
-                    val data = Json.decodeFromString<ExportConversations>(json.decodeToString())
+                    val data = importJson.decodeFromString<ExportConversations>(json.decodeToString())
                     conversationCount = data.conversations.size
                 } catch (_: Exception) {}
             }
 
             entries["system_prompts.json"]?.let { json ->
                 try {
-                    val data = Json.decodeFromString<List<SystemPromptEntry>>(json.decodeToString())
+                    val data = importJson.decodeFromString<List<SystemPromptEntry>>(json.decodeToString())
                     systemPromptCount = data.size
                 } catch (_: Exception) {}
             }
@@ -185,7 +187,7 @@ class DataImporter(
                 val videoCleanupList = mutableListOf<java.io.File>()
                 try {
                     entries["conversations.json"]?.decodeToString()?.let { json ->
-                        val data = Json.decodeFromString<ExportConversations>(json)
+                        val data = importJson.decodeFromString<ExportConversations>(json)
                         val convEntities = data.conversations.map { c ->
                             ChatEntity(c.id, c.title, c.lastUpdated, c.selectedBranchesJson, c.systemPromptId, c.modelId)
                         }
@@ -242,7 +244,7 @@ class DataImporter(
                             val videoPath = restoredVideos[msg.id]
                             if (videoPath != null && updated.attachmentMeta != null) {
                                 try {
-                                    val meta = Json.decodeFromString<AttachmentMeta>(updated.attachmentMeta!!)
+                                    val meta = importJson.decodeFromString<AttachmentMeta>(updated.attachmentMeta!!)
                                     val adjustedItems = meta.items.map { item ->
                                         if (item.type == "video") item.copy(originalUri = videoPath) else item
                                     }
@@ -325,7 +327,7 @@ class DataImporter(
             if (promptsDecision != null && promptsDecision != ImportStrategy.SKIP) {
                 try {
                     entries["system_prompts.json"]?.decodeToString()?.let { json ->
-                        val prompts = Json.decodeFromString<List<SystemPromptEntry>>(json)
+                        val prompts = importJson.decodeFromString<List<SystemPromptEntry>>(json)
                         if (promptsDecision == ImportStrategy.REPLACE) {
                             settingsManager.saveSystemPrompts(prompts)
                         } else {
@@ -352,7 +354,7 @@ class DataImporter(
             if (settingsDecision != null && settingsDecision != ImportStrategy.SKIP) {
                 try {
                     entries["settings.json"]?.decodeToString()?.let { json ->
-                        val s = Json.decodeFromString<ExportSettings>(json)
+                        val s = importJson.decodeFromString<ExportSettings>(json)
                         settingsManager.saveSelectedModel(s.selectedModel)
                         for ((provider, models) in s.availableModels) {
                             settingsManager.saveAvailableModels(provider, models)
@@ -409,7 +411,7 @@ class DataImporter(
             if (keysDecision != null && keysDecision != ImportStrategy.SKIP) {
                 try {
                     entries["api_keys.json"]?.decodeToString()?.let { json ->
-                        val data = Json.decodeFromString<ExportApiKeys>(json)
+                        val data = importJson.decodeFromString<ExportApiKeys>(json)
                         if (keysDecision == ImportStrategy.REPLACE) {
                             settingsManager.saveApiKeys(data.apiKeys)
                             data.webSearchApiKeys.forEach { (provider, key) ->

@@ -14,7 +14,6 @@ class PlaySandboxManager : SandboxManager {
     private val _isBusy = MutableStateFlow(false)
     override var pendingPkgName: String = ""
     override val isBusy: StateFlow<Boolean> = _isBusy
-    override val terminalOutput: StateFlow<String> = _terminalOutput
     private val _packageList = MutableStateFlow<List<SandboxManager.PackageInfo>>(emptyList())
     override val packageList: StateFlow<List<SandboxManager.PackageInfo>> = _packageList
     override suspend fun refreshPackageList() {}
