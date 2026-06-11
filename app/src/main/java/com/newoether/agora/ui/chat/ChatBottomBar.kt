@@ -724,7 +724,7 @@ fun ChatBottomBar(
                         matchTextFieldWidth = false,
                         shape = RoundedCornerShape(16.dp)
                     ) {
-                        val isGemini = provider.equals("google", ignoreCase = true)
+                        val isGemini = provider.equals("google", ignoreCase = true) && isModelValid
                         if (isGemini) {
                             DropdownMenuItem(
                                 text = {

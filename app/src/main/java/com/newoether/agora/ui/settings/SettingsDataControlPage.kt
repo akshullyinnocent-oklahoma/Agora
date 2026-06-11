@@ -972,7 +972,7 @@ private fun AutoBackupPeriodDropdown(currentHours: Int, onSelect: (Int) -> Unit)
                 DropdownMenuItem(
                     text = { Text(stringResource(labelRes)) },
                     onClick = { onSelect(hours); expanded = false },
-                    leadingIcon = if (hours == currentHours) {{ Icon(Icons.Default.Check, null) }} else {{}}
+                    leadingIcon = if (hours == currentHours) {{ Icon(Icons.Default.Check, null, tint = MaterialTheme.colorScheme.primary) }} else {{}}
                 )
             }
         }
@@ -1007,7 +1007,7 @@ private fun AutoDeletePeriodDropdown(currentHours: Int, backupHours: Int, onSele
                 DropdownMenuItem(
                     text = { Text(stringResource(labelRes)) },
                     onClick = { onSelect(hours); expanded = false },
-                    leadingIcon = if (hours == currentHours) {{ Icon(Icons.Default.Check, null) }} else {{}}
+                    leadingIcon = if (hours == currentHours) {{ Icon(Icons.Default.Check, null, tint = MaterialTheme.colorScheme.primary) }} else {{}}
                 )
             }
         }

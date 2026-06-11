@@ -13,7 +13,7 @@ import androidx.compose.material.icons.filled.Cached
 import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.ArrowDropDown
-import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.Download
@@ -195,16 +195,20 @@ fun SettingsSearchPage(viewModel: ChatViewModel, onBack: () -> Unit) {
                                         onDismissRequest = { expanded = false },
                                         shape = RoundedCornerShape(12.dp)
                                     ) {
+                                        val noEmbedding = embeddingModels.isEmpty()
                                         searchMethods.forEach { method ->
+                                            val ragDisabled = method.key == "rag" && noEmbedding
                                             DropdownMenuItem(
-                                                text = { Text(stringResource(method.labelRes)) },
+                                                text = { Text(stringResource(method.labelRes), color = if (ragDisabled) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f) else MaterialTheme.colorScheme.onSurface) },
                                                 leadingIcon = {
                                                     if (modelSearchMethod == method.key)
-                                                        Icon(Icons.Default.CheckCircle, null, tint = MaterialTheme.colorScheme.primary)
+                                                        Icon(Icons.Default.Check, null, tint = if (ragDisabled) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f) else MaterialTheme.colorScheme.primary)
                                                 },
                                                 onClick = {
-                                                    viewModel.setModelSearchMethod(method.key)
-                                                    expanded = false
+                                                    if (!ragDisabled) {
+                                                        viewModel.setModelSearchMethod(method.key)
+                                                        expanded = false
+                                                    }
                                                 }
                                             )
                                         }
@@ -236,16 +240,20 @@ fun SettingsSearchPage(viewModel: ChatViewModel, onBack: () -> Unit) {
                                         onDismissRequest = { expanded = false },
                                         shape = RoundedCornerShape(12.dp)
                                     ) {
+                                        val noEmbedding = embeddingModels.isEmpty()
                                         searchMethods.forEach { method ->
+                                            val ragDisabled = method.key == "rag" && noEmbedding
                                             DropdownMenuItem(
-                                                text = { Text(stringResource(method.labelRes)) },
+                                                text = { Text(stringResource(method.labelRes), color = if (ragDisabled) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f) else MaterialTheme.colorScheme.onSurface) },
                                                 leadingIcon = {
                                                     if (manualSearchMethod == method.key)
-                                                        Icon(Icons.Default.CheckCircle, null, tint = MaterialTheme.colorScheme.primary)
+                                                        Icon(Icons.Default.Check, null, tint = if (ragDisabled) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f) else MaterialTheme.colorScheme.primary)
                                                 },
                                                 onClick = {
-                                                    viewModel.setManualSearchMethod(method.key)
-                                                    expanded = false
+                                                    if (!ragDisabled) {
+                                                        viewModel.setManualSearchMethod(method.key)
+                                                        expanded = false
+                                                    }
                                                 }
                                             )
                                         }
@@ -797,7 +805,7 @@ fun SettingsSearchPage(viewModel: ChatViewModel, onBack: () -> Unit) {
                             SettingsItem(
                                 headlineContent = { Text(stringResource(R.string.local_model_ready)) },
                                 leadingContent = {
-                                    Icon(Icons.Default.CheckCircle, null, tint = MaterialTheme.colorScheme.primary)
+                                    Icon(Icons.Default.Check, null, tint = MaterialTheme.colorScheme.primary)
                                 }
                             )
                         } else {

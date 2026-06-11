@@ -349,6 +349,7 @@
     <string name="transcription_batch_size_desc">Number of images per API call (1–10)</string>
     <string name="transcription_enabled_models">Enabled Models</string>
     <string name="transcription_no_models_enabled">No models enabled</string>
+    <string name="transcription_no_models_hint">Add models above to enable image transcription</string>
     <string name="transcription_add_model">Add Model</string>
     <string name="transcription_ellipsis">Transcribing images…</string>
     <string name="transcription_progress">Transcribing images %1$d/%2$d…</string>
@@ -537,6 +538,8 @@
     <string name="provider_built_in">Built-in Providers</string>
     <string name="custom_provider_section">Custom Providers</string>
     <string name="provider_local_models_summary">%1$d local model(s)</string>
+    <string name="provider_no_local_models">No models added</string>
+    <string name="provider_no_local_models_desc">Import a GGUF model to get started</string>
     <string name="provider_keys_summary">%1$d API key(s)</string>
     <string name="provider_connection">Connection</string>
     <string name="import_model_chat">Import GGUF Model</string>

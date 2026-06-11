@@ -17,6 +17,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Visibility
@@ -190,6 +191,16 @@ fun SettingsProviderDetailPage(
                 SettingsGroup(
                     title = stringResource(R.string.local_models_title),
                     items = buildList {
+                        if (localChatModels.isEmpty()) {
+                            add {
+                                SettingsItem(
+                                    headlineContent = { Text(stringResource(R.string.provider_no_local_models)) },
+                                    supportingContent = { Text(stringResource(R.string.provider_no_local_models_desc)) },
+                                    leadingContent = { Icon(Icons.Default.Info, null, tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)) },
+                                    modifier = Modifier.heightIn(min = 64.dp)
+                                )
+                            }
+                        }
                         localChatModels.forEach { model ->
                             var showMenu by remember { mutableStateOf(false) }
                             add {
@@ -282,7 +293,7 @@ fun SettingsProviderDetailPage(
                                 SettingsItem(
                                     headlineContent = { Text(stringResource(R.string.provider_no_keys, providerName), color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)) },
                                     leadingContent = { Icon(Icons.Default.Key, null, tint = MaterialTheme.colorScheme.primary) },
-                                    modifier = Modifier.heightIn(min = 56.dp)
+                                    modifier = Modifier.heightIn(min = 64.dp)
                                 )
                             }
                             add {

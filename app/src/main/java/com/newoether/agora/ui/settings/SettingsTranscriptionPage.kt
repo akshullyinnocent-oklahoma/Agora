@@ -99,7 +99,7 @@ fun SettingsTranscriptionPage(viewModel: ChatViewModel, onBack: () -> Unit) {
                                 else -> Icon(Icons.Default.Cloud, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp))
                             }
                         },
-                        modifier = Modifier.clickable { showModelDialog = true }
+                        modifier = Modifier.heightIn(min = 64.dp).clickable { showModelDialog = true }
                     )
                 })
             )
@@ -110,8 +110,10 @@ fun SettingsTranscriptionPage(viewModel: ChatViewModel, onBack: () -> Unit) {
                     if (transcriptionEnabledModels.isEmpty()) {
                         add {
                             SettingsItem(
-                                headlineContent = { Text(stringResource(R.string.transcription_no_models_enabled), color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)) },
-                                modifier = Modifier.padding(vertical = 8.dp)
+                                headlineContent = { Text(stringResource(R.string.transcription_no_models_enabled), color = MaterialTheme.colorScheme.onSurfaceVariant) },
+                                supportingContent = { Text(stringResource(R.string.transcription_no_models_hint)) },
+                                leadingContent = { Icon(Icons.Default.Image, null, tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)) },
+                                modifier = Modifier.heightIn(min = 64.dp)
                             )
                         }
                     } else {
@@ -136,8 +138,8 @@ fun SettingsTranscriptionPage(viewModel: ChatViewModel, onBack: () -> Unit) {
                                     },
                                     trailingContent = {
                                         Box {
-                                            IconButton(onClick = { showMenuForModel = model }) {
-                                                Icon(Icons.Default.MoreVert, contentDescription = stringResource(R.string.options))
+                                            IconButton(onClick = { showMenuForModel = model }, modifier = Modifier.size(24.dp)) {
+                                                Icon(Icons.Default.MoreVert, contentDescription = stringResource(R.string.options), modifier = Modifier.size(16.dp))
                                             }
                                             DropdownMenu(
                                                 containerColor = MaterialTheme.colorScheme.surfaceContainer,

@@ -313,6 +313,7 @@
     <string name="transcription_batch_size_desc">每次 API 调用处理的图片数量（1–10）</string>
     <string name="transcription_enabled_models">启用的模型</string>
     <string name="transcription_no_models_enabled">未启用任何模型</string>
+    <string name="transcription_no_models_hint">请在上方添加模型以启用图像转述</string>
     <string name="transcription_add_model">添加模型</string>
     <string name="transcription_ellipsis">正在转述图片…</string>
     <string name="transcription_progress">正在转述图片 %1$d/%2$d…</string>
@@ -553,6 +554,8 @@
     <string name="provider_built_in">内置提供商</string>
     <string name="custom_provider_section">自定义提供商</string>
     <string name="provider_local_models_summary">%1$d 个本地模型</string>
+    <string name="provider_no_local_models">未添加模型</string>
+    <string name="provider_no_local_models_desc">导入 GGUF 模型以开始使用</string>
     <string name="provider_keys_summary">%1$d 个 API 密钥</string>
     <string name="provider_connection">连接</string>
     <string name="local_models_title">本地模型</string>
