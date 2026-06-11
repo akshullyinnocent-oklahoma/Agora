@@ -28,6 +28,7 @@
     <string name="tool_update_active_memory">更新活跃记忆</string>
     <string name="tool_web_search">网页搜索</string>
     <string name="tool_web_fetch">网页抓取</string>
+    <string name="tool_web_fetching">正在抓取 %1$s…</string>
     <string name="tool_web_fetch_done">已抓取 %1$s</string>
     <string name="tool_web_fetch_default">正在抓取网页</string>
     <string name="tool_web_fetch_failed">抓取失败</string>

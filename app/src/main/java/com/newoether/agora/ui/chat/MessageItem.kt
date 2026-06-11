@@ -391,6 +391,7 @@ private fun toolSummary(seg: MessageSegment): String {
         "web_fetch" -> {
             val url = argsJson?.get("url")?.let { (it as? JsonPrimitive)?.content }
             if (isError) stringResource(R.string.tool_web_fetch_failed)
+            else if (content.isEmpty()) stringResource(R.string.tool_web_fetching, url?.take(60)?.ifEmpty { "page" } ?: "web page")
             else if (url != null) stringResource(R.string.tool_web_fetch_done, url.take(60).ifEmpty { "page" })
             else stringResource(R.string.tool_web_fetch_default)
         }
@@ -470,7 +471,8 @@ private fun toolResultSummary(toolName: String, toolArgs: String, result: String
         }
         "web_fetch" -> {
             val url = argsJson?.get("url")?.let { (it as? JsonPrimitive)?.content }
-            if (url != null) stringResource(R.string.tool_web_fetch_done, url.take(60).ifEmpty { "page" })
+            if (result.isEmpty()) stringResource(R.string.tool_web_fetching, url?.take(60)?.ifEmpty { "page" } ?: "web page")
+            else if (url != null) stringResource(R.string.tool_web_fetch_done, url.take(60).ifEmpty { "page" })
             else stringResource(R.string.tool_web_fetch_default)
         }
         "search_conversations" -> {

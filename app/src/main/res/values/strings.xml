@@ -29,6 +29,7 @@
     <string name="tool_update_active_memory">Update Active Memory</string>
     <string name="tool_web_search">Web Search</string>
     <string name="tool_web_fetch">Web Fetch</string>
+    <string name="tool_web_fetching">Fetching %1$s…</string>
     <string name="tool_web_fetch_done">Fetched %1$s</string>
     <string name="tool_web_fetch_default">Fetching web page</string>
     <string name="tool_web_fetch_failed">Fetch failed</string>
