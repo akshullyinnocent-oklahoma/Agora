@@ -65,7 +65,8 @@ fun SettingsShellPage(viewModel: ChatViewModel, onBack: () -> Unit) {
             key(sandboxEntryCount) {
                 SettingsSandboxPage(
                     sandboxManager = viewModel.sandboxManager!!,
-                    onBack = { showSandboxMgmt = false }
+                    onBack = { showSandboxMgmt = false },
+                    showDocFab = showDocFab
                 )
             }
         } else {

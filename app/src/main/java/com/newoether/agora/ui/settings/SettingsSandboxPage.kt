@@ -47,7 +47,7 @@ import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsSandboxPage(sandboxManager: SandboxManager, onBack: () -> Unit) {
+fun SettingsSandboxPage(sandboxManager: SandboxManager, onBack: () -> Unit, showDocFab: Boolean = false) {
     val scope = rememberCoroutineScope()
     val fm = LocalFocusManager.current
     val listState = androidx.compose.foundation.lazy.rememberLazyListState()
@@ -113,7 +113,9 @@ fun SettingsSandboxPage(sandboxManager: SandboxManager, onBack: () -> Unit) {
                     titleContentColor = MaterialTheme.colorScheme.onBackground
                 )
             )
-        }
+        },
+        floatingActionButton = { if (showDocFab) DocumentationFab("sandbox.md") },
+        floatingActionButtonPosition = FabPosition.Center,
     ) { padding ->
         LazyColumn(
             state = listState,
@@ -466,6 +468,11 @@ fun SettingsSandboxPage(sandboxManager: SandboxManager, onBack: () -> Unit) {
                             )
                         }))
                         Spacer(Modifier.height(16.dp))
+                    }
+
+                    // Doc FAB clearance
+                    if (showDocFab) {
+                        item(key = "doc_spacer") { Spacer(modifier = Modifier.height(80.dp)) }
                     }
                 }
             }
