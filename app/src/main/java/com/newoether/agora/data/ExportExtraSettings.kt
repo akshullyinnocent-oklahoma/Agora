@@ -5,9 +5,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
-import kotlinx.serialization.json.putJsonArray
 import kotlinx.serialization.json.putJsonObject
-import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.int
@@ -15,7 +13,6 @@ import kotlinx.serialization.json.float
 import kotlinx.serialization.json.boolean
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.contentOrNull
-import kotlinx.serialization.json.decodeFromJsonElement
 
 /**
  * Extra settings serialized as JsonObject to avoid D8 field-count crash on large @Serializable classes.
@@ -25,12 +22,7 @@ object ExportExtraSettings {
     private val json = Json { ignoreUnknownKeys = true }
 
     suspend fun toJsonObject(sm: SettingsManager): JsonObject = buildJsonObject {
-        val prompts = sm.systemPrompts.first()
-        if (prompts.isNotEmpty()) {
-            putJsonArray("systemPrompts") {
-                prompts.forEach { p -> add(json.encodeToJsonElement(SystemPromptEntry.serializer(), p)) }
-            }
-        }
+        // System prompts are exported standalone as system_prompts.json — NOT duplicated here.
 
         val imgTransEnabled = sm.imageTranscriptionEnabledModels.first()
         put("imageTranscriptionEnabledModels", JsonPrimitive(imgTransEnabled.joinToString(",")))
@@ -85,12 +77,7 @@ object ExportExtraSettings {
     }
 
     suspend fun restoreFromJsonObject(obj: JsonObject, sm: SettingsManager) {
-        obj["systemPrompts"]?.jsonArray?.let { arr ->
-            val prompts = arr.mapNotNull { el ->
-                try { json.decodeFromJsonElement(SystemPromptEntry.serializer(), el) } catch (_: Exception) { null }
-            }
-            if (prompts.isNotEmpty()) sm.saveSystemPrompts(prompts)
-        }
+        // System prompts are restored standalone from system_prompts.json — NOT duplicated here.
         obj["imageTranscriptionEnabledModels"]?.jsonPrimitive?.contentOrNull?.let {
             val set = it.split(",").filter { s -> s.isNotBlank() }.toSet()
             sm.saveImageTranscriptionEnabledModels(set)

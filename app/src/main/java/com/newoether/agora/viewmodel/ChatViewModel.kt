@@ -136,13 +136,27 @@ class ChatViewModel(
         }
         // Sync local chat models into available models
         viewModelScope.launch {
+            var lastLocalIds: List<String>? = null
+            var lastAliases: Map<String, String>? = null
             settingsManager.localChatModels.collect { models ->
                 val localIds = models.map { "Local:${it.modelId}" }
-                settingsManager.saveAvailableModels("Local", localIds)
-                // Keep aliases in sync
-                val aliases = modelAliases.value.toMutableMap()
+                // Read directly from DataStore, NOT from modelAliases StateFlow.
+                // StateFlow may be stale when import writes to DataStore on a different
+                // dispatcher — using .first() guarantees we see the latest committed value.
+                val currentAliases = settingsManager.modelAliases.first()
+                val aliases = currentAliases.toMutableMap()
                 models.forEach { aliases["Local:${it.modelId}"] = it.alias }
-                settingsManager.saveModelAliases(aliases)
+                // Guard against DataStore feedback loop: only write if values actually changed.
+                // (saveAvailableModels/saveModelAliases write to DataStore, which re-emits
+                //  all preference flows, which would re-enter this collect indefinitely.)
+                if (localIds != lastLocalIds) {
+                    settingsManager.saveAvailableModels("Local", localIds)
+                    lastLocalIds = localIds
+                }
+                if (aliases != lastAliases) {
+                    settingsManager.saveModelAliases(aliases)
+                    lastAliases = aliases
+                }
             }
         }
         // Sync custom providers into the providers map

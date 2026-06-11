@@ -293,7 +293,7 @@ class DataExporter(
                     modelSearchMethod = settingsManager.modelSearchMethod.first(),
                     manualSearchMethod = settingsManager.manualSearchMethod.first(),
                     embeddingModels = settingsManager.embeddingModels.first().map { it.copy(localFilePath = "") },
-                    activeEmbeddingModelId = "", // cleared — models don't exist on target device
+                    activeEmbeddingModelId = "", // cleared — embedding models are local GGUF, don't transfer
                     appLanguage = settingsManager.appLanguage.first(),
                     webSearchEnabled = settingsManager.webSearchEnabled.first(),
                     webSearchProvider = settingsManager.webSearchProvider.first(),

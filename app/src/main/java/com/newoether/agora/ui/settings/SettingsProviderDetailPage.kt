@@ -144,10 +144,22 @@ fun SettingsProviderDetailPage(
             if (!isLocal) {
                 val providerInstance = viewModel.getProviderInstance(providerName)
                 val savedUrl = providerBaseUrls[providerName]
-                val baseUrlState = remember(providerName, savedUrl) {
-                    TextFieldState(savedUrl ?: "")
+                // Don't key remember on savedUrl — that causes TextFieldState to be recreated
+                // every time the debounced save writes back to DataStore, overwriting user input.
+                val baseUrlState = remember { TextFieldState(savedUrl ?: "") }
+                // Sync external changes (e.g. import) back into the text field.
+                LaunchedEffect(savedUrl) {
+                    val ext = savedUrl ?: ""
+                    val cur = baseUrlState.text.toString()
+                    if (ext.isNotEmpty() && ext != cur) {
+                        baseUrlState.edit { replace(0, length, ext) }
+                    }
                 }
-                LaunchedEffect(baseUrlState.text) { delay(500); viewModel.setProviderBaseUrl(providerName, baseUrlState.text.toString()) }
+                // Save user input with 500ms debounce.
+                LaunchedEffect(baseUrlState.text) {
+                    delay(500)
+                    viewModel.setProviderBaseUrl(providerName, baseUrlState.text.toString())
+                }
                 SettingsGroup(
                     title = stringResource(R.string.provider_base_url),
                     items = listOf {

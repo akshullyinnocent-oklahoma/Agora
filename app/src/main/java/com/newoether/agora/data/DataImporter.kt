@@ -379,7 +379,7 @@ class DataImporter(
                         settingsManager.saveRagSearchEnabled(s.ragSearchEnabled)
                         settingsManager.saveModelSearchMethod(s.modelSearchMethod)
                         settingsManager.saveManualSearchMethod(s.manualSearchMethod)
-                        // Skip embedding models — GGUF files don't exist on this device
+                        // Skip embedding models — local GGUF/index, don't transfer across devices
                         settingsManager.saveCustomProviders(s.customProviders)
                         settingsManager.saveAppLanguage(s.appLanguage)
                         settingsManager.saveWebSearchEnabled(s.webSearchEnabled)
@@ -391,14 +391,14 @@ class DataImporter(
                         // Skip local chat models — GGUF files don't exist on this device
                         s.activeSystemPromptId?.let { settingsManager.setActiveSystemPromptId(it) }
                         settingsImported = true
+                    }
 
-                        // Restore extra settings if present
-                        entries["extra_settings.json"]?.decodeToString()?.let { json ->
-                            try {
-                                val obj = Json.parseToJsonElement(json).jsonObject
-                                ExportExtraSettings.restoreFromJsonObject(obj, settingsManager)
-                            } catch (_: Exception) { /* older exports may not have extra_settings.json */ }
-                        }
+                    // Restore extra settings if present (hoisted — independent of settings.json)
+                    entries["extra_settings.json"]?.decodeToString()?.let { json ->
+                        try {
+                            val obj = Json.parseToJsonElement(json).jsonObject
+                            ExportExtraSettings.restoreFromJsonObject(obj, settingsManager)
+                        } catch (_: Exception) { /* older exports may not have extra_settings.json */ }
                     }
                 } catch (e: Exception) {
                     errors.add("Settings: ${e.localizedMessage ?: "Unknown error"}")

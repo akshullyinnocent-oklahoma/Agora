@@ -14,7 +14,7 @@ import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.foundation.text.input.rememberTextFieldState
+import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -25,6 +25,7 @@ import androidx.compose.ui.unit.dp
 import com.newoether.agora.R
 import com.newoether.agora.util.noOpBringIntoView
 import com.newoether.agora.viewmodel.ChatViewModel
+import kotlinx.coroutines.delay
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -163,8 +164,19 @@ fun SettingsWebSearchPage(viewModel: ChatViewModel, onBack: () -> Unit) {
                                     Spacer(modifier = Modifier.width(16.dp))
                                     Column(modifier = Modifier.weight(1f)) {
                                         Text(stringResource(R.string.web_search_searxng_url), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface)
-                                        val urlState = rememberTextFieldState(webSearchBaseUrl)
+                                        // Don't key on webSearchBaseUrl — that causes TextFieldState to be
+                                        // recreated every time the debounced save writes to DataStore.
+                                        val urlState = remember { TextFieldState(webSearchBaseUrl) }
+                                        // Sync external changes (e.g. import) back into the text field.
+                                        LaunchedEffect(webSearchBaseUrl) {
+                                            val cur = urlState.text.toString()
+                                            if (webSearchBaseUrl.isNotEmpty() && webSearchBaseUrl != cur) {
+                                                urlState.edit { replace(0, length, webSearchBaseUrl) }
+                                            }
+                                        }
+                                        // Save user input with 500ms debounce.
                                         LaunchedEffect(urlState.text) {
+                                            delay(500)
                                             viewModel.setWebSearchBaseUrl(urlState.text.toString())
                                         }
                                         Box(modifier = Modifier.noOpBringIntoView().padding(top = 8.dp)) {
