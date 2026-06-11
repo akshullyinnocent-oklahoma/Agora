@@ -41,15 +41,29 @@ Deploy the Conch server on your target machine. See the [Conch repository](https
 1. Go to **Settings → Shell**
 2. Enable **Shell Tool**
 3. Tap **Add Device**
-4. Fill in the device details:
+4. Choose the device type: **Conch** or **SSH**
+5. Fill in the device details:
 
-| Field | Description | Example |
-|-------|-------------|---------|
-| **Name** | Display name for this device | `Build Server` |
-| **Description** | Optional note about this machine | `Office Ubuntu box` |
-| **Server URL** | Conch server endpoint (host:port) | `http://192.168.1.100:14216` |
-| **API Key** | Authentication token | From Conch server config |
-| **Timeout** | Command timeout in seconds | `30` |
+=== "Conch"
+
+    | Field | Description | Example |
+    |-------|-------------|---------|
+    | **Name** | Display name for this device | `Build Server` |
+    | **Description** | Optional note about this machine | `Office Ubuntu box` |
+    | **Server URL** | Conch server endpoint (host:port) | `http://192.168.1.100:14216` |
+    | **API Key** | Authentication token | From Conch server config |
+    | **Timeout** | Command timeout in seconds | `30` |
+
+=== "SSH"
+
+    | Field | Description | Example |
+    |-------|-------------|---------|
+    | **Name** | Display name for this device | `VPS Server` |
+    | **Description** | Optional note about this machine | `Production web server` |
+    | **Host** | SSH hostname or IP address | `192.168.1.200` |
+    | **Port** | SSH port | `22` |
+    | **User** | SSH username | `root` |
+    | **Password** | SSH password | Your SSH password |
 
 Tap **Add** to save.
 
@@ -96,20 +110,6 @@ All file operations go through the encrypted Conch channel.
 Conch can also serve as a **Claude Desktop MCP server**. If you use Claude Code or another MCP client, you can configure Conch as a tool provider for remote file and shell access from your desktop.
 
 See the [Conch documentation](https://github.com/newo-ether/conch) for MCP setup instructions.
-
----
-
-## Confirmation Mode
-
-For safety, you can enable **tool confirmation** in **Settings → Generation → Advanced**. When enabled, Agora shows the proposed command before execution:
-
-- **Approve** — execute the command
-- **Deny** — block and notify the model
-
-This is useful for:
-- Production servers where mistakes are costly
-- Destructive commands (`rm`, `dd`, etc.)
-- Learning what the model does before letting it act
 
 ---
 

@@ -64,13 +64,19 @@ Within each section, you can have multiple text blocks and variables. Long-press
 
 Variables are replaced with dynamic values when the message is sent:
 
-| Variable | Expands to | Example |
-|----------|-----------|---------|
-| `{sent_time}` | Current time (HH:mm) | `14:35` |
-| `{sent_date}` | Current date (YYYY-MM-DD) | `2026-06-07` |
+| Variable | Expands to | Example | When Resolved |
+|----------|-----------|---------|---------------|
+| `{time}` | Current time (HH:mm:ss) | `14:30:00` | Prompt compilation |
+| `{date}` | Current date (YYYY-MM-DD) | `2026-05-10` | Prompt compilation |
+| `{sent_time}` | Message sent time (HH:mm) | `10:05` | Per-message |
+| `{sent_date}` | Message sent date (YYYY-MM-DD) | `2026-05-11` | Per-message |
+| `{active_memory}` | Content of the active memory | `[Your saved memory content]` | Prompt compilation |
+| `{model_id}` | Currently selected model ID | `gemini-1.5-flash` | Prompt compilation |
+
+**Per-message variables** (`{sent_time}`, `{sent_date}`) are resolved each time you send a message, so they reflect the exact send time. **Prompt-level variables** (`{time}`, `{date}`, `{active_memory}`, `{model_id}`) are resolved when the system prompt is compiled.
 
 !!! tip
-    Use `{sent_date}` for date-sensitive prompts like "Today is {sent_date}. When discussing recent events, note that your knowledge may be outdated."
+    Use `{sent_date}` for date-sensitive prompts like "Today is {sent_date}. When discussing recent events, note that your knowledge may be outdated." Use `{active_memory}` to inject the model's persistent memory into system instructions.
 
 ### Adding a Variable
 

@@ -55,9 +55,9 @@ Set each to **Keyword** or **Semantic (RAG)**.
 
 | Setting | Range | Description |
 |---------|-------|-------------|
-| **Context messages per search hit** | Variable | How many surrounding messages to include with each match |
-| **Max search results** | Variable | Maximum number of matches to return |
-| **Similarity Threshold** | 0.0–1.0 | RAG only: minimum similarity score for a match. Higher = stricter. |
+| **Context messages per search hit** | 4–32 | How many surrounding messages to include with each match (steps: 4, 8, 12, 16, 20, 24, 28, 32) |
+| **Max search results** | 5–30 | Maximum number of matches to return (steps: 5, 10, 15, 20, 25, 30) |
+| **Similarity Threshold** | 0.0–1.0 | RAG only: minimum similarity score for a match. Higher = stricter. Default: 0.5 |
 
 ### 4. Cache Messages
 

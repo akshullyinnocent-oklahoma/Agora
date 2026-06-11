@@ -68,17 +68,17 @@ Import conversations from other AI chat platforms.
 
 ### Import from Claude
 
-Import conversations from a Claude export `.zip` file:
+Import conversations from a Claude export file:
 
 1. Export your data from [Claude](https://claude.ai/) (Settings → Export Data)
 2. In Agora, go to **Settings → Data Control → Third Party → Import from Claude**
-3. Select the `.zip` file
+3. Select the exported JSON file
 4. Review the preview — see conversation count and message count
 5. Choose **Merge** or **Replace** strategy
 6. Tap **Import**
 
 !!! note
-    Claude exports with attachments are detected and shown in the preview. Attachments themselves are not imported — only the message text.
+    Agora imports conversations from Claude's JSON export format. Attachments are detected and shown in the preview. Attachments themselves are not imported — only the message text.
 
 ### Import from ChatGPT
 

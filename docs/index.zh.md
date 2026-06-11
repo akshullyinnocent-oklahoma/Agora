@@ -13,13 +13,19 @@
 
 - **[对话](conversations.md)** — 非线形分支、消息操作、流式渲染、Markdown 渲染
 - **[API 提供商](provider.md)** — 接入 OpenAI、Anthropic、Google、DeepSeek、Ollama 及自定义端点
+- **[模型](models.md)** — 启用/禁用模型、别名、按提供商同步模型
 - **[系统提示词](system-prompts.md)** — 三段式编辑器、变量替换、单对话切换
+- **[生成参数](generation.md)** — 温度、Top P、最大 Token、推理、频率/存在惩罚
+- **[标题生成](title-generation.md)** — 自动生成对话标题
+- **[图像转录](transcription.md)** — 为不支持视觉的提供商提供的图像转文本管道
+- **[外观](appearance.md)** — 主题模式、配色方案、动态取色、方案风格
 
 ### 代理工具
 
 - **[概述](tools.md)** — 多轮工具调用机制
 - **[网络搜索](web-search.md)** — Brave、Serper、Tavily、SearXNG 集成
 - **[远程 Shell (Conch)](shell.md)** — 加密远程命令执行、文件操作、MCP 集成
+- **[沙盒](sandbox.md)** — 本地 Alpine Linux 环境，用于隔离的命令执行
 
 ### 知识管理
 
@@ -32,6 +38,8 @@
 - **[本地模型](local-model.md)** — 通过 llama.cpp 在设备上运行 GGUF 模型
 - **[PDF 导入](pdf-import.md)** — 提取并发送 PDF 页面给视觉模型
 - **[数据迁移](import-export.md)** — 导出/导入 .agora 文件，从 Claude 和 ChatGPT 导入
+- **[语言](language.md)** — 在英文、中文或系统默认之间切换
+- **[关于](about.md)** — 版本信息、更新、文档开关、链接、评分
 
 ---
 

@@ -13,13 +13,19 @@ Welcome to the Agora user manual. Agora is a BYOK (Bring Your Own Key) LLM clien
 
 - **[Conversations](conversations.md)** — non-linear branching, message operations, streaming, markdown rendering
 - **[API Providers](provider.md)** — connect to OpenAI, Anthropic, Google, DeepSeek, Ollama, and custom endpoints
+- **[Models](models.md)** — enable/disable models, aliases, per-provider model sync
 - **[System Prompts](system-prompts.md)** — three-section editor, variable substitution, per-conversation switching
+- **[Generation](generation.md)** — temperature, top P, max tokens, thinking, frequency/presence penalties
+- **[Title Generation](title-generation.md)** — auto-generate conversation titles
+- **[Image Transcription](transcription.md)** — image-to-text pipeline for vision-blind providers
+- **[Appearance](appearance.md)** — theme mode, color scheme, dynamic color, scheme style
 
 ### Agentic Tools
 
 - **[Overview](tools.md)** — how multi-round tool calling works
 - **[Web Search](web-search.md)** — Brave, Serper, Tavily, SearXNG integration
 - **[Remote Shell (Conch)](shell.md)** — encrypted remote command execution, file operations, MCP integration
+- **[Sandbox](sandbox.md)** — local Alpine Linux environment for isolated command execution
 
 ### Knowledge Management
 
@@ -32,6 +38,8 @@ Welcome to the Agora user manual. Agora is a BYOK (Bring Your Own Key) LLM clien
 - **[Local Models](local-model.md)** — run GGUF models on-device via llama.cpp
 - **[PDF Import](pdf-import.md)** — extract and send PDF pages to vision models
 - **[Data Portability](import-export.md)** — export/import .agora files, import from Claude and ChatGPT
+- **[Language](language.md)** — switch between English, Chinese, or system default
+- **[About](about.md)** — version info, updates, documentation toggles, links, rating
 
 ---
 

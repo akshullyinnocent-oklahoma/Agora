@@ -113,14 +113,6 @@ You control which tools the model can access:
 
 ---
 
-## Tool Execution Confirmation
-
-For sensitive tools (shell commands, file writes), you can enable manual confirmation. When enabled, Agora shows the proposed command before executing it, and you must approve or deny it.
-
-This setting is in **Settings → Generation → Advanced**.
-
----
-
 ## Multi-Round Tool Loops
 
 The model can chain multiple tool calls. For example:

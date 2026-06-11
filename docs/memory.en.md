@@ -73,7 +73,7 @@ Control what the model can access:
 |---------|----------|----------------|
 | **Access Saved Memories** | Settings → Memory | You want the model to read/write memory files |
 | **Access Active Memory** | Settings → Memory | You want the model to update the persistent context |
-| **Access Past Conversations** | Settings → Memory | You want the model to search chat history |
+| **Access Past Conversations** | Settings → Conversation Search | You want the model to search chat history |
 
 All three default to **off**. Enable only what you need.
 

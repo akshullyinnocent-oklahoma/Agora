@@ -4,7 +4,7 @@ Control how models generate responses — from context length to creativity sett
 
 ## Context Window
 
-**Max Context Messages** sets how many recent messages are sent to the model as context.
+**Max Context Messages** sets how many recent messages are sent to the model as context. Default: **20**.
 
 - **5–20** — Shorter context, faster responses, less token usage
 - **20–50** — Longer context for complex, multi-turn conversations
@@ -45,6 +45,22 @@ Usually you adjust *either* temperature *or* top P — not both.
 
 ---
 
+## Default Max Tokens
+
+Sets a maximum token limit for model responses. When set, the model will not generate more than this many tokens in a single response. When **not set** (default), the model's own maximum applies.
+
+Available presets:
+
+```
+256   512   1024   2048
+4096  8192  16384  32768
+```
+
+!!! tip "Leave Unset for Flexibility"
+    For most use cases, leave this unset. Set a limit only when you need consistent response lengths (e.g., short summaries) or want to cap costs.
+
+---
+
 ## Frequency Penalty
 
 Reduces the model's tendency to repeat the same words. Range: **-2.0 – 2.0**.
@@ -79,6 +95,24 @@ When enabled, the model generates internal reasoning before producing the final 
 
 !!! warning "Not All Models Support Thinking"
     Thinking mode requires a model that supports reasoning tokens. If your model doesn't support it, this setting has no effect.
+
+---
+
+## Visualize Context Rollout
+
+When enabled, Agora visually indicates which messages are included in the current context window vs. which have been rolled out (excluded due to the context window limit). This helps you understand:
+
+- How much of your conversation the model can "see"
+- When older messages drop out of context
+- Whether you need to increase the context window
+
+The visualization appears as a subtle marker in the conversation view.
+
+---
+
+## How Parameters Work
+
+All generation parameters are **nullable** — when not explicitly set, they are not sent to the model, and the model uses its own defaults. Each parameter has a reset option to clear the value back to "not set."
 
 ---
 
