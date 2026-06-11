@@ -848,6 +848,16 @@ private fun StrategyChip(label: String, selected: Boolean, onClick: () -> Unit) 
 // Auto Backup section
 // ═══════════════════════════════════════════════════════════════
 
+/** Map a category manifest key to its string resource ID (reuses export_category_* strings). */
+private fun categoryLabelRes(key: String): Int = when (key) {
+    "conversations" -> R.string.export_category_conversations
+    "memories" -> R.string.export_category_memories
+    "system_prompts" -> R.string.export_category_system_prompts
+    "settings" -> R.string.export_category_settings
+    "api_keys" -> R.string.export_category_api_keys
+    else -> R.string.export_category_settings // fallback, never hit
+}
+
 /** Decode a SAF content:// URI into a human-readable path. */
 private fun resolveDisplayPath(uri: String): String {
     if (!uri.startsWith("content://")) {
@@ -1047,7 +1057,7 @@ private fun AutoBackupCategoriesItem(viewModel: ChatViewModel) {
     val displaySummary = when {
         selectedKeys.isEmpty() -> stringResource(R.string.auto_backup_categories_desc)
         selectedKeys.size >= 4 -> stringResource(R.string.auto_backup_categories_desc)
-        else -> selectedKeys.joinToString(", ") { it.replace("_", " ").replaceFirstChar { c -> c.uppercase() } }
+        else -> selectedKeys.map { key -> stringResource(categoryLabelRes(key)) }.joinToString(", ")
     }
 
     SettingsItem(
@@ -1081,11 +1091,11 @@ private fun AutoBackupCategoriesDialog(
     onConfirm: (Set<String>) -> Unit
 ) {
     val categoryOptions = listOf(
-        "conversations" to "对话",
-        "memories" to "记忆",
-        "system_prompts" to "系统提示词",
-        "settings" to "设置",
-        "api_keys" to "API 密钥"
+        "conversations" to R.string.export_category_conversations,
+        "memories" to R.string.export_category_memories,
+        "system_prompts" to R.string.export_category_system_prompts,
+        "settings" to R.string.export_category_settings,
+        "api_keys" to R.string.export_category_api_keys
     )
     var current by remember { mutableStateOf(selectedKeys) }
     val apiKeysChecked = "api_keys" in current
@@ -1097,15 +1107,13 @@ private fun AutoBackupCategoriesDialog(
         title = { Text(stringResource(R.string.auto_backup_categories_dialog_title), fontWeight = FontWeight.Bold) },
         text = {
             Column {
-                categoryOptions.forEach { (key, defaultName) ->
-                    // Try to get localized name; fallback to hardcoded
-                    val label = defaultName // Could use stringResource per key, but keep it simple
+                categoryOptions.forEach { (key, labelRes) ->
                     CheckRow(
                         checked = key in current,
                         onToggle = { checked ->
                             current = if (checked) current + key else current - key
                         },
-                        label = label
+                        label = stringResource(labelRes)
                     )
                 }
                 if (apiKeysChecked) {

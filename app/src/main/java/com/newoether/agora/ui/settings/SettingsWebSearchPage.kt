@@ -203,7 +203,6 @@ fun SettingsWebSearchPage(viewModel: ChatViewModel, onBack: () -> Unit) {
             })
 
             if (webSearchEnabled) {
-                Spacer(modifier = Modifier.height(16.dp))
                 SettingsGroup(title = stringResource(R.string.web_search_advanced), items = buildList {
                     add {
                         Column(

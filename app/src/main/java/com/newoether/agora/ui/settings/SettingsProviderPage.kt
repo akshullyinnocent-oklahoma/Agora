@@ -115,7 +115,7 @@ fun SettingsProviderPage(viewModel: ChatViewModel, onBack: () -> Unit) {
                             .clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) { fm.clearFocus() }
                             .padding(horizontal = 16.dp)
                     ) {
-                        Spacer(modifier = Modifier.height(8.dp))
+                        Spacer(modifier = Modifier.height(16.dp))
 
                         SettingsGroup(title = stringResource(R.string.provider_built_in), items = builtInNames.map { name ->
                             @Composable {
@@ -139,7 +139,6 @@ fun SettingsProviderPage(viewModel: ChatViewModel, onBack: () -> Unit) {
                         })
 
                         if (customProviders.isNotEmpty()) {
-                            Spacer(modifier = Modifier.height(8.dp))
                             SettingsGroup(title = stringResource(R.string.custom_provider_section), items = customProviders.map { config ->
                                 @Composable {
                                     val configured = !providerBaseUrls[config.name].isNullOrBlank()
@@ -160,7 +159,6 @@ fun SettingsProviderPage(viewModel: ChatViewModel, onBack: () -> Unit) {
                             })
                         }
 
-                        Spacer(modifier = Modifier.height(8.dp))
                         val localConfigured = localChatModels.isNotEmpty()
                         SettingsGroup(title = stringResource(R.string.local_models_title), items = listOf {
                             SettingsItem(

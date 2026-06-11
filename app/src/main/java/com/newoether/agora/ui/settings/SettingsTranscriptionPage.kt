@@ -104,8 +104,6 @@ fun SettingsTranscriptionPage(viewModel: ChatViewModel, onBack: () -> Unit) {
                 })
             )
 
-            Spacer(modifier = Modifier.height(16.dp))
-
             SettingsGroup(
                 title = stringResource(R.string.transcription_enabled_models),
                 items = buildList {
@@ -179,8 +177,6 @@ fun SettingsTranscriptionPage(viewModel: ChatViewModel, onBack: () -> Unit) {
                     }
                 }
             )
-
-            Spacer(modifier = Modifier.height(16.dp))
 
             SettingsGroup(
                 title = stringResource(R.string.advanced_title),

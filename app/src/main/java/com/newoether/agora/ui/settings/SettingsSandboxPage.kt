@@ -442,6 +442,7 @@ fun SettingsSandboxPage(sandboxManager: SandboxManager, onBack: () -> Unit, show
 
                     // ═══ Danger Zone ═══
                     item {
+                        Spacer(Modifier.height(24.dp))
                         SettingsGroup(title = stringResource(R.string.sandbox_danger_zone), items = listOf({
                             SettingsItem(
                                 headlineContent = {

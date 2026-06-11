@@ -224,8 +224,6 @@ fun SystemPromptEditorPage(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            Spacer(modifier = Modifier.height(12.dp))
-
             // Tab content
             AnimatedContent(
                 targetState = selectedTab
@@ -304,8 +302,6 @@ fun SystemPromptEditorPage(
                     Spacer(modifier = Modifier.height(4.dp))
                 }
             }
-
-            Spacer(modifier = Modifier.height(12.dp))
 
             // Preview
             Spacer(modifier = Modifier.height(12.dp))

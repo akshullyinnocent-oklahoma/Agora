@@ -129,8 +129,6 @@ fun SettingsGenerationPage(viewModel: ChatViewModel, onBack: () -> Unit) {
                 )
             )
 
-            Spacer(modifier = Modifier.height(16.dp))
-
             // ── Section 2: Default Thinking ──
             val thinkingLevels = listOf("low", "medium", "high")
             val thinkingLevelLabels = listOf(
@@ -234,8 +232,6 @@ fun SettingsGenerationPage(viewModel: ChatViewModel, onBack: () -> Unit) {
                     }
                 )
             )
-
-            Spacer(modifier = Modifier.height(16.dp))
 
             // ── Section 3: Generation Parameters ──
             SettingsGroup(
