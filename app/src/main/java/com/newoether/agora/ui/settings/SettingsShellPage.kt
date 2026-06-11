@@ -111,9 +111,11 @@ fun SettingsShellPage(viewModel: ChatViewModel, onBack: () -> Unit) {
             }))
 
             if (shellEnabled) {
-                // ── Local Sandbox (fdroid only) ──────────────
+                // ── Local Sandbox ───────────────────────────
                 if (viewModel.isSandboxFlavor) {
                     SandboxSection(viewModel, sandboxEnabled, onManage = { sandboxEntryCount++; showSandboxMgmt = true })
+                } else {
+                    SandboxNotSupportedSection()
                 }
 
                 // ── Remote Devices ──────────────────────────
@@ -190,6 +192,19 @@ private fun SandboxSection(viewModel: ChatViewModel, sandboxEnabled: Boolean, on
                 )
             }
         }
+    })
+}
+
+@Composable
+private fun SandboxNotSupportedSection() {
+    SettingsGroup(title = stringResource(R.string.sandbox_title), items = listOf {
+        SettingsItem(
+            headlineContent = { Text(stringResource(R.string.sandbox_not_supported)) },
+            supportingContent = { Text(stringResource(R.string.sandbox_not_supported_desc)) },
+            leadingContent = {
+                Icon(Icons.Default.Terminal, null, tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f))
+            }
+        )
     })
 }
 

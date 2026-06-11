@@ -71,6 +71,8 @@ class PlaySandboxManager : SandboxManager {
 
     override suspend fun apkDelete(packageName: String): Boolean = false
 
+    override suspend fun apkUpgrade(onProgress: (String) -> Unit): Int = 0
+
     override suspend fun getDiskUsageMB(): Long = 0L
 
     override suspend fun reset(): Boolean = false

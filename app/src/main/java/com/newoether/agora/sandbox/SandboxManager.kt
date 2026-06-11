@@ -77,6 +77,9 @@ interface SandboxManager {
     /** Install a package via Alpine apk. */
     suspend fun apkInstall(packageName: String, onProgress: (String) -> Unit = {}): Boolean
 
+    /** Upgrade all installed packages to latest repo versions. Returns upgrade count. */
+    suspend fun apkUpgrade(onProgress: (String) -> Unit = {}): Int
+
     /** List installed Alpine packages. */
     suspend fun apkList(): List<PackageInfo>
 

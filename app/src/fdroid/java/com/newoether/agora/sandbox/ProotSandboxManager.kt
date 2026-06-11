@@ -100,6 +100,8 @@ class ProotSandboxManager(private val context: Context) : SandboxManager {
                 val d = File(rootfsDir, dir)
                 if (d.isDirectory) d.walkTopDown().filter { it.isFile }.forEach { it.setExecutable(true) }
             }
+            // Auto-upgrade to latest repo versions on fresh install
+            try { apkUpgrade { _terminalOutput.value += it + "\n" } } catch (_: Throwable) {}
             isAvailable()
         } catch (e: Throwable) { e.printStackTrace(); lastError = e.message; false }
     }
@@ -300,13 +302,17 @@ class ProotSandboxManager(private val context: Context) : SandboxManager {
             if (n.isNotEmpty()) installed[n] = v
         }
 
-        // 3. Recursively resolve target + transitive deps, skip already installed UNLESS version constraint forces upgrade
+        // 3. Recursively resolve target + transitive deps.
+        // Install if missing; upgrade if repo is newer; NEVER downgrade.
+        // Downgrading breaks version constraints of packages that were
+        // compiled against a newer version in the rootfs.
         val toInstall = linkedSetOf<String>()
         fun resolve(name: String, visited: MutableSet<String> = mutableSetOf()) {
             if (name in visited || name !in repoPkgs) return
             visited.add(name)
             val instVer = installed[name]
-            if (instVer == null || instVer != repoPkgs[name]!!.version) toInstall.add(name)
+            val repoVer = repoPkgs[name]!!.version
+            if (instVer == null || compareAlpineVersions(repoVer, instVer) > 0) toInstall.add(name)
             for (dep in repoPkgs[name]!!.deps) {
                 val dn = dep.takeWhile { it != '=' && it != '>' && it != '<' && it != '~' }
                 if (dn.isNotEmpty()) {
@@ -389,6 +395,83 @@ class ProotSandboxManager(private val context: Context) : SandboxManager {
         result.exitCode == 0
     }
 
+    override suspend fun apkUpgrade(onProgress: (String) -> Unit): Int = withContext(Dispatchers.IO) {
+        if (!isAvailable()) return@withContext 0
+
+        // 1. Download + parse APKINDEX
+        onProgress("Fetching package index...")
+        val indexUrl = "$alpineMirror/aarch64/APKINDEX.tar.gz"
+        val indexFile = File(context.filesDir, "APKINDEX_UPGRADE.tar.gz")
+        try {
+            val conn = URL(indexUrl).openConnection() as HttpURLConnection
+            if (conn.responseCode != 200) { onProgress("HTTP ${conn.responseCode}"); return@withContext 0 }
+            conn.inputStream.use { i -> indexFile.outputStream().use { o -> i.copyTo(o) } }
+        } catch (e: Throwable) { onProgress("FAIL: ${e.message}"); return@withContext 0 }
+        val (repoPkgs, soToPkg) = parseFullApkIndex(indexFile); indexFile.delete()
+
+        // 2. Read installed DB
+        val installedDb = File(rootfsDir, "lib/apk/db/installed")
+        val installed = mutableMapOf<String, String>()
+        if (installedDb.exists()) {
+            var n = ""; var v = ""
+            installedDb.readLines(Charsets.UTF_8).forEach { line ->
+                if (line.startsWith("P:")) n = line.substring(2).trim()
+                else if (line.startsWith("V:")) v = line.substring(2).trim()
+                else if (line.isBlank()) { if (n.isNotEmpty()) installed[n] = v; n = ""; v = "" }
+            }
+            if (n.isNotEmpty()) installed[n] = v
+        }
+
+        // 3. Collect installed packages where repo has a newer version
+        val toUpgrade = linkedSetOf<String>()
+        for ((name, instVer) in installed) {
+            val repoEntry = repoPkgs[name] ?: continue
+            if (compareAlpineVersions(repoEntry.version, instVer) > 0) toUpgrade.add(name)
+        }
+        if (toUpgrade.isEmpty()) { onProgress("All packages up to date."); return@withContext 0 }
+
+        // 4. Recursively add transitive deps of upgradable packages
+        val visited = mutableSetOf<String>()
+        val toInstall = linkedSetOf<String>()
+        fun collect(name: String) {
+            if (name in visited || name !in repoPkgs) return
+            visited.add(name)
+            val instVer = installed[name]
+            if (instVer == null || compareAlpineVersions(repoPkgs[name]!!.version, instVer) > 0) toInstall.add(name)
+            for (dep in repoPkgs[name]!!.deps) {
+                val dn = dep.takeWhile { it != '=' && it != '>' && it != '<' && it != '~' }
+                if (dn.isNotEmpty()) {
+                    if (dn in repoPkgs) collect(dn)
+                    else soToPkg[dn]?.let { collect(it) }
+                }
+            }
+        }
+        for (name in toUpgrade) collect(name)
+        onProgress("${toInstall.size} packages to upgrade")
+
+        // 5. Download + install (same pattern as apkInstall)
+        val tmpDir = File(rootfsDir, "tmp"); tmpDir.listFiles()?.forEach { it.delete() }; tmpDir.mkdirs()
+        val paths = mutableListOf<String>()
+        for (name in toInstall) {
+            val ver = repoPkgs[name]?.version ?: continue
+            val fn = "$name-$ver.apk"; val f = File(context.filesDir, fn)
+            if (!f.exists() || f.length() == 0L) {
+                onProgress("Downloading $fn...")
+                try {
+                    val conn = URL("$alpineMirror/aarch64/$fn").openConnection() as HttpURLConnection
+                    if (conn.responseCode != 200) { onProgress("HTTP ${conn.responseCode}"); tmpDir.listFiles()?.forEach { it.delete() }; return@withContext 0 }
+                    conn.inputStream.use { i -> f.outputStream().use { o -> i.copyTo(o) } }
+                } catch (ex: Throwable) { onProgress("FAIL: ${ex.message}"); tmpDir.listFiles()?.forEach { it.delete() }; return@withContext 0 }
+            }
+            val dst = File(tmpDir, fn); f.copyTo(dst, true); f.delete(); paths.add("/tmp/$fn")
+        }
+
+        onProgress("Installing ${paths.size} packages...")
+        val result = executeRaw("apk add --allow-untrusted --no-network ${paths.joinToString(" ")}", timeoutMs = 300000)
+        onProgress(result.stdout); tmpDir.listFiles()?.forEach { it.delete() }
+        toInstall.size
+    }
+
     override suspend fun getDiskUsageMB(): Long = withContext(Dispatchers.IO) {
         try { rootfsDir.walkTopDown().sumOf { it.length() } / (1024 * 1024) } catch (_: Throwable) { 0L }
     }
@@ -422,6 +505,72 @@ class ProotSandboxManager(private val context: Context) : SandboxManager {
     // ── APKINDEX Parsing ────────────────────────────────
 
     private data class FullPkgEntry(val name: String, val version: String, val deps: List<String>)
+
+    /** Compare two Alpine-style package versions. Returns >0 if a > b, 0 if equal, <0 if a < b.
+     *  Alpine version format: {version}-r{revision}  (e.g. "3.5.2-r1", "1.2.3_pre1-r0").
+     *  -r{revision} is the package revision; if omitted, revision=0.
+     *  The version part is split into tokens: digit runs vs non-digit runs.
+     *  Tokens are compared numerically for digits, lexicographically for letters.
+     *  '_' (underscore) acts as a separator with lower priority than '.'. */
+    private fun compareAlpineVersions(a: String, b: String): Int {
+        fun splitVersion(v: String): Pair<String, Int> {
+            val ri = v.lastIndexOf("-r")
+            val base = if (ri >= 0) v.substring(0, ri) else v
+            val rev  = if (ri >= 0) v.substring(ri + 2).toIntOrNull() ?: 0 else 0
+            return base to rev
+        }
+        fun tokenise(ver: String): List<String> {
+            val tokens = mutableListOf<String>()
+            var i = 0
+            while (i < ver.length) {
+                if (ver[i] == '.' || ver[i] == '_' || ver[i] == '-') {
+                    tokens.add(ver[i].toString()); i++
+                } else if (ver[i].isDigit()) {
+                    val start = i; while (i < ver.length && ver[i].isDigit()) i++
+                    tokens.add(ver.substring(start, i))
+                } else {
+                    val start = i; while (i < ver.length && !ver[i].isDigit() && ver[i] != '.' && ver[i] != '_' && ver[i] != '-') i++
+                    tokens.add(ver.substring(start, i))
+                }
+            }
+            return tokens
+        }
+        fun tokenWeight(token: String): Int = when {
+            token == "~" -> -1
+            token.startsWith("alpha") -> -4
+            token.startsWith("beta")  -> -3
+            token.startsWith("pre")   -> -2
+            token.startsWith("rc")    -> -1
+            else -> 0
+        }
+        fun compareToken(ta: String, tb: String): Int? {
+            val aDig = ta.toIntOrNull()
+            val bDig = tb.toIntOrNull()
+            if (aDig != null && bDig != null) return aDig.compareTo(bDig)
+            // letter tokens: compare pre-release suffixes first, then lexicographically
+            val wa = tokenWeight(ta); val wb = tokenWeight(tb)
+            if (wa != 0 || wb != 0) return wa.compareTo(wb)
+            return ta.compareTo(tb)
+        }
+
+        val (baseA, revA) = splitVersion(a)
+        val (baseB, revB) = splitVersion(b)
+
+        val tokensA = tokenise(baseA)
+        val tokensB = tokenise(baseB)
+        val n = maxOf(tokensA.size, tokensB.size)
+        for (idx in 0 until n) {
+            val ta = tokensA.getOrElse(idx) { "" }
+            val tb = tokensB.getOrElse(idx) { "" }
+            if (ta == "_" && tb == "_") continue
+            if (ta == "_") return -1   // _ has lower priority than anything except another _
+            if (tb == "_") return 1
+            if (ta == tb) continue
+            val cmp = compareToken(ta, tb) ?: ta.compareTo(tb)
+            if (cmp != 0) return cmp
+        }
+        return revA.compareTo(revB)
+    }
 
     private fun parseFullApkIndex(indexFile: File): Pair<Map<String, FullPkgEntry>, Map<String, String>> {
         val result = mutableMapOf<String, FullPkgEntry>()

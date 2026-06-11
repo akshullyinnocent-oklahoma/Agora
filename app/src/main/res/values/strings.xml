@@ -315,6 +315,8 @@
     <string name="sandbox_reset">Reset Environment</string>
     <string name="sandbox_reset_desc">Remove Alpine rootfs and all packages</string>
     <string name="sandbox_reset_confirm">This will delete the Alpine Linux rootfs and all installed packages. This action cannot be undone.</string>
+    <string name="sandbox_not_supported">Local Sandbox Not Supported</string>
+    <string name="sandbox_not_supported_desc">This feature is not available in the current build</string>
 
     <!-- Settings - Title Generation -->
     <string name="title_gen_auto">Auto-Generate Title</string>
