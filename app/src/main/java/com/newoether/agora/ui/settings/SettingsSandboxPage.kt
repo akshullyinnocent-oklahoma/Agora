@@ -254,7 +254,7 @@ fun SettingsSandboxPage(sandboxManager: SandboxManager, onBack: () -> Unit) {
                                         value = installPkg,
                                         onValueChange = { installPkg = it; lastInstallResult = null },
                                         label = { Text(stringResource(R.string.sandbox_package_name)) },
-                                        placeholder = { Text("python3, git, curl...") },
+                                        placeholder = { Text(stringResource(R.string.sandbox_package_placeholder)) },
                                         singleLine = true,
                                         shape = RoundedCornerShape(16.dp),
                                         modifier = Modifier.weight(1f)
@@ -364,7 +364,7 @@ fun SettingsSandboxPage(sandboxManager: SandboxManager, onBack: () -> Unit) {
                     // Section header
                     item(key = "installed_header") {
                         Text(
-                            text = "${stringResource(R.string.sandbox_installed)} ($pkgCount)",
+                            text = stringResource(R.string.sandbox_installed_fmt, pkgCount),
                             style = MaterialTheme.typography.labelLarge,
                             color = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
