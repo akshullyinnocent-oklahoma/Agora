@@ -90,7 +90,7 @@ fun SettingsSandboxPage(sandboxManager: SandboxManager, onBack: () -> Unit) {
     // Package list comes directly from backend — always live
     val backendPackages by sandboxManager.packageList.collectAsState()
 
-    val quickPkgs = listOf("python3", "git", "curl", "openssh", "nodejs", "build-base", "vim", "htop")
+    val quickPkgs = listOf("python3", "git", "curl", "wget", "openssh", "nodejs", "build-base", "htop")
     val pkgCount = backendPackages.size
     var diskUsageMB by remember { mutableStateOf(0L) }
     LaunchedEffect(backendPackages.size) {

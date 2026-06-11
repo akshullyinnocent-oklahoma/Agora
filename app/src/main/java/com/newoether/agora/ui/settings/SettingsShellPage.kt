@@ -289,17 +289,17 @@ private fun DeviceEditor(
                 // Type selector
                 ExposedDropdownMenuBox(expanded = typeMenuExpanded, onExpandedChange = { typeMenuExpanded = it }) {
                     OutlinedTextField(
-                        value = if (typeInput == "ssh") "SSH / SFTP" else "Conch (Encrypted)",
+                        value = if (typeInput == "ssh") "SSH" else "Conch",
                         onValueChange = {}, readOnly = true,
                         label = { Text(stringResource(R.string.shell_device_type)) },
-                        leadingIcon = { Icon(if (typeInput == "ssh") Icons.Default.Dns else Icons.Default.Lock, null) },
+                        leadingIcon = { Icon(Icons.Default.Cable, null) },
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(typeMenuExpanded) },
                         shape = RoundedCornerShape(16.dp),
                         modifier = Modifier.menuAnchor().fillMaxWidth()
                     )
                     ExposedDropdownMenu(expanded = typeMenuExpanded, onDismissRequest = { typeMenuExpanded = false }) {
-                        DropdownMenuItem(text = { Text("Conch (HTTP + Encryption)") }, onClick = { typeInput = "conch"; typeMenuExpanded = false }, leadingIcon = { Icon(Icons.Default.Lock, null) })
-                        DropdownMenuItem(text = { Text("SSH / SFTP") }, onClick = { typeInput = "ssh"; typeMenuExpanded = false }, leadingIcon = { Icon(Icons.Default.Dns, null) })
+                        DropdownMenuItem(text = { Text("Conch") }, onClick = { typeInput = "conch"; typeMenuExpanded = false }, leadingIcon = { Icon(Icons.Default.Cable, null) })
+                        DropdownMenuItem(text = { Text("SSH") }, onClick = { typeInput = "ssh"; typeMenuExpanded = false }, leadingIcon = { Icon(Icons.Default.Cable, null) })
                     }
                 }
                 Spacer(Modifier.height(10.dp))

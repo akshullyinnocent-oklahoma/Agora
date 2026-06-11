@@ -279,6 +279,23 @@
     <string name="sandbox_reset">重置环境</string>
     <string name="sandbox_reset_desc">删除 Alpine rootfs 及所有包</string>
     <string name="sandbox_reset_confirm">这将删除 Alpine Linux rootfs 和所有已安装的包。此操作不可撤销。</string>
+    <string name="sandbox_not_supported">本地沙箱不可用</string>
+    <string name="sandbox_not_supported_desc">当前版本不支持此功能</string>
+    <string name="sandbox_not_installed">未安装</string>
+    <string name="sandbox_extracting_rootfs">正在解压 Alpine rootfs…</string>
+    <string name="sandbox_install_failed">安装失败</string>
+    <string name="sandbox_installed_label">已安装</string>
+    <string name="sandbox_failed_label">失败</string>
+    <string name="sandbox_dashboard_summary">已安装 %d 个包 · aarch64</string>
+    <string name="sandbox_disk_usage_mb">~%d MB / 2 GB</string>
+    <string name="sandbox_disk_usage_gb">~%.1f GB / 2 GB</string>
+    <string name="sandbox_remove_pkg_title">移除 %s</string>
+    <string name="sandbox_remove_pkg_desc">从沙箱中移除 %s？这将释放其占用的磁盘空间。</string>
+    <string name="sandbox_remove_content_desc">移除包</string>
+    <string name="sandbox_manage">管理本地沙箱</string>
+    <string name="sandbox_manage_desc">安装、配置包或重置环境</string>
+    <string name="sandbox_package_placeholder">python3, git, curl…</string>
+    <string name="sandbox_installed_fmt">已安装包 (%d)</string>
 
     <!-- Settings - Title Generation -->
     <string name="title_gen_auto">自动生成标题</string>
