@@ -5,15 +5,10 @@ import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
-import java.net.HttpURLConnection
-import java.net.URL
 import java.nio.file.FileSystems
 class ProotSandboxManager(private val context: Context) : SandboxManager {
 
-    companion object {
-        private const val ALPINE_MIRROR = "https://dl-cdn.alpinelinux.org/alpine/v3.21/main/aarch64"
-        private const val MAX_DISK_MB = 500L
-    }
+    private val alpineMirror = "http://dl-cdn.alpinelinux.org/alpine/v3.21/main/aarch64"
 
     private val rootfsDir: File = File(context.filesDir, "alpine-rootfs")
 
@@ -61,10 +56,7 @@ class ProotSandboxManager(private val context: Context) : SandboxManager {
             rc.writeText("nameserver 8.8.8.8\nnameserver 1.1.1.1\n")
             // Alpine repository config
             val repos = File(rootfsDir, "etc/apk/repositories"); repos.parentFile?.mkdirs()
-            repos.writeText("$ALPINE_MIRROR\n")
-            // Init installed DB if not present
-            val db = File(rootfsDir, "lib/apk/db/installed"); db.parentFile?.mkdirs()
-            if (!db.exists()) db.createNewFile()
+            repos.writeText("$alpineMirror\n")
             // Ensure all binaries are executable recursively
             listOf("bin", "usr/bin", "sbin", "usr/sbin", "usr/libexec").forEach { dir ->
                 val d = File(rootfsDir, dir)
@@ -185,160 +177,44 @@ class ProotSandboxManager(private val context: Context) : SandboxManager {
 
     // ── Package Management ──────────────────────────────
 
-    private data class PkgEntry(val name: String, val version: String, val description: String = "", val deps: List<String> = emptyList())
-
-    private fun getInstalledPackages(): MutableList<PkgEntry> {
-        val db = File(rootfsDir, "lib/apk/db/installed")
-        if (!db.exists()) return mutableListOf()
-        val pkgs = mutableListOf<PkgEntry>()
-        var n = ""; var v = ""; var d = ""
-        db.readLines(Charsets.UTF_8).forEach { line ->
-            when {
-                line.startsWith("P:") -> n = line.substring(2).trim()
-                line.startsWith("V:") -> v = line.substring(2).trim()
-                line.startsWith("T:") -> d = line.substring(2).trim()
-                line.isBlank() && n.isNotBlank() -> { pkgs.add(PkgEntry(name = n, version = v, description = d)); n = ""; v = ""; d = "" }
-            }
-        }
-        if (n.isNotBlank()) pkgs.add(PkgEntry(name = n, version = v, description = d))
-        return pkgs
-    }
-
-    private fun isPackageInstalled(name: String): Boolean =
-        getInstalledPackages().any { it.name == name }
-
     override suspend fun apkInstall(packageName: String, onProgress: (String) -> Unit): Boolean = withContext(Dispatchers.IO) {
-        // Check already installed
-        if (isPackageInstalled(packageName)) {
-            onProgress("Already installed: $packageName")
-            return@withContext true
-        }
-
-        onProgress("Downloading APKINDEX...")
-        val indexFile = File(context.filesDir, "APKINDEX.tar.gz")
-        try { URL("$ALPINE_MIRROR/APKINDEX.tar.gz").openStream().use { i -> indexFile.outputStream().use { o -> i.copyTo(o) } } }
-        catch (e: Throwable) { onProgress("FAIL: ${e.message}"); lastError = "APKINDEX: ${e.message}"; return@withContext false }
-
-        onProgress("Parsing APKINDEX...")
-        val allPkgs = parseApkIndex(indexFile)
-        indexFile.delete()
-
-        val entry = allPkgs[packageName]
-        if (entry == null) {
-            val similar = allPkgs.keys.filter { it.startsWith(packageName.take(2)) }.take(10).joinToString(", ")
-            onProgress("NOT FOUND${if (similar.isNotEmpty()) ". Similar: $similar" else ""}")
-            lastError = if (similar.isNotEmpty()) "'$packageName' not found. Available: $similar" else "'$packageName' not found"
-            return@withContext false
-        }
-
-        // Install dependencies first
-        for (dep in entry.deps) {
-            val depName = dep.takeWhile { it != '=' && it != '>' && it != '<' && it != '~' }
-            if (depName.isNotEmpty() && !isPackageInstalled(depName)) {
-                onProgress("Installing dependency: $depName")
-                val ok = apkInstallInternal(depName, allPkgs, onProgress)
-                if (!ok) onProgress("WARNING: dependency $depName failed")
-            }
-        }
-
-        apkInstallInternal(packageName, allPkgs, onProgress)
-    }
-
-    private suspend fun apkInstallInternal(packageName: String, allPkgs: Map<String, PkgEntry>, onProgress: (String) -> Unit): Boolean {
-        if (isPackageInstalled(packageName)) { onProgress("Already installed: $packageName"); return true }
-
-        val entry = allPkgs[packageName] ?: return false
-        val fileName = "$packageName-${entry.version}.apk"
-        val pkgUrl = "$ALPINE_MIRROR/$fileName"
-        val pkgFile = File(context.filesDir, fileName)
-        onProgress("Downloading $fileName...")
-        try {
-            val conn = URL(pkgUrl).openConnection() as HttpURLConnection
-            val total = conn.contentLength
-            conn.inputStream.use { i -> pkgFile.outputStream().use { o ->
-                val buf = ByteArray(8192); var dl = 0L; var lr = 0L
-                while (true) { val n = i.read(buf); if (n < 0) break; o.write(buf, 0, n); dl += n
-                    if (dl - lr > 50000 || dl == total.toLong()) { lr = dl; onProgress("  ${if (total > 0) "${dl * 100 / total}%" else "?"} (${dl / 1024}KB)") }
-                }
-            } }
-        } catch (e: Throwable) { onProgress("FAIL: ${e.message}"); lastError = "Download: ${e.message}"; return false }
-        onProgress("Downloaded ${pkgFile.length() / 1024}KB")
-
-        onProgress("Extracting $fileName...")
-        try { extractApk(pkgFile, rootfsDir) }
-        catch (e: Throwable) { onProgress("FAIL: ${e.message}"); lastError = "Extract: ${e.message}"; pkgFile.delete(); return false }
-        pkgFile.delete()
-        onProgress("Extracted successfully")
-
-        updateInstalledDb(rootfsDir, packageName, entry.version, entry.description)
-        onProgress("Package database updated")
-        return true
+        if (!isAvailable()) { onProgress("Sandbox not installed"); return@withContext false }
+        onProgress("apk update...")
+        val updateResult = executeRaw("apk update", timeoutMs = 60000)
+        onProgress(updateResult.stdout)
+        onProgress("apk add $packageName...")
+        val result = executeRaw("apk add --no-cache $packageName", timeoutMs = 120000)
+        onProgress(result.stdout)
+        if (result.exitCode != 0) { lastError = result.stderr.ifBlank { result.stdout }; return@withContext false }
+        true
     }
 
     override suspend fun apkList(): List<SandboxManager.PackageInfo> = withContext(Dispatchers.IO) {
         if (!isAvailable()) return@withContext emptyList()
-        getInstalledPackages().map { SandboxManager.PackageInfo(name = it.name, version = it.version, description = it.description) }
+        try {
+            val db = File(rootfsDir, "lib/apk/db/installed")
+            if (!db.exists()) return@withContext emptyList()
+            val pkgs = mutableListOf<SandboxManager.PackageInfo>()
+            var n = ""; var v = ""; var d = ""
+            db.readLines(Charsets.UTF_8).forEach { line ->
+                when {
+                    line.startsWith("P:") -> n = line.substring(2).trim()
+                    line.startsWith("V:") -> v = line.substring(2).trim()
+                    line.startsWith("T:") -> d = line.substring(2).trim()
+                    line.isBlank() && n.isNotBlank() -> { pkgs.add(SandboxManager.PackageInfo(name = n, version = v, description = d)); n = ""; v = ""; d = "" }
+                }
+            }; pkgs
+        } catch (e: Throwable) { emptyList() }
     }
 
     override suspend fun apkDelete(packageName: String): Boolean = withContext(Dispatchers.IO) {
         if (!isAvailable()) return@withContext false
-        try {
-            val pkgs = getInstalledPackages()
-            val filtered = pkgs.filter { it.name != packageName }
-            if (filtered.size == pkgs.size) return@withContext false // not found
-            val db = File(rootfsDir, "lib/apk/db/installed")
-            val sb = StringBuilder()
-            filtered.forEach { sb.appendLine("P:${it.name}"); sb.appendLine("V:${it.version}"); if (it.description.isNotBlank()) sb.appendLine("T:${it.description}"); sb.appendLine() }
-            db.writeText(sb.toString(), Charsets.UTF_8)
-            true
-        } catch (e: Throwable) { false }
+        val result = executeRaw("apk del $packageName", timeoutMs = 60000)
+        result.exitCode == 0
     }
 
     override suspend fun getDiskUsageMB(): Long = withContext(Dispatchers.IO) {
         try { rootfsDir.walkTopDown().sumOf { it.length() } / (1024 * 1024) } catch (_: Throwable) { 0L }
-    }
-
-    private fun updateInstalledDb(rootfsDir: File, packageName: String, version: String, description: String) {
-        val pkgs = getInstalledPackages()
-        if (pkgs.any { it.name == packageName }) return // already recorded
-        File(rootfsDir, "lib/apk/db/installed").appendText(
-            "\nP:$packageName\nV:$version\nT:$description\n\n", Charsets.UTF_8
-        )
-    }
-
-    // ── APKINDEX Parsing ────────────────────────────────
-
-    private fun parseApkIndex(indexFile: File): Map<String, PkgEntry> {
-        val result = mutableMapOf<String, PkgEntry>()
-        java.util.zip.GZIPInputStream(indexFile.inputStream()).use { gz ->
-            org.apache.commons.compress.archivers.tar.TarArchiveInputStream(gz).use { tar ->
-                var entry = tar.nextEntry
-                while (entry != null) {
-                    if (entry.name == "APKINDEX") {
-                        val content = tar.readBytes().toString(Charsets.UTF_8)
-                        val lines = content.lines()
-                        for (i in lines.indices) {
-                            val line = lines[i].trim()
-                            if (!line.startsWith("P:")) continue
-                            val name = line.substring(2).trim()
-                            var version = ""
-                            var desc = ""
-                            val deps = mutableListOf<String>()
-                            for (j in i + 1 until minOf(i + 30, lines.size)) {
-                                val next = lines[j].trim()
-                                if (next.startsWith("C:")) break
-                                if (next.startsWith("V:")) version = next.substring(2).trim()
-                                if (next.startsWith("T:")) desc = next.substring(2).trim()
-                                if (next.startsWith("D:")) deps.addAll(next.substring(2).trim().split(Regex("\\s+")).filter { it.isNotEmpty() })
-                            }
-                            if (name.isNotEmpty() && version.isNotEmpty()) result[name] = PkgEntry(name, version, desc, deps)
-                        }
-                    }
-                    entry = tar.nextEntry
-                }
-            }
-        }
-        return result
     }
 
     // ── Tar Extraction ──────────────────────────────────
@@ -363,19 +239,6 @@ class ProotSandboxManager(private val context: Context) : SandboxManager {
                 if (src.isDirectory) src.walkTopDown().forEach { f -> val rel = f.relativeTo(src).path; val dst = File(outFile, rel); if (f.isDirectory) dst.mkdirs() else { dst.parentFile?.mkdirs(); f.copyTo(dst, true) } }
                 else { outFile.parentFile?.mkdirs(); src.copyTo(outFile, true) }
             } catch (_: Throwable) {}
-        }
-    }
-
-    // ── APK Extraction ──────────────────────────────────
-
-    private fun extractApk(apkFile: File, destDir: File) {
-        val bytes = apkFile.readBytes(); var gzStart = -1; var gzCount = 0
-        for (i in 0 until bytes.size - 1) {
-            if (bytes[i] == 0x1F.toByte() && bytes[i + 1] == 0x8B.toByte()) { gzCount++; if (gzCount == 2) { gzStart = i; break } }
-        }
-        if (gzStart < 0) throw java.io.IOException("Cannot find data.tar.gz in .apk")
-        java.util.zip.GZIPInputStream(bytes.copyOfRange(gzStart, bytes.size).inputStream()).use { gz ->
-            org.apache.commons.compress.archivers.tar.TarArchiveInputStream(gz).use { tar -> extractTarEntries(tar, destDir) }
         }
     }
 
