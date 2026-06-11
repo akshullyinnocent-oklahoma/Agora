@@ -337,12 +337,18 @@ fun MainNavigation(viewModel: ChatViewModel, settingsManager: SettingsManager) {
         }
     }
 
-    // Sandbox events piped into the same global SnackbarHost
+    // Sandbox events piped into the same global SnackbarHost.
+    // Uses a launch+Job pattern so a new message cancels the
+    // previous showSnackbar suspension immediately.
     LaunchedEffect(Unit) {
+        var snackbarJob: Job? = null
         viewModel.sandboxManager?.snackbarMessage?.collect { msg ->
             if (msg != null) {
                 snackbarHostState.currentSnackbarData?.dismiss()
-                snackbarHostState.showSnackbar(msg)
+                snackbarJob?.cancel()
+                snackbarJob = launch {
+                    snackbarHostState.showSnackbar(msg)
+                }
             }
         }
     }

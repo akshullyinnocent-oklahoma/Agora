@@ -17,7 +17,7 @@ import java.net.URL
 import java.nio.file.FileSystems
 class ProotSandboxManager(private val context: Context) : SandboxManager {
 
-    private val alpineMirror = "https://dl-cdn.alpinelinux.org/alpine/v3.21/main"
+    private val alpineMirror = "https://dl-cdn.alpinelinux.org/alpine/edge/main"
     private var sandboxScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val _terminalOutput = MutableStateFlow("")
     override val terminalOutput: StateFlow<String> = _terminalOutput.asStateFlow()
@@ -133,8 +133,10 @@ class ProotSandboxManager(private val context: Context) : SandboxManager {
             try {
                 val ok = apkDelete(name)
                 _terminalOutput.value += if (ok) "✓ Removed $name\n" else "✗ Failed to remove $name\n"
+                _snackbarMessage.value = if (ok) "Removed $name" else "Failed to remove $name"
             } catch (e: Throwable) {
                 _terminalOutput.value += "✗ Error: ${e.message}\n"
+                _snackbarMessage.value = "Error: ${e.message}"
             } finally { ensureShell(); _isBusy.value = false; _packageList.value = apkList() }
         }
     }
@@ -155,7 +157,7 @@ class ProotSandboxManager(private val context: Context) : SandboxManager {
             prootBin.delete()
             _snackbarMessage.value = "Sandbox reset"
             true
-        } catch (e: Throwable) { false }
+        } catch (e: Throwable) { _snackbarMessage.value = "Reset failed"; false }
     }
 
     // ── Shell Execution ─────────────────────────────────
@@ -285,9 +287,21 @@ class ProotSandboxManager(private val context: Context) : SandboxManager {
             conn.inputStream.use { i -> indexFile.outputStream().use { o -> i.copyTo(o) } }
         }
         catch (e: Throwable) { onProgress("FAIL: ${e.javaClass.simpleName}: ${e.message}"); lastError = "${e.javaClass.simpleName}: ${e.message}"; return@withContext false }
-        val (repoPkgs, soToPkg) = parseFullApkIndex(indexFile); indexFile.delete()
 
-        if (packageName !in repoPkgs) { lastError = "Not found: $packageName"; return@withContext false }
+        val repoPkgs: Map<String, FullPkgEntry>
+        val soToPkg: Map<String, String>
+        try {
+            val (r, s) = parseFullApkIndex(indexFile)
+            repoPkgs = r; soToPkg = s
+        } catch (e: Throwable) {
+            onProgress("FAIL: parse index — ${e.javaClass.simpleName}: ${e.message}")
+            lastError = "Parse index: ${e.message}"; indexFile.delete(); return@withContext false
+        } finally { indexFile.delete() }
+
+        if (packageName !in repoPkgs) {
+            onProgress("FAIL: package '$packageName' not found in index")
+            lastError = "Not found: $packageName"; return@withContext false
+        }
 
         // 2. Read installed DB — don't reinstall/downgrade existing packages
         val installedDb = File(rootfsDir, "lib/apk/db/installed")
@@ -407,7 +421,15 @@ class ProotSandboxManager(private val context: Context) : SandboxManager {
             if (conn.responseCode != 200) { onProgress("HTTP ${conn.responseCode}"); return@withContext 0 }
             conn.inputStream.use { i -> indexFile.outputStream().use { o -> i.copyTo(o) } }
         } catch (e: Throwable) { onProgress("FAIL: ${e.message}"); return@withContext 0 }
-        val (repoPkgs, soToPkg) = parseFullApkIndex(indexFile); indexFile.delete()
+
+        val repoPkgs: Map<String, FullPkgEntry>
+        val soToPkg: Map<String, String>
+        try {
+            val (r, s) = parseFullApkIndex(indexFile)
+            repoPkgs = r; soToPkg = s
+        } catch (e: Throwable) {
+            onProgress("FAIL: parse index — ${e.javaClass.simpleName}: ${e.message}"); indexFile.delete(); return@withContext 0
+        } finally { indexFile.delete() }
 
         // 2. Read installed DB
         val installedDb = File(rootfsDir, "lib/apk/db/installed")
