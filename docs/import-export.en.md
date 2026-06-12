@@ -102,9 +102,38 @@ The `.agora` file is a JSON-based archive. If you're technically inclined, you c
 
 ---
 
+## Auto Backup
+
+Agora can automatically back up your data on a schedule. You don't need to remember to export — Agora handles it for you.
+
+### How It Works
+
+- Auto backup runs periodically in the background using Android WorkManager
+- When a backup is due, Agora exports all your data (except API keys) to the configured directory
+- A notification appears only if a backup fails — successful backups are silent
+- Old backups are automatically deleted based on your retention settings
+
+### Configuration
+
+1. Go to **Settings → Data Control → Auto Backup**
+2. Toggle **Auto Backup** on/off
+3. Set **Backup every** — choose 1 day, 3 days, 5 days, 1 week, or 1 month
+4. Choose **Export content** — select which categories to include (API keys are excluded from auto backup)
+5. Set **Backup location** — tap to pick a folder (defaults to `Download/Agora/Backup`)
+6. Toggle **Auto delete old backups** on/off, and set **Delete older than** period
+
+!!! info "Auto Delete Constraint"
+    The delete period must be longer than the backup period. For example, if you back up every week, backups can be auto-deleted after 1 month or 1 year — never sooner. This prevents deleting your only backup before a new one is created.
+
+!!! note
+    Auto backup uses Android's WorkManager to ensure reliability even if the app is closed or the device restarts. Backups may be slightly delayed during Doze mode to conserve battery.
+
+---
+
 ## Best Practices
 
 - **Export regularly** as a backup — keep the file somewhere safe
+- **Enable Auto Backup** for hands-off scheduled protection
 - **Don't include API keys** in routine exports — enable key export only for full device migrations
 - **Use Merge for incremental imports** — Replace is destructive
 - **Preview before importing** — check the export date and content counts to confirm it's the right file

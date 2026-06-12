@@ -125,8 +125,8 @@ class ChatViewModel(
             val notCached = (total - cached).coerceAtLeast(0)
             if (notCached > 0 && !_cachingProgress.value.containsKey(active.id)) {
                 _snackbarMessage.emit(SnackbarEvent(
-                    "$notCached of $total messages not cached.",
-                    "Cache Now"
+                    getApplication<Application>().getString(R.string.messages_not_cached, notCached, total),
+                    getApplication<Application>().getString(R.string.cache_now)
                 ) { cacheMessagesForModel(active.id) })
             }
         }
@@ -894,7 +894,7 @@ class ChatViewModel(
                     val batchSize = model.batchSize.coerceIn(1, 100)
                     if (model.type == EmbeddingModelType.LOCAL) {
                         if (!LlamaEngine.isModelReady(model.localFilePath)) {
-                            if (!silent) _snackbarMessage.emit(SnackbarEvent("Local model file not found. Please re-import the model."))
+                            if (!silent) _snackbarMessage.emit(SnackbarEvent(getApplication<Application>().getString(R.string.local_model_not_found)))
                             return@launch
                         }
                         toProcess.chunked(batchSize).forEach { batch ->

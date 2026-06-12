@@ -317,6 +317,13 @@
     <string name="sandbox_reset_desc">Remove Alpine rootfs and all packages</string>
     <string name="sandbox_reset_confirm">This will delete the Alpine Linux rootfs and all installed packages. This action cannot be undone.</string>
     <string name="sandbox_not_supported">Local Sandbox Not Supported</string>
+    <string name="sandbox_snackbar_installed">Installed %s</string>
+    <string name="sandbox_snackbar_install_failed">Failed to install %s</string>
+    <string name="sandbox_snackbar_removed">Removed %s</string>
+    <string name="sandbox_snackbar_remove_failed">Failed to remove %s</string>
+    <string name="sandbox_snackbar_reset">Sandbox reset</string>
+    <string name="sandbox_snackbar_reset_failed">Reset failed</string>
+    <string name="sandbox_snackbar_error">Error: %s</string>
     <string name="sandbox_not_supported_desc">This feature is not available in the current build</string>
     <string name="sandbox_not_installed">Not installed</string>
     <string name="sandbox_extracting_rootfs">Extracting Alpine rootfs...</string>

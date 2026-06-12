@@ -281,6 +281,13 @@
     <string name="sandbox_reset_desc">删除 Alpine rootfs 及所有包</string>
     <string name="sandbox_reset_confirm">这将删除 Alpine Linux rootfs 和所有已安装的包。此操作不可撤销。</string>
     <string name="sandbox_not_supported">本地沙箱不可用</string>
+    <string name="sandbox_snackbar_installed">已安装 %s</string>
+    <string name="sandbox_snackbar_install_failed">安装失败: %s</string>
+    <string name="sandbox_snackbar_removed">已移除 %s</string>
+    <string name="sandbox_snackbar_remove_failed">移除失败: %s</string>
+    <string name="sandbox_snackbar_reset">沙箱已重置</string>
+    <string name="sandbox_snackbar_reset_failed">重置失败</string>
+    <string name="sandbox_snackbar_error">错误: %s</string>
     <string name="sandbox_not_supported_desc">当前版本不支持此功能</string>
     <string name="sandbox_not_installed">未安装</string>
     <string name="sandbox_extracting_rootfs">正在解压 Alpine rootfs…</string>

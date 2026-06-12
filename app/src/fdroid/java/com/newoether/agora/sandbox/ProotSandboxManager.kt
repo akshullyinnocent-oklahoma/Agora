@@ -2,6 +2,7 @@ package com.newoether.agora.sandbox
 
 import android.content.Context
 import android.util.Log
+import com.newoether.agora.R
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -116,11 +117,11 @@ class ProotSandboxManager(private val context: Context) : SandboxManager {
                 ensureShell()
                 _packageList.value = apkList()
                 _terminalOutput.value += if (ok) "✓ Installed $name\n" else "✗ Failed\n"
-                _snackbarMessage.value = if (ok) "Installed $name" else "Failed to install $name"
+                _snackbarMessage.value = if (ok) context.getString(R.string.sandbox_snackbar_installed, name) else context.getString(R.string.sandbox_snackbar_install_failed, name)
             } catch (e: Throwable) { ensureShell()
                 _packageList.value = apkList()
                 _terminalOutput.value += "✗ Error: ${e.message}\n"
-                _snackbarMessage.value = "Error: ${e.message}"
+                _snackbarMessage.value = context.getString(R.string.sandbox_snackbar_error, e.message ?: "")
             } finally { _isBusy.value = false }
         }
     }
@@ -133,10 +134,10 @@ class ProotSandboxManager(private val context: Context) : SandboxManager {
             try {
                 val ok = apkDelete(name)
                 _terminalOutput.value += if (ok) "✓ Removed $name\n" else "✗ Failed to remove $name\n"
-                _snackbarMessage.value = if (ok) "Removed $name" else "Failed to remove $name"
+                _snackbarMessage.value = if (ok) context.getString(R.string.sandbox_snackbar_removed, name) else context.getString(R.string.sandbox_snackbar_remove_failed, name)
             } catch (e: Throwable) {
                 _terminalOutput.value += "✗ Error: ${e.message}\n"
-                _snackbarMessage.value = "Error: ${e.message}"
+                _snackbarMessage.value = context.getString(R.string.sandbox_snackbar_error, e.message ?: "")
             } finally { ensureShell(); _isBusy.value = false; _packageList.value = apkList() }
         }
     }
@@ -155,9 +156,9 @@ class ProotSandboxManager(private val context: Context) : SandboxManager {
                 kotlinx.coroutines.delay(200)
             }
             prootBin.delete()
-            _snackbarMessage.value = "Sandbox reset"
+            _snackbarMessage.value = context.getString(R.string.sandbox_snackbar_reset)
             true
-        } catch (e: Throwable) { _snackbarMessage.value = "Reset failed"; false }
+        } catch (e: Throwable) { _snackbarMessage.value = context.getString(R.string.sandbox_snackbar_reset_failed); false }
     }
 
     // ── Shell Execution ─────────────────────────────────
