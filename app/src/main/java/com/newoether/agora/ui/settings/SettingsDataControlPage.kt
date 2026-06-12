@@ -76,19 +76,6 @@ fun SettingsDataControlPage(viewModel: ChatViewModel, onBack: () -> Unit) {
     val autoDeleteEnabled by viewModel.autoDeleteEnabled.collectAsState()
     val autoDeletePeriodHours by viewModel.autoDeletePeriodHours.collectAsState()
 
-    // SAF directory picker for auto backup
-    val dirPickerLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.OpenDocumentTree()
-    ) { uri ->
-        if (uri != null) {
-            context.contentResolver.takePersistableUriPermission(
-                uri,
-                Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
-            )
-            viewModel.setAutoBackupDirectory(uri.toString())
-        }
-    }
-
     val isExporting = exportProgress != null
     val isImporting = importProgress != null
 
@@ -1019,7 +1006,6 @@ private fun AutoDeletePeriodDropdown(currentHours: Int, backupHours: Int, onSele
 private fun AutoBackupDirectoryItem(viewModel: ChatViewModel) {
     val context = LocalContext.current
     val directory by viewModel.autoBackupDirectory.collectAsState()
-    var showPickerDialog by remember { mutableStateOf(false) }
 
     val dirPickerLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocumentTree()
