@@ -257,7 +257,7 @@ class ShellToolProvider(
         }
         // If no server specified and only one option exists, try local first
         if (serverName.isBlank()) {
-            if (ctx.sandboxEnabled && sandbox?.isAvailable() == true && ctx.shellDevices.isEmpty()) {
+            if (ctx.sandboxEnabled && sandbox?.isAvailable() == true) {
                 return SandboxBackend()
             }
         }
