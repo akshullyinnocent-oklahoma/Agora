@@ -952,7 +952,9 @@ class GenerationManager(
                 handleStreamEvent(event)
             }
             // Always emit final state after collection completes
-            onStreamUpdate(modelMessage())
+            if (generationJob?.isCancelled != true) {
+                onStreamUpdate(modelMessage())
+            }
 
             // Multi-tool loop
             var toolRound = 0
@@ -1044,6 +1046,9 @@ class GenerationManager(
 
             if (currentStatus != MessageStatus.ERROR) {
                 currentStatus = if (totalText.isNotEmpty() || totalThoughts.isNotEmpty()) MessageStatus.SUCCESS else MessageStatus.ERROR
+            }
+            if (generationJob?.isCancelled == true && currentStatus != MessageStatus.ERROR) {
+                currentStatus = MessageStatus.STOPPED
             }
             } // else { // called buildApiPath when currentStatus == ERROR
         } catch (e: CancellationException) {
