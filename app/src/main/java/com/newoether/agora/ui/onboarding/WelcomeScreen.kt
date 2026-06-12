@@ -675,7 +675,7 @@ private fun AutoBackupPage(enabled: Boolean, onToggle: (Boolean) -> Unit, modifi
             }
             Spacer(Modifier.height(20.dp))
             Row(
-                modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).clickable { onToggle(!enabled) }.padding(vertical = 4.dp),
+                modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).clickable { onToggle(!enabled) }.padding(horizontal = 8.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
