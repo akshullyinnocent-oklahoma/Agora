@@ -236,14 +236,14 @@ class ProotSandboxManager(private val context: Context) : SandboxManager {
     override suspend fun fileGlob(pattern: String, basePath: String): List<String> = withContext(Dispatchers.IO) {
         val base = resolvePath(if (basePath.isBlank()) "/" else basePath)
         val files = mutableListOf<String>(); walkFiles(base, files, rootfsDir.absolutePath)
-        globMatch(files, rootfsDir.absolutePath, pattern)
+        globMatch(files, "/", pattern).map { p -> if (p.startsWith("/")) p else "/$p" }
     }
 
     override suspend fun fileGrep(pattern: String, basePath: String, fileGlob: String): Result<List<SandboxManager.GrepMatch>> = withContext(Dispatchers.IO) {
         try {
             val regex = try { Regex(pattern) } catch (e: Throwable) { Regex(java.util.regex.Pattern.quote(pattern)) }
             val files = if (fileGlob.isNotBlank()) fileGlob(fileGlob, basePath)
-            else { val b = resolvePath(if (basePath.isBlank()) "/" else basePath); val a = mutableListOf<String>(); walkFiles(b, a, rootfsDir.absolutePath); a }
+            else { val b = resolvePath(if (basePath.isBlank()) "/" else basePath); val a = mutableListOf<String>(); walkFiles(b, a, rootfsDir.absolutePath); a.map { "/$it" } }
             val matches = mutableListOf<SandboxManager.GrepMatch>()
             for (file in files) {
                 try {
