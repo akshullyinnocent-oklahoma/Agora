@@ -223,9 +223,15 @@ class ProotSandboxManager(private val context: Context) : SandboxManager {
 
     override suspend fun fileRead(path: String, offset: Long, limit: Long): String = withContext(Dispatchers.IO) {
         val f = resolvePath(path); if (!f.exists()) throw IllegalStateException("File not found: $path")
-        val b = f.readBytes(); val s = offset.coerceIn(0, b.size.toLong()).toInt()
-        val e = if (limit > 0) minOf(s + limit, b.size.toLong()).toInt() else b.size
-        String(b, s, e - s, Charsets.UTF_8)
+        val fileSize = f.length().toInt()
+        val s = offset.coerceIn(0, fileSize.toLong()).toInt()
+        val max = com.newoether.agora.util.Constants.MAX_TOOL_RESULT_LENGTH
+        val e = if (limit > 0) minOf((s + limit).toInt(), fileSize)
+                else minOf(s + max, fileSize)
+        val len = e - s
+        val buf = ByteArray(len)
+        f.inputStream().use { it.skip(s.toLong()); it.read(buf) }
+        String(buf, Charsets.UTF_8)
     }
 
     override suspend fun fileWrite(path: String, content: String): String? = withContext(Dispatchers.IO) {
@@ -264,6 +270,7 @@ class ProotSandboxManager(private val context: Context) : SandboxManager {
     override suspend fun fileEdit(path: String, oldString: String, newString: String, replaceAll: Boolean): SandboxManager.FileEditResult = withContext(Dispatchers.IO) {
         try {
             val f = resolvePath(path); if (!f.exists()) return@withContext SandboxManager.FileEditResult(0, "File not found: $path")
+            if (f.length() > com.newoether.agora.util.Constants.MAX_FILE_CONTENT_READ_LENGTH) return@withContext SandboxManager.FileEditResult(0, "File too large to edit (>${com.newoether.agora.util.Constants.MAX_FILE_CONTENT_READ_LENGTH / 1000}KB)")
             val content = f.readText(Charsets.UTF_8); val count = content.split(oldString).size - 1
             if (count == 0) SandboxManager.FileEditResult(0, "old_string not found in file")
             else if (count > 1 && !replaceAll) SandboxManager.FileEditResult(0, "Found $count matches. Use replace_all=true.")
