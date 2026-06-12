@@ -245,7 +245,6 @@ fun WelcomeScreen(
 
     val fm = LocalFocusManager.current
     var prevPage by remember { mutableIntStateOf(0) }
-    var fetchJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
     LaunchedEffect(pagerState.currentPage) {
         // Save API key / URL when leaving API Key page (handles both swipe and button)
         if (prevPage == PAGE_API_KEY && selectedProvider != null && apiKeyText.isNotBlank()) {
@@ -261,10 +260,11 @@ fun WelcomeScreen(
             visitedPages.add(pagerState.currentPage)
             players[pagerState.currentPage]?.playWhenReady = true
         }
+        // On Model Select page, fetch models after letting async key/URL save commit.
+        // scope.launch survives page changes (swipe cancels LaunchedEffect but not this).
         if (pagerState.currentPage == PAGE_MODEL_CONFIG && selectedProvider != null && selectedProvider != "Local") {
-            fetchJob?.cancel()
-            fetchJob = scope.launch {
-                kotlinx.coroutines.delay(500)
+            scope.launch {
+                kotlinx.coroutines.delay(300)
                 viewModel.fetchAvailableModels()
             }
         }
