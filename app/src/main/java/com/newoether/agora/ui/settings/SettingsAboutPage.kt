@@ -117,10 +117,10 @@ fun SettingsAboutPage(viewModel: ChatViewModel, onBack: () -> Unit) {
                             isChecking = true
                             scope.launch {
                                 val info = withContext(Dispatchers.IO) { viewModel.checkForUpdates() }
-                                updateStatus = if (info != null) {
-                                    context.getString(R.string.about_update_available, info.version)
+                                if (info != null) {
+                                    viewModel.showUpdateDialog(info)
                                 } else {
-                                    context.getString(R.string.about_up_to_date, versionName)
+                                    updateStatus = context.getString(R.string.about_up_to_date, versionName)
                                 }
                                 isChecking = false
                             }

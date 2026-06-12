@@ -425,6 +425,7 @@ class ChatViewModel(
     private val _updateDialogData = MutableStateFlow<com.newoether.agora.util.UpdateInfo?>(null)
     val updateDialogData: StateFlow<com.newoether.agora.util.UpdateInfo?> = _updateDialogData.asStateFlow()
     fun dismissUpdateDialog() { _updateDialogData.value = null }
+    fun showUpdateDialog(info: com.newoether.agora.util.UpdateInfo) { _updateDialogData.value = info }
 
     private val _previewPdfPages = MutableStateFlow<List<String>>(emptyList())
     val previewPdfPages: StateFlow<List<String>> = _previewPdfPages.asStateFlow()

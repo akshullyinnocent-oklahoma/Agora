@@ -309,21 +309,16 @@ fun MainNavigation(viewModel: ChatViewModel, settingsManager: SettingsManager) {
     }
 
     if (showRatingPrompt) {
-        ModalBottomSheet(
+        AlertDialog(
+            containerColor = MaterialTheme.colorScheme.surfaceContainer,
             onDismissRequest = {
                 showRatingPrompt = false
                 ratingScope.launch {
                     settingsManager.saveRatingPromptDismissed(true)
                 }
             },
-            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
-            containerColor = MaterialTheme.colorScheme.surfaceContainer
-        ) {
-            Column(
-                modifier = Modifier
-                    .padding(horizontal = 20.dp, vertical = 20.dp)
-                    .navigationBarsPadding()
-            ) {
+            title = { Text(stringResource(R.string.rating_title), fontWeight = FontWeight.Bold) },
+            text = {
                 RatingForm(
                     onSubmitted = {
                         showRatingPrompt = false
@@ -332,9 +327,17 @@ fun MainNavigation(viewModel: ChatViewModel, settingsManager: SettingsManager) {
                         }
                     }
                 )
+            },
+            confirmButton = { },
+            dismissButton = {
+                TextButton(onClick = {
+                    showRatingPrompt = false
+                    ratingScope.launch {
+                        settingsManager.saveRatingPromptDismissed(true)
+                    }
+                }) { Text(stringResource(R.string.cancel)) }
             }
-            Spacer(modifier = Modifier.height(8.dp))
-        }
+        )
     }
 
     // Sandbox events piped into the same global SnackbarHost.
