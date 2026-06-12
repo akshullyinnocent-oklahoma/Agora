@@ -262,8 +262,7 @@ fun WelcomeScreen(
         }
         if (pagerState.currentPage == PAGE_MODEL_CONFIG && selectedProvider != null && selectedProvider != "Local") {
             scope.launch {
-                viewModel.fetchAvailableModels()
-                kotlinx.coroutines.delay(1500)
+                kotlinx.coroutines.delay(500)
                 viewModel.fetchAvailableModels()
             }
         }
