@@ -1615,6 +1615,7 @@ class ChatViewModel(
     }
 
     fun stopGeneration() {
+        com.newoether.agora.api.HttpClient.activeStreamHandle?.cancel()
         generationJob?.cancel()
         _isLoading.value = false
         val stoppedMsg = _streamingMessage.value?.copy(status = MessageStatus.STOPPED)
