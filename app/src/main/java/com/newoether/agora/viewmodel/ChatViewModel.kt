@@ -64,6 +64,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import java.io.File
@@ -1620,21 +1621,37 @@ class ChatViewModel(
         _isLoading.value = false
         val stoppedMsg = _streamingMessage.value?.copy(status = MessageStatus.STOPPED)
         _streamingMessage.value = stoppedMsg
-        // Also update _allMessages entity immediately so UI reacts without flowOn delay
+        // Track which message IDs need DB persist so Room Flow doesn't overwrite our
+        // in-memory STOPPED status with stale SENDING data from the database.
+        val idsToFix = mutableSetOf<String>()
         if (stoppedMsg != null) {
             _allMessages.update { it.map { m ->
-                if (m.id == stoppedMsg.id) stoppedMsg else m
+                if (m.id == stoppedMsg.id) { idsToFix.add(m.id); stoppedMsg } else m
             } }
         } else {
             // _streamingMessage was null — find the in-flight model message directly
             _allMessages.update { it.map { m ->
                 if (m.participant == Participant.MODEL &&
                     (m.status == MessageStatus.SENDING || m.status == MessageStatus.THINKING || m.status == MessageStatus.TOOL_CALLING || m.status == MessageStatus.TRANSCRIBING)
-                ) m.copy(status = MessageStatus.STOPPED) else m
+                ) { idsToFix.add(m.id); m.copy(status = MessageStatus.STOPPED) } else m
             } }
         }
         _generatingInConversationId.value = null
         AgoraForegroundService.stop(getApplication())
+
+        // Persist STOPPED status to DB immediately (synchronously blocking Main for a
+        // sub-millisecond upsert) so the Room Flow — which replaces _allMessages
+        // entirely on any DB change — reflects the correct terminal state instead
+        // of reverting to the stale SENDING placeholder when sendMessage() inserts
+        // new messages milliseconds from now.
+        if (idsToFix.isNotEmpty()) {
+            kotlinx.coroutines.runBlocking(Dispatchers.IO) {
+                val existing = chatDao.getMessagesByIds(idsToFix.toList())
+                for (entity in existing) {
+                    chatDao.upsertMessage(entity.copy(status = MessageStatus.STOPPED))
+                }
+            }
+        }
     }
 
     fun regenerate(messageId: String) {
@@ -1793,6 +1810,17 @@ class ChatViewModel(
             chatDao.getConversation(currentId)?.let { conv ->
                 chatDao.upsertConversation(conv.copy(lastUpdated = System.currentTimeMillis()))
             }
+            // Set _streamingMessage BEFORE _allMessages so the combine never
+            // evaluates with stale _allMessages data but no streaming overlay.
+            val placeholder = ChatMessage(
+                id = modelMessageId, parentId = newUserMessageId, text = "", participant = Participant.MODEL,
+                status = MessageStatus.SENDING, timestamp = startTime, modelName = currentActiveModel.value
+            )
+            _streamingMessage.value = placeholder
+            _allMessages.update { it.filter { m -> m.id != modelMessageId } + placeholder }
+            val editChildren = _selectedChildren.value.toMutableMap()
+            editChildren[newUserMessageId] = modelMessageId
+            _selectedChildren.value = editChildren
             val resolved = buildEffectiveSystemPrompt(currentId)
             val effectiveSettings = buildEffectiveConversationSettings(currentId)
             val (config, genCtx) = buildGenerationPair(
@@ -2116,6 +2144,18 @@ class ChatViewModel(
             chatDao.getConversation(currentId)?.let { conv ->
                 chatDao.upsertConversation(conv.copy(lastUpdated = System.currentTimeMillis()))
             }
+            // Set _streamingMessage BEFORE _allMessages, so when the combine
+            // re-evaluates on the _allMessages change, _streamingMessage is already
+            // visible — eliminating the single-frame gap.
+            val placeholder = ChatMessage(
+                id = modelMessageId, parentId = userMessageId, text = "", participant = Participant.MODEL,
+                status = MessageStatus.SENDING, timestamp = startTime, modelName = currentActiveModel.value
+            )
+            _streamingMessage.value = placeholder
+            _allMessages.update { it.filter { m -> m.id != modelMessageId } + placeholder }
+            val newChildren = _selectedChildren.value.toMutableMap()
+            newChildren[userMessageId] = modelMessageId
+            _selectedChildren.value = newChildren
             triggerScrollToMessage(userMessageId)
 
             val resolved = buildEffectiveSystemPrompt(currentId)
@@ -2151,7 +2191,13 @@ class ChatViewModel(
                 generateTitle(currentId)
             }
         } finally {
-            _isLoading.value = false
+            // Guard _isLoading: only the active job resets it, preventing a cancelled
+            // coroutine from reverting the button icon mid-generation.
+            if (generationJob === coroutineContext[Job]) {
+                _isLoading.value = false
+            }
+            // sendGate must ALWAYS be freed, even when this coroutine was cancelled
+            // by a subsequent regenerate(). Otherwise the send button stays locked.
             sendGate.set(false)
         }
         } // end launch
