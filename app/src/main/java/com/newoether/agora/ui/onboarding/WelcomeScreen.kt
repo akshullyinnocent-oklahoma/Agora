@@ -46,6 +46,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Cloud
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.AlertDialog
@@ -58,6 +59,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -129,6 +131,7 @@ private fun resolveVideoRes(isDarkTheme: Boolean, darkResId: Int?, lightResName:
 private const val PAGE_PROVIDER = 2
 private const val PAGE_API_KEY = 3
 private const val PAGE_MODEL_CONFIG = 5
+private const val PAGE_AUTO_BACKUP = 6
 
 @Composable
 fun WelcomeScreen(
@@ -146,6 +149,7 @@ fun WelcomeScreen(
     var apiKeyText by remember { mutableStateOf("") }
     var apiKeyVisible by remember { mutableStateOf(false) }
     var selectedModelId by remember { mutableStateOf<String?>(null) }
+    var autoBackupEnabled by remember { mutableStateOf(true) }
     val availableModels by viewModel.availableModels.collectAsState()
     val localChatModels by viewModel.localChatModels.collectAsState()
     val existingApiKeys by viewModel.apiKeys.collectAsState()
@@ -210,6 +214,7 @@ fun WelcomeScreen(
         WelcomePage(stringResource(R.string.onboarding_model_video_title), stringResource(R.string.onboarding_model_video_desc),
             R.raw.welcome_video_3, "welcome_video_3_light"),
         WelcomePage(stringResource(R.string.onboarding_model_select_title), stringResource(R.string.onboarding_model_select_desc)),
+        WelcomePage(stringResource(R.string.onboarding_auto_backup_title), stringResource(R.string.onboarding_auto_backup_desc)),
         WelcomePage(stringResource(R.string.onboarding_done_title), stringResource(R.string.onboarding_done_desc),
             R.raw.welcome_video_4, "welcome_video_4_light")
     )
@@ -324,6 +329,11 @@ fun WelcomeScreen(
                                         modifier = Modifier.fillMaxWidth().padding(horizontal = 36.dp).alpha(contentAlpha)
                                     )
                                 }
+                                PAGE_AUTO_BACKUP -> AutoBackupPage(
+                                    enabled = autoBackupEnabled,
+                                    onToggle = { autoBackupEnabled = it },
+                                    modifier = Modifier.fillMaxWidth().padding(horizontal = 36.dp).alpha(contentAlpha)
+                                )
                                 else -> {
                                     Box(Modifier.fillMaxSize()) {
                                         players[index]?.let { LoopVideo(it) }
@@ -396,6 +406,9 @@ fun WelcomeScreen(
                                         viewModel.setSelectedModel(selectedModelId!!)
                                         viewModel.setEnabledModels(setOf(selectedModelId!!))
                                     }
+                                }
+                                PAGE_AUTO_BACKUP -> {
+                                    viewModel.setAutoBackupEnabled(autoBackupEnabled)
                                 }
                             }
                             scope.launch { pagerState.animateScrollToPage(pagerState.currentPage + 1, animationSpec = tween<Float>(500, easing = CubicBezierEasing(0.2f, 0.0f, 0.0f, 1.0f))) }
@@ -649,4 +662,30 @@ private fun LoopVideo(player: ExoPlayer) {
         factory = { PlayerView(context).apply { this.player = player; useController = false; resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT } },
         modifier = Modifier.fillMaxSize().aspectRatio(1f).alpha(a)
     )
+}
+
+@Composable
+private fun AutoBackupPage(enabled: Boolean, onToggle: (Boolean) -> Unit, modifier: Modifier) {
+    Surface(modifier, RoundedCornerShape(28.dp), color = MaterialTheme.colorScheme.surfaceContainer, tonalElevation = 2.dp) {
+        Column(Modifier.padding(32.dp).fillMaxWidth()) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.Schedule, null, tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.size(36.dp))
+                Spacer(Modifier.width(12.dp))
+                Text(stringResource(R.string.auto_backup_title), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
+            }
+            Spacer(Modifier.height(20.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth().clickable { onToggle(!enabled) }.padding(vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(stringResource(R.string.auto_backup_title), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface)
+                    Text(stringResource(R.string.auto_backup_subtitle), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                Spacer(Modifier.width(16.dp))
+                Switch(checked = enabled, onCheckedChange = onToggle)
+            }
+        }
+    }
 }

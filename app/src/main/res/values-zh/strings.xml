@@ -724,6 +724,8 @@
     <string name="onboarding_model_video_desc">连接 8+ 个 AI 服务商，或通过 llama.cpp 本地运行模型。</string>
     <string name="onboarding_model_select_title">选择模型</string>
     <string name="onboarding_model_select_desc">选择你要使用的模型。</string>
+    <string name="onboarding_auto_backup_title">自动备份</string>
+    <string name="onboarding_auto_backup_desc">按计划自动备份数据，确保不会丢失。</string>
     <string name="onboarding_done_title">一切就绪！</string>
     <string name="onboarding_done_desc">开始聊天，完全掌控你的数据和隐私。</string>
     <string name="onboarding_gguf_title">GGUF 模型</string>

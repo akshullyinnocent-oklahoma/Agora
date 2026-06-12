@@ -720,6 +720,8 @@
     <string name="onboarding_model_video_desc">Connect to 8+ AI providers or run models locally with llama.cpp.</string>
     <string name="onboarding_model_select_title">Select Model</string>
     <string name="onboarding_model_select_desc">Pick the model you want to chat with.</string>
+    <string name="onboarding_auto_backup_title">Auto Backup</string>
+    <string name="onboarding_auto_backup_desc">Automatically back up your data on a schedule so you never lose anything.</string>
     <string name="onboarding_done_title">You\'re All Set!</string>
     <string name="onboarding_done_desc">Start chatting with full control over your data and privacy.</string>
     <string name="onboarding_gguf_title">GGUF Model</string>
