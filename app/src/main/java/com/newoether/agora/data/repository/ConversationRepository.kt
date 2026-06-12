@@ -25,8 +25,45 @@ import kotlinx.serialization.json.Json
  * - Embedding lifecycle management
  */
 class ConversationRepository(
-    private val chatDao: ChatDao
+    private val chatDao: ChatDao,
+    private val blobDir: java.io.File? = null
 ) {
+    companion object {
+        /** JSON larger than this gets offloaded to a file to avoid SQLite 2MB row limit. */
+        private const val OFFLOAD_THRESHOLD = 512 * 1024
+        private const val BLOB_MARKER = "@blob:"
+    }
+
+    // ── ToolCallJson offload ─────────────────────────────────────
+
+    private fun MessageEntity.offloaded(): MessageEntity {
+        val json = toolCallJson ?: return this
+        val dir = blobDir ?: return this
+        if (json.length <= OFFLOAD_THRESHOLD) return this
+        if (json.startsWith(BLOB_MARKER)) return this // already offloaded
+        try {
+            if (!dir.exists()) dir.mkdirs()
+            val fileName = "tc_${id}.json"
+            java.io.File(dir, fileName).writeText(json)
+            return copy(toolCallJson = "$BLOB_MARKER$fileName")
+        } catch (_: Exception) {
+            return this // fallback: keep in DB
+        }
+    }
+
+    private fun MessageEntity.inflated(): MessageEntity {
+        val json = toolCallJson ?: return this
+        if (!json.startsWith(BLOB_MARKER)) return this
+        val dir = blobDir ?: return this
+        try {
+            val fileName = json.removePrefix(BLOB_MARKER)
+            val content = java.io.File(dir, fileName).readText()
+            return copy(toolCallJson = content)
+        } catch (_: Exception) {
+            return this
+        }
+    }
+
     // ── Conversations ─────────────────────────────────────────
 
     fun getAllConversations(): Flow<List<ChatConversation>> =
@@ -46,25 +83,38 @@ class ConversationRepository(
     suspend fun upsertConversation(entity: ChatEntity) = chatDao.upsertConversation(entity)
 
     suspend fun deleteConversation(id: String) {
+        deleteConversationBlobs(id)
         chatDao.deleteEmbeddingsByConversation(id)
         chatDao.deleteMessagesByConversation(id)
         chatDao.deleteConversation(id)
     }
 
+    private suspend fun deleteConversationBlobs(conversationId: String) {
+        val dir = blobDir ?: return
+        try {
+            chatDao.getMessagesForConversation(conversationId).first().forEach { msg ->
+                val json = msg.toolCallJson ?: return@forEach
+                if (json.startsWith(BLOB_MARKER)) {
+                    java.io.File(dir, json.removePrefix(BLOB_MARKER)).delete()
+                }
+            }
+        } catch (_: Exception) { }
+    }
+
     // ── Messages ──────────────────────────────────────────────
 
     fun getMessagesForConversation(conversationId: String): Flow<List<MessageEntity>> =
-        chatDao.getMessagesForConversation(conversationId)
+        chatDao.getMessagesForConversation(conversationId).map { list -> list.map { it.inflated() } }
 
     suspend fun getMessagesForConversationSnapshot(conversationId: String): List<MessageEntity> =
-        chatDao.getMessagesForConversation(conversationId).first()
+        chatDao.getMessagesForConversation(conversationId).first().map { it.inflated() }
 
-    suspend fun upsertMessage(entity: MessageEntity) = chatDao.upsertMessage(entity)
+    suspend fun upsertMessage(entity: MessageEntity) = chatDao.upsertMessage(entity.offloaded())
 
     suspend fun deleteMessagesByIds(ids: List<String>) = chatDao.deleteMessagesByIds(ids)
 
     suspend fun getMessagesByIds(ids: List<String>): List<MessageEntity> =
-        chatDao.getMessagesByIds(ids)
+        chatDao.getMessagesByIds(ids).map { it.inflated() }
 
     // ── Branch Selection ──────────────────────────────────────
 
@@ -102,7 +152,7 @@ class ConversationRepository(
      * when loading a conversation that is not currently generating.
      */
     suspend fun fixStuckMessages(conversationId: String) {
-        val stuckMessages = chatDao.getMessagesForConversation(conversationId).first()
+        val stuckMessages = getMessagesForConversation(conversationId).first()
             .filter {
                 it.status == MessageStatus.SENDING ||
                 it.status == MessageStatus.THINKING ||
@@ -110,7 +160,7 @@ class ConversationRepository(
                 it.status == MessageStatus.TRANSCRIBING
             }
         stuckMessages.forEach { msg ->
-            chatDao.upsertMessage(msg.copy(status = MessageStatus.STOPPED))
+            upsertMessage(msg.copy(status = MessageStatus.STOPPED))
         }
     }
 
@@ -134,14 +184,14 @@ class ConversationRepository(
     // ── Search ────────────────────────────────────────────────
 
     suspend fun searchMessages(query: String, limit: Int = 10): List<MessageEntity> =
-        chatDao.searchMessages(query, limit)
+        chatDao.searchMessages(query, limit).map { it.inflated() }
 
     suspend fun getAllConversationsList(): List<ChatEntity> =
         chatDao.getAllConversationsList()
 
     suspend fun getAllMessagesList(): List<MessageEntity> =
-        chatDao.getAllMessagesList()
+        chatDao.getAllMessagesList().map { it.inflated() }
 
     suspend fun getAllMessagesForIndexing(): List<MessageEntity> =
-        chatDao.getAllMessagesForIndexing()
+        chatDao.getAllMessagesForIndexing().map { it.inflated() }
 }

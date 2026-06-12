@@ -38,7 +38,7 @@ class AppContainer(private val appContext: Context) {
     // ── Repositories ──────────────────────────────────────────
 
     val conversationRepository: ConversationRepository by lazy {
-        ConversationRepository(chatDao)
+        ConversationRepository(chatDao, java.io.File(appContext.filesDir, "agora_blobs"))
     }
     val settingsRepository: SettingsRepository by lazy {
         SettingsRepository(settingsManager)

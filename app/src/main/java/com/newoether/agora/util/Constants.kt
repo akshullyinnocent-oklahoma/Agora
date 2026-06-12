@@ -13,4 +13,6 @@ object Constants {
     const val MAX_FILE_CONTENT_READ_LENGTH = 500_000
     /** Max characters to fetch from a web page */
     const val MAX_WEB_FETCH_HTML_LENGTH = 80_000
+    /** Max characters per tool result (prevents CursorWindow 2MB overflow) */
+    const val MAX_TOOL_RESULT_LENGTH = 100_000
 }

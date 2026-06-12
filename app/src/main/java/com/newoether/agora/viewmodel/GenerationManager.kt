@@ -893,12 +893,13 @@ class GenerationManager(
                         onStreamUpdate(modelMessage())
                         lastEmitMs = System.currentTimeMillis()
                         val result = executeTool(event.name, event.arguments, ctx)
+                        val clipped = result.take(Constants.MAX_TOOL_RESULT_LENGTH)
                         val idx = segments.indexOfLast { it.toolCallId == event.id }
                         if (idx >= 0) {
-                            segments[idx] = segments[idx].copy(toolResult = result)
+                            segments[idx] = segments[idx].copy(toolResult = clipped)
                             roundToolSegments.add(segments[idx])
                         }
-                        val tcd = ToolCallData(event.name, event.arguments, result, event.signature, event.id)
+                        val tcd = ToolCallData(event.name, event.arguments, clipped, event.signature, event.id)
                         if (toolCallData == null) toolCallData = tcd
                         toolCallDataList = toolCallDataList + tcd
                         currentStatus = MessageStatus.SENDING
@@ -924,12 +925,13 @@ class GenerationManager(
                         lastEmitMs = System.currentTimeMillis()
                         val tcds = event.calls.map { call ->
                             val result = executeTool(call.name, call.arguments, ctx)
+                            val clipped = result.take(Constants.MAX_TOOL_RESULT_LENGTH)
                             val idx = segments.indexOfLast { it.toolCallId == call.id }
                             if (idx >= 0) {
-                                segments[idx] = segments[idx].copy(toolResult = result)
+                                segments[idx] = segments[idx].copy(toolResult = clipped)
                                 roundToolSegments.add(segments[idx])
                             }
-                            ToolCallData(call.name, call.arguments, result, call.signature, call.id)
+                            ToolCallData(call.name, call.arguments, clipped, call.signature, call.id)
                         }
                         toolCallData = tcds.firstOrNull()
                         toolCallDataList = tcds
