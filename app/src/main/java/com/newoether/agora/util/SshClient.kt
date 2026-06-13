@@ -151,17 +151,21 @@ class SshClient(
 
     // ── file_glob ──────────────────────────────────────────
 
-    suspend fun fileGlob(pattern: String, basePath: String = ""): List<String> =
+    suspend fun fileGlob(pattern: String, basePath: String = "", depth: Int? = null): List<String> =
         withSftp { sftp ->
             val base = basePath.ifBlank {
                 try { sftp.pwd() } catch (_: Exception) { "/" }
             }.trimEnd('/')
             val allFiles = mutableListOf<String>()
-            sftpListRecursive(sftp, base, allFiles)
+            // null = legacy full recursion; <=0 = explicit unlimited; >=1 = max levels.
+            val remaining = if (depth == null || depth <= 0) -1 else depth
+            sftpListRecursive(sftp, base, allFiles, remaining)
             globMatch(allFiles, base, pattern)
         }
 
-    private fun sftpListRecursive(sftp: ChannelSftp, dir: String, result: MutableList<String>) {
+    // remaining: levels still allowed including the current dir's files. -1 = unlimited;
+    // 1 = only this dir's files (no descent); >1 = descend with one fewer level.
+    private fun sftpListRecursive(sftp: ChannelSftp, dir: String, result: MutableList<String>, remaining: Int = -1) {
         try {
             @Suppress("UNCHECKED_CAST")
             val entries = sftp.ls(dir) as? List<ChannelSftp.LsEntry> ?: return
@@ -170,7 +174,9 @@ class SshClient(
                 if (name == "." || name == "..") continue
                 val fullPath = "$dir/$name"
                 if (entry.attrs.isDir) {
-                    sftpListRecursive(sftp, fullPath, result)
+                    if (remaining < 0 || remaining > 1) {
+                        sftpListRecursive(sftp, fullPath, result, if (remaining < 0) -1 else remaining - 1)
+                    }
                 } else {
                     result.add(fullPath)
                 }

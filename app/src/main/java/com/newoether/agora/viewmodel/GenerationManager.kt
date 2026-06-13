@@ -104,7 +104,6 @@ class GenerationManager(
     private val context: android.content.Context,
     private val sandboxFactory: com.newoether.agora.sandbox.SandboxManagerFactory? = null
 ) {
-    private var generationId = 0
     var onMessagePersisted: ((messageId: String, text: String) -> Unit)? = null
 
     private val memoryToolProvider = MemoryToolProvider(memoryManager)
@@ -747,11 +746,9 @@ class GenerationManager(
         onStreamUpdate: (ChatMessage) -> Unit,
         onLoadingChange: (Boolean) -> Unit,
         onGeneratingIdChange: (String?) -> Unit,
-        onStreamClear: () -> Unit
+        onStreamClear: () -> Unit,
+        isLatestPersist: () -> Boolean
     ) {
-        generationId++
-        val myGenerationId = generationId
-
         val provider = getProviderInstance(config.providerName)
 
         onLoadingChange(true)
@@ -1029,7 +1026,7 @@ class GenerationManager(
                 currentStatus = MessageStatus.STOPPED
             }
 
-            if (!isRegenerate && generationId == myGenerationId) for (msg in toolPath) {
+            if (!isRegenerate && isLatestPersist()) for (msg in toolPath) {
                 if (msg.id.startsWith(Constants.TOOL_MSG_PREFIX) || msg.id.startsWith(Constants.RESULT_MSG_PREFIX)) {
                     val exists = chatDao.getMessagesForConversation(conversationId).first().any { it.id == msg.id }
                     if (!exists) {
@@ -1063,10 +1060,9 @@ class GenerationManager(
                 totalText = "Error: ${e.localizedMessage ?: "An unexpected error occurred."}"
             }
         } finally {
-            val cancelledExternally = generationJob?.isCancelled == true
             withContext(NonCancellable) {
                 try {
-                    if (generationId == myGenerationId) {
+                    if (isLatestPersist()) {
                         val conversationExists = chatDao.getConversation(conversationId) != null
                         if (conversationExists) {
                             val finalSegments = buildLiveSegments(segments, currentThoughtBuf, currentThoughtSignature)
@@ -1088,11 +1084,13 @@ class GenerationManager(
                 } catch (e: Exception) {
                     DebugLog.e("AgoraVM", "Failed to persist message to DB", e)
                 }
-                if (generationId == myGenerationId && !cancelledExternally) {
-                    onStreamClear()
-                    onLoadingChange(false)
-                    onGeneratingIdChange(null)
-                }
+                // Terminal UI cleanup. These callbacks are token-gated at the sink
+                // (in ChatViewModel), so they automatically no-op when this generation
+                // was stopped or superseded — only the still-current generation resets
+                // the loading/streaming/generating-id UI state.
+                onStreamClear()
+                onLoadingChange(false)
+                onGeneratingIdChange(null)
                 AgoraForegroundService.stop(app)
                 if (!AppForegroundTracker.isInForeground && currentStatus == MessageStatus.SUCCESS && totalText.isNotBlank()) {
                     AgoraForegroundService.showCompletionNotification(app, totalText)

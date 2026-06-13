@@ -239,11 +239,13 @@ class ProotSandboxManager(private val context: Context) : SandboxManager {
         catch (e: Throwable) { "Sandbox file write failed: ${e.message}" }
     }
 
-    override suspend fun fileGlob(pattern: String, basePath: String): List<String> = withContext(Dispatchers.IO) {
+    override suspend fun fileGlob(pattern: String, basePath: String, depth: Int?): List<String> = withContext(Dispatchers.IO) {
         val base = resolvePath(if (basePath.isBlank()) "/" else basePath)
         val files = mutableListOf<String>()
         val rootFs = rootfsDir.canonicalPath  // resolves /data/data symlink
-        walkFiles(base, files, rootFs)
+        // null = legacy full recursion; <=0 = explicit unlimited; >=1 = max levels.
+        val remaining = if (depth == null || depth <= 0) -1 else depth
+        walkFiles(base, files, rootFs, remaining)
         globMatch(files, rootFs, pattern).map { "/$it" }
     }
 
@@ -656,10 +658,15 @@ class ProotSandboxManager(private val context: Context) : SandboxManager {
         return resolved
     }
 
-    private fun walkFiles(dir: File, result: MutableList<String>, rootFsAbsPath: String) {
+    // remaining: levels still allowed including the current dir's files. -1 = unlimited;
+    // 1 = only this dir's files (no descent); >1 = descend with one fewer level.
+    private fun walkFiles(dir: File, result: MutableList<String>, rootFsAbsPath: String, remaining: Int = -1) {
         try { dir.listFiles()?.forEach {
-            if (it.isDirectory) walkFiles(it, result, rootFsAbsPath)
-            else {
+            if (it.isDirectory) {
+                if (remaining < 0 || remaining > 1) {
+                    walkFiles(it, result, rootFsAbsPath, if (remaining < 0) -1 else remaining - 1)
+                }
+            } else {
                 val path = try { it.canonicalPath } catch (_: Exception) { it.absolutePath }
                 result.add(path.removePrefix(rootFsAbsPath).removePrefix("/"))
             }

@@ -45,7 +45,7 @@ class PlaySandboxManager : SandboxManager {
     override suspend fun fileWrite(path: String, content: String): String? =
         "Sandbox not available in this build"
 
-    override suspend fun fileGlob(pattern: String, basePath: String): List<String> =
+    override suspend fun fileGlob(pattern: String, basePath: String, depth: Int?): List<String> =
         emptyList()
 
     override suspend fun fileGrep(

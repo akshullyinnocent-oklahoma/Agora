@@ -51,7 +51,6 @@ import com.newoether.agora.service.AgoraForegroundService
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.Job
@@ -64,7 +63,6 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.NonCancellable
-import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import java.io.File
@@ -226,6 +224,24 @@ class ChatViewModel(
     private val generationScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var generationJob: Job? = null
     private val sendGate = java.util.concurrent.atomic.AtomicBoolean(false)
+
+    // ── Generation ownership ──────────────────────────────────────────────
+    // Two independent ownership signals make the generation lifecycle race-free:
+    //
+    //  • uiGenToken — owns the shared UI state (_isLoading, _streamingMessage,
+    //    _generatingInConversationId). Advanced on EVERY stop and EVERY new
+    //    generation. The four streaming callbacks mutate UI state only while their
+    //    captured token is still current, under genLock so the check-and-write is
+    //    atomic against stopGeneration() on the UI thread. A stopped or superseded
+    //    generation therefore cannot resurrect "Thinking…" or flip the button.
+    //
+    //  • persistId — owns the model message's DB row. Advanced ONLY when a new
+    //    generation starts (never on stop), so a stopped generation still persists
+    //    its own accumulated text, while a superseded one is blocked from clobbering
+    //    the newer generation's message.
+    private val genLock = Any()
+    private var uiGenToken = 0L
+    private val persistId = java.util.concurrent.atomic.AtomicLong(0L)
 
     private val generationManager by lazy {
         GenerationManager(
@@ -1307,11 +1323,29 @@ class ChatViewModel(
         return Pair(config, genCtx)
     }
 
-    private fun onStreamClear() {
-        val msg = _streamingMessage.value
-        if (msg?.status != MessageStatus.STOPPED) {
-            if (msg != null) { _allMessages.update { it.map { m -> if (m.id == msg.id) msg else m } } }
-            _streamingMessage.value = null
+    // ── Token-guarded generation callbacks ────────────────────────────────
+    // Every generation captures its uiToken at launch and routes all UI-state
+    // mutations through these helpers. Each holds genLock so "is my token still
+    // current?" and the write happen atomically with respect to stopGeneration().
+    // Once superseded or stopped, the token no longer matches and every call is a
+    // silent no-op — a winding-down generation physically cannot touch the screen.
+    private fun streamUpdate(uiToken: Long, msg: ChatMessage) {
+        synchronized(genLock) { if (uiGenToken == uiToken) _streamingMessage.value = msg }
+    }
+    private fun loadingChange(uiToken: Long, value: Boolean) {
+        synchronized(genLock) { if (uiGenToken == uiToken) _isLoading.value = value }
+    }
+    private fun generatingIdChange(uiToken: Long, id: String?) {
+        synchronized(genLock) { if (uiGenToken == uiToken) _generatingInConversationId.value = id }
+    }
+    private fun streamClear(uiToken: Long) {
+        synchronized(genLock) {
+            if (uiGenToken != uiToken) return
+            val msg = _streamingMessage.value
+            if (msg?.status != MessageStatus.STOPPED) {
+                if (msg != null) { _allMessages.update { it.map { m -> if (m.id == msg.id) msg else m } } }
+                _streamingMessage.value = null
+            }
         }
         val id = activeEmbeddingModelId.value
         if (id.isNotEmpty()) cacheMessagesForModel(id, silent = true)
@@ -1618,40 +1652,35 @@ class ChatViewModel(
     fun stopGeneration() {
         com.newoether.agora.api.HttpClient.activeStreamHandle?.cancel()
         generationJob?.cancel()
-        _isLoading.value = false
-        val stoppedMsg = _streamingMessage.value?.copy(status = MessageStatus.STOPPED)
-        _streamingMessage.value = stoppedMsg
-        // Track which message IDs need DB persist so Room Flow doesn't overwrite our
-        // in-memory STOPPED status with stale SENDING data from the database.
-        val idsToFix = mutableSetOf<String>()
+        // Advance the UI-ownership token and commit the terminal UI state as one
+        // atomic step under genLock. Any callback from the cancelled generation that
+        // is mid-flight on the IO thread is serialized by the same lock, so it either
+        // ran before this (and we overwrite it with STOPPED) or runs after (and is
+        // gated out by the advanced token). Either way "Thinking…" can never resurface.
+        val stoppedMsg = synchronized(genLock) {
+            uiGenToken += 1
+            _isLoading.value = false
+            val s = _streamingMessage.value?.copy(status = MessageStatus.STOPPED)
+            _streamingMessage.value = s
+            _generatingInConversationId.value = null
+            s
+        }
+        // Reflect STOPPED in the in-memory list immediately for instant feedback. The
+        // cancelled generation's own finally block durably persists STOPPED (plus its
+        // full accumulated text) to the DB as it unwinds — persistId is NOT advanced
+        // here, so that write is permitted. Callers that start a new generation join()
+        // that job first, guaranteeing the DB row is terminal before any overlay swap.
         if (stoppedMsg != null) {
-            _allMessages.update { it.map { m ->
-                if (m.id == stoppedMsg.id) { idsToFix.add(m.id); stoppedMsg } else m
-            } }
+            _allMessages.update { it.map { m -> if (m.id == stoppedMsg.id) stoppedMsg else m } }
         } else {
-            // _streamingMessage was null — find the in-flight model message directly
+            // _streamingMessage was null — mark any in-flight model message directly.
             _allMessages.update { it.map { m ->
                 if (m.participant == Participant.MODEL &&
                     (m.status == MessageStatus.SENDING || m.status == MessageStatus.THINKING || m.status == MessageStatus.TOOL_CALLING || m.status == MessageStatus.TRANSCRIBING)
-                ) { idsToFix.add(m.id); m.copy(status = MessageStatus.STOPPED) } else m
+                ) m.copy(status = MessageStatus.STOPPED) else m
             } }
         }
-        _generatingInConversationId.value = null
         AgoraForegroundService.stop(getApplication())
-
-        // Persist STOPPED status to DB immediately (synchronously blocking Main for a
-        // sub-millisecond upsert) so the Room Flow — which replaces _allMessages
-        // entirely on any DB change — reflects the correct terminal state instead
-        // of reverting to the stale SENDING placeholder when sendMessage() inserts
-        // new messages milliseconds from now.
-        if (idsToFix.isNotEmpty()) {
-            kotlinx.coroutines.runBlocking(Dispatchers.IO) {
-                val existing = chatDao.getMessagesByIds(idsToFix.toList())
-                for (entity in existing) {
-                    chatDao.upsertMessage(entity.copy(status = MessageStatus.STOPPED))
-                }
-            }
-        }
     }
 
     fun regenerate(messageId: String) {
@@ -1666,6 +1695,10 @@ class ChatViewModel(
         }
 
         stopGeneration()
+        // Capture ownership on the UI thread, immediately after stopGeneration advanced
+        // the token, so no concurrent stop can slip in before we record it.
+        val prevJob = generationJob
+        val myUiToken = synchronized(genLock) { uiGenToken }
 
         // Compute IDs and set placeholder on the calling thread before launching IO work,
         // so the combine function never sees _streamingMessage=null while the error is in _allMessages.
@@ -1694,6 +1727,10 @@ class ChatViewModel(
         _isLoading.value = true
 
         generationJob = generationScope.launch {
+            // Wait for the previous generation to fully unwind (and durably persist its
+            // own terminal state) before claiming persist ownership for this one.
+            prevJob?.join()
+            val myPersistId = persistId.incrementAndGet()
             try {
                 val userMessage = _allMessages.value.find { it.id == parentId } ?: return@launch
 
@@ -1745,13 +1782,14 @@ class ChatViewModel(
                 config = config,
                 ctx = genCtx,
                 generationJob = generationJob,
-                onStreamUpdate = { _streamingMessage.value = it },
-                onLoadingChange = { _isLoading.value = it },
-                onGeneratingIdChange = { _generatingInConversationId.value = it },
-                onStreamClear = { onStreamClear() }
+                onStreamUpdate = { streamUpdate(myUiToken, it) },
+                onLoadingChange = { loadingChange(myUiToken, it) },
+                onGeneratingIdChange = { generatingIdChange(myUiToken, it) },
+                onStreamClear = { streamClear(myUiToken) },
+                isLatestPersist = { persistId.get() == myPersistId }
             )
             } finally {
-                if (_isLoading.value && generationJob === currentCoroutineContext()[Job]) _isLoading.value = false
+                loadingChange(myUiToken, false)
             }
         }
     }
@@ -1790,7 +1828,12 @@ class ChatViewModel(
         }
 
         stopGeneration()
+        val prevJob = generationJob
+        val myUiToken = synchronized(genLock) { uiGenToken }
         generationJob = generationScope.launch {
+            prevJob?.join()
+            val myPersistId = persistId.incrementAndGet()
+            try {
             val messageToEdit = _allMessages.value.find { it.id == messageId } ?: return@launch
             val newUserMessageId = UUID.randomUUID().toString()
             chatDao.upsertMessage(MessageEntity(
@@ -1816,7 +1859,7 @@ class ChatViewModel(
                 id = modelMessageId, parentId = newUserMessageId, text = "", participant = Participant.MODEL,
                 status = MessageStatus.SENDING, timestamp = startTime, modelName = currentActiveModel.value
             )
-            _streamingMessage.value = placeholder
+            streamUpdate(myUiToken, placeholder)
             _allMessages.update { it.filter { m -> m.id != modelMessageId } + placeholder }
             val editChildren = _selectedChildren.value.toMutableMap()
             editChildren[newUserMessageId] = modelMessageId
@@ -1838,11 +1881,15 @@ class ChatViewModel(
                 config = config,
                 ctx = genCtx,
                 generationJob = generationJob,
-                onStreamUpdate = { _streamingMessage.value = it },
-                onLoadingChange = { _isLoading.value = it },
-                onGeneratingIdChange = { _generatingInConversationId.value = it },
-                onStreamClear = { onStreamClear() }
+                onStreamUpdate = { streamUpdate(myUiToken, it) },
+                onLoadingChange = { loadingChange(myUiToken, it) },
+                onGeneratingIdChange = { generatingIdChange(myUiToken, it) },
+                onStreamClear = { streamClear(myUiToken) },
+                isLatestPersist = { persistId.get() == myPersistId }
             )
+            } finally {
+                loadingChange(myUiToken, false)
+            }
         }
     }
 
@@ -1929,10 +1976,19 @@ class ChatViewModel(
         stopGeneration()
         // Set loading immediately so UI shows sending state during attachment processing
         _isLoading.value = true
+        // Capture ownership on the UI thread right after stopGeneration advanced the token.
+        val prevJob = generationJob
+        val myUiToken = synchronized(genLock) { uiGenToken }
 
         committed = true
         generationJob = generationScope.launch {
             try {
+            // Wait for the previous generation to durably finalize its message (STOPPED +
+            // full text) BEFORE inserting new messages, so the prior bubble can never flash
+            // a stale "generating" status when its streaming overlay is replaced. Only then
+            // claim persist ownership for this generation.
+            prevJob?.join()
+            val myPersistId = persistId.incrementAndGet()
             val app = getApplication<Application>()
             // mediaUris: URIs that need processImages (images, video content:// URIs)
             // directPaths: paths that skip processImages (pre-extracted frames, PDF copies, rendered pages)
@@ -2151,7 +2207,7 @@ class ChatViewModel(
                 id = modelMessageId, parentId = userMessageId, text = "", participant = Participant.MODEL,
                 status = MessageStatus.SENDING, timestamp = startTime, modelName = currentActiveModel.value
             )
-            _streamingMessage.value = placeholder
+            streamUpdate(myUiToken, placeholder)
             _allMessages.update { it.filter { m -> m.id != modelMessageId } + placeholder }
             val newChildren = _selectedChildren.value.toMutableMap()
             newChildren[userMessageId] = modelMessageId
@@ -2176,10 +2232,11 @@ class ChatViewModel(
                     config = config,
                     ctx = genCtx,
                     generationJob = generationJob,
-                    onStreamUpdate = { _streamingMessage.value = it },
-                    onLoadingChange = { _isLoading.value = it },
-                    onGeneratingIdChange = { _generatingInConversationId.value = it },
-                    onStreamClear = { onStreamClear() }
+                    onStreamUpdate = { streamUpdate(myUiToken, it) },
+                    onLoadingChange = { loadingChange(myUiToken, it) },
+                    onGeneratingIdChange = { generatingIdChange(myUiToken, it) },
+                    onStreamClear = { streamClear(myUiToken) },
+                    isLatestPersist = { persistId.get() == myPersistId }
                 )
             } catch (e: CancellationException) {
                 throw e
@@ -2191,11 +2248,9 @@ class ChatViewModel(
                 generateTitle(currentId)
             }
         } finally {
-            // Guard _isLoading: only the active job resets it, preventing a cancelled
-            // coroutine from reverting the button icon mid-generation.
-            if (generationJob === coroutineContext[Job]) {
-                _isLoading.value = false
-            }
+            // Token-gated: only the still-current generation clears the button, so a
+            // cancelled/superseded coroutine can't revert the icon mid-generation.
+            loadingChange(myUiToken, false)
             // sendGate must ALWAYS be freed, even when this coroutine was cancelled
             // by a subsequent regenerate(). Otherwise the send button stays locked.
             sendGate.set(false)

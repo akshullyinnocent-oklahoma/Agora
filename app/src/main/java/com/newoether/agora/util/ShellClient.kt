@@ -169,6 +169,12 @@ class ShellClient(
 
     private suspend fun filePost(path: String, payload: String): String? {
         if (apiKey.isBlank()) return null
+        // Lazily establish the encrypted session. The file endpoints need the server
+        // public key just like /execute does, but (unlike executeCommand) nothing
+        // pre-fetches it for the file tools — so fetch it here on first use.
+        if (serverPublicKey == null && !fetchPublicKey()) {
+            throw IllegalStateException(lastError ?: "Failed to fetch server public key")
+        }
         val pubKey = serverPublicKey
             ?: throw IllegalStateException("Server public key not available. Call fetchPublicKey() first.")
 
@@ -229,10 +235,11 @@ class ShellClient(
         return json["error"]?.jsonPrimitive?.content
     }
 
-    suspend fun fileGlob(pattern: String, basePath: String = ""): Result<List<String>> {
-        val params = mutableMapOf("pattern" to pattern)
+    suspend fun fileGlob(pattern: String, basePath: String = "", depth: Int? = null): Result<List<String>> {
+        val params = mutableMapOf<String, Any>("pattern" to pattern)
         if (basePath.isNotBlank()) params["path"] = basePath
-        val payload = buildJsonBodyFile(params)
+        if (depth != null) params["depth"] = depth
+        val payload = buildJsonBodyFileMixed(params)
         val jsonStr = filePost("/file/glob", payload)
             ?: return Result.failure(Exception("No response from server"))
         val json = Json.parseToJsonElement(jsonStr).jsonObject

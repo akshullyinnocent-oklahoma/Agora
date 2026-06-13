@@ -56,8 +56,12 @@ interface SandboxManager {
     /** Write a file into the sandbox filesystem. Returns null on success. */
     suspend fun fileWrite(path: String, content: String): String?
 
-    /** List files matching a glob pattern within the sandbox. */
-    suspend fun fileGlob(pattern: String, basePath: String = ""): List<String>
+    /**
+     * List files matching a glob pattern within the sandbox.
+     * depth: null = recurse fully (legacy behavior); >= 1 = at most that many
+     * directory levels below basePath; 0 = unlimited recursion.
+     */
+    suspend fun fileGlob(pattern: String, basePath: String = "", depth: Int? = null): List<String>
 
     /** Grep for a regex pattern within sandbox files. */
     suspend fun fileGrep(

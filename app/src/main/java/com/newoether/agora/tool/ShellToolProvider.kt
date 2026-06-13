@@ -77,7 +77,7 @@ class ShellToolProvider(
         suspend fun executeCommand(cmd: String, workdir: String, timeoutMs: Int): String
         suspend fun fileRead(path: String, offset: Long, limit: Long): String
         suspend fun fileWrite(path: String, content: String): String?
-        suspend fun fileGlob(pattern: String, basePath: String): Result<List<String>>
+        suspend fun fileGlob(pattern: String, basePath: String, depth: Int?): Result<List<String>>
         suspend fun fileGrep(pattern: String, basePath: String, fileGlob: String): Result<List<ShellClient.GrepMatch>>
         fun close()
     }
@@ -147,8 +147,8 @@ class ShellToolProvider(
         override suspend fun fileWrite(path: String, content: String): String? =
             client.fileWrite(path, content)?.let { jsonError("file_write", it, server = deviceName) }
 
-        override suspend fun fileGlob(pattern: String, basePath: String): Result<List<String>> =
-            client.fileGlob(pattern, basePath)
+        override suspend fun fileGlob(pattern: String, basePath: String, depth: Int?): Result<List<String>> =
+            client.fileGlob(pattern, basePath, depth)
 
         override suspend fun fileGrep(pattern: String, basePath: String, fileGlob: String): Result<List<ShellClient.GrepMatch>> =
             client.fileGrep(pattern, basePath, fileGlob)
@@ -195,8 +195,8 @@ class ShellToolProvider(
         override suspend fun fileWrite(path: String, content: String): String? =
             client.fileWrite(path, content)?.let { jsonError("file_write", it, server = deviceName) }
 
-        override suspend fun fileGlob(pattern: String, basePath: String): Result<List<String>> =
-            Result.success(client.fileGlob(pattern, basePath))
+        override suspend fun fileGlob(pattern: String, basePath: String, depth: Int?): Result<List<String>> =
+            Result.success(client.fileGlob(pattern, basePath, depth))
 
         override suspend fun fileGrep(pattern: String, basePath: String, fileGlob: String): Result<List<ShellClient.GrepMatch>> =
             client.fileGrep(pattern, basePath, fileGlob).map { matches ->
@@ -238,8 +238,8 @@ class ShellToolProvider(
         override suspend fun fileWrite(path: String, content: String): String? =
             mgr.fileWrite(path, content)?.let { jsonError("file_write", it, server = "Local Sandbox") }
 
-        override suspend fun fileGlob(pattern: String, basePath: String): Result<List<String>> =
-            Result.success(mgr.fileGlob(pattern, basePath))
+        override suspend fun fileGlob(pattern: String, basePath: String, depth: Int?): Result<List<String>> =
+            Result.success(mgr.fileGlob(pattern, basePath, depth))
 
         override suspend fun fileGrep(pattern: String, basePath: String, fileGlob: String): Result<List<ShellClient.GrepMatch>> =
             mgr.fileGrep(pattern, basePath, fileGlob).map { matches ->
@@ -360,9 +360,10 @@ class ShellToolProvider(
                 description = "List files on a shell server or local sandbox matching a glob pattern.",
                 parameters = ToolParameters(
                     properties = mapOf(
-                        "pattern" to ToolProperty("string", "Glob pattern (e.g. '*.go', '**/*.md')."),
+                        "pattern" to ToolProperty("string", "Glob pattern matched against file names (e.g. '*.go', '*.md')."),
                         "server" to fileServerProperty,
-                        "path" to ToolProperty("string", "Base directory for the search (optional).")
+                        "path" to ToolProperty("string", "Base directory for the search (optional)."),
+                        "depth" to ToolProperty("integer", "Max directory levels to search below 'path': 1 = base directory only, higher values recurse deeper, 0 = unlimited recursion. Omit for the server default.")
                     ),
                     required = listOf("pattern") + fileRequired
                 )
@@ -544,11 +545,13 @@ class ShellToolProvider(
         if (pattern.isBlank()) return jsonError("file_glob", "pattern is required")
         val serverName = arg(args, "server")
         val basePath = arg(args, "path")
+        // Absent/blank → null → backward-compatible default behavior per backend.
+        val depth = arg(args, "depth").toIntOrNull()
 
         val backend = getBackend(serverName, ctx)
             ?: return jsonError("file_glob", serverNotFoundMessage(serverName, ctx))
         try {
-            val result = backend.fileGlob(pattern, basePath)
+            val result = backend.fileGlob(pattern, basePath, depth)
             return result.fold(
                 onSuccess = { files ->
                     buildJsonObject {
