@@ -79,7 +79,13 @@ class ChatViewModel(
     private val chatDao: ChatDao,
     val memoryManager: MemoryManager,
     private val appContext: Context,
-    private val sandboxFactory: com.newoether.agora.sandbox.SandboxManagerFactory? = null
+    private val sandboxFactory: com.newoether.agora.sandbox.SandboxManagerFactory? = null,
+    // Injected via AppContainer/ChatViewModelFactory. Nullable + fallback keeps any
+    // direct construction (e.g. tests) working.
+    private val injectedAutoBackupManager: com.newoether.agora.data.AutoBackupManager? = null,
+    private val conversationRepository: com.newoether.agora.data.repository.ConversationRepository? = null,
+    private val settingsRepository: com.newoether.agora.data.repository.SettingsRepository? = null,
+    private val memoryRepository: com.newoether.agora.data.repository.MemoryRepository? = null
 ) : AndroidViewModel(application) {
 
     private val localProvider = LocalProvider(appContext, settingsManager)
@@ -95,7 +101,10 @@ class ChatViewModel(
         "Local" to localProvider
     )
 
-    private val providers = builtInProviders.toMutableMap()
+    // ConcurrentHashMap: mutated by init collectors (custom-provider sync) while read on
+    // Dispatchers.IO during generation — must be thread-safe (P3 concurrency fix).
+    // Declared as MutableMap so `in`/`contains` keep Map (containsKey) semantics (KT-18053).
+    private val providers: MutableMap<String, LlmProvider> = java.util.concurrent.ConcurrentHashMap(builtInProviders)
 
     // Settings delegate — handles all settings CRUD (~700 lines extracted)
     private val settingsDelegate = SettingsDelegate(settingsManager, chatDao, viewModelScope)
@@ -257,6 +266,7 @@ class ChatViewModel(
                     indexMessageForRag(messageId, text)
                 }
             }
+            gm.onConfirmShellCommand = { server, summary -> confirmShellCommand(server, summary) }
         }
     }
 
@@ -266,8 +276,10 @@ class ChatViewModel(
     val isSandboxFlavor: Boolean = sandboxFactory?.isAvailable() == true
 
     // ── Auto Backup ───────────────────────────────────────────
+    // Prefer the single instance built in AppContainer; fall back to a local one
+    // only if this VM was constructed without DI (e.g. a test).
     val autoBackupManager: com.newoether.agora.data.AutoBackupManager? by lazy {
-        try {
+        injectedAutoBackupManager ?: try {
             com.newoether.agora.data.AutoBackupManager(getApplication(), settingsManager, chatDao, memoryManager)
         } catch (e: Exception) { null }
     }
@@ -396,8 +408,42 @@ class ChatViewModel(
     val webSearchBaseUrl = settingsManager.webSearchBaseUrl.stateIn(viewModelScope, SharingStarted.Eagerly, "")
     val showDocumentationFab = settingsManager.showDocumentationFab.stateIn(viewModelScope, SharingStarted.Eagerly, true)
     val shellEnabled = settingsManager.shellEnabled.stateIn(viewModelScope, SharingStarted.Eagerly, false)
+    val shellConfirmEnabled = settingsManager.shellConfirmEnabled.stateIn(viewModelScope, SharingStarted.Eagerly, true)
     val shellDevices = settingsManager.shellDevices.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
     val sandboxEnabled = settingsManager.sandboxEnabled.stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
+    // ── Remote shell command confirmation gate ───────────────────────────
+    data class PendingShellCommand(
+        val server: String,
+        val summary: String,
+        val deferred: kotlinx.coroutines.CompletableDeferred<Boolean>
+    )
+    private val _pendingShellCommand = MutableStateFlow<PendingShellCommand?>(null)
+    val pendingShellCommand: StateFlow<PendingShellCommand?> = _pendingShellCommand.asStateFlow()
+    // Servers the user chose to trust for the rest of this app session.
+    private val sessionAllowedShellServers = java.util.Collections.synchronizedSet(mutableSetOf<String>())
+
+    private suspend fun confirmShellCommand(server: String, summary: String): Boolean {
+        if (!shellConfirmEnabled.value) return true
+        if (sessionAllowedShellServers.contains(server)) return true
+        val deferred = kotlinx.coroutines.CompletableDeferred<Boolean>()
+        _pendingShellCommand.value = PendingShellCommand(server, summary, deferred)
+        return try { deferred.await() } finally {
+            if (_pendingShellCommand.value?.deferred === deferred) _pendingShellCommand.value = null
+        }
+    }
+
+    /** Called by the UI to resolve a pending confirmation. */
+    fun resolveShellConfirmation(allow: Boolean, alwaysAllowServer: Boolean = false) {
+        val pending = _pendingShellCommand.value ?: return
+        if (allow && alwaysAllowServer) sessionAllowedShellServers.add(pending.server)
+        pending.deferred.complete(allow)
+        _pendingShellCommand.value = null
+    }
+
+    fun setShellConfirmEnabled(enabled: Boolean) {
+        viewModelScope.launch(Dispatchers.IO) { settingsManager.saveShellConfirmEnabled(enabled) }
+    }
     val defaultTemperature = settingsManager.defaultTemperature.stateIn(viewModelScope, SharingStarted.Eagerly, null)
     val defaultMaxTokens = settingsManager.defaultMaxTokens.stateIn(viewModelScope, SharingStarted.Eagerly, null)
     val defaultTopP = settingsManager.defaultTopP.stateIn(viewModelScope, SharingStarted.Eagerly, null)
@@ -1364,6 +1410,32 @@ class ChatViewModel(
             val idx = current.indexOfFirst { it.id == device.id }
             if (idx >= 0) { current[idx] = device; settingsManager.saveShellDevices(current) }
         }
+    }
+
+    /**
+     * Connects to an SSH host in capture mode and returns the server host key
+     * (base64) together with its SHA-256 fingerprint, for the user to review and
+     * pin. The host key is exchanged before authentication, so this succeeds even
+     * if the password is wrong — letting the user pin the key first.
+     */
+    suspend fun verifySshHostKey(
+        host: String, port: Int, user: String, password: String, timeoutSec: Int
+    ): Result<Pair<String, String>> = kotlinx.coroutines.withContext(Dispatchers.IO) {
+        if (host.isBlank()) return@withContext Result.failure(Exception("Host is empty"))
+        val client = com.newoether.agora.util.SshClient(
+            host, port, user.ifBlank { "root" }, password, timeoutSec * 1000,
+            pinnedHostKey = "", allowUnknownHostKey = true
+        )
+        try {
+            client.executeCommand("true")
+        } catch (_: Exception) {
+            // Ignore — the host key is captured during the handshake regardless of auth result.
+        } finally {
+            client.close()
+        }
+        val key = client.capturedHostKey
+        if (key.isNullOrBlank()) Result.failure(Exception("Could not reach host or no host key presented"))
+        else Result.success(key to com.newoether.agora.util.SshClient.fingerprintSha256(key))
     }
     fun setThemeMode(mode: String) = settingsDelegate.setThemeMode(mode)
     fun setColorScheme(scheme: String) = settingsDelegate.setColorScheme(scheme)

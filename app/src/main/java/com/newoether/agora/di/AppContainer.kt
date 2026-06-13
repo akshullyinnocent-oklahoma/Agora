@@ -55,15 +55,23 @@ class AppContainer(private val appContext: Context) {
             Class.forName("com.newoether.agora.sandbox.FdroidSandboxManagerFactory")
                 .getDeclaredConstructor(android.content.Context::class.java)
                 .newInstance(appContext) as SandboxManagerFactory
-        } catch (_: Exception) {
+        } catch (_: ClassNotFoundException) {
             // play flavor provides PlaySandboxManagerFactory
             try {
                 Class.forName("com.newoether.agora.sandbox.PlaySandboxManagerFactory")
                     .getDeclaredConstructor()
                     .newInstance() as SandboxManagerFactory
-            } catch (_: Exception) {
+            } catch (_: ClassNotFoundException) {
+                null
+            } catch (e: Exception) {
+                // Class exists but failed to construct — this is a real error, not a flavor miss.
+                com.newoether.agora.util.DebugLog.e("AppContainer", "PlaySandboxManagerFactory init failed", e)
                 null
             }
+        } catch (e: Exception) {
+            // FdroidSandboxManagerFactory exists but failed to construct.
+            com.newoether.agora.util.DebugLog.e("AppContainer", "FdroidSandboxManagerFactory init failed", e)
+            null
         }
     }
 
@@ -76,5 +84,8 @@ class AppContainer(private val appContext: Context) {
     // ── ViewModel Factory ─────────────────────────────────────
 
     fun chatViewModelFactory(): ChatViewModelFactory =
-        ChatViewModelFactory(application, settingsManager, chatDao, memoryManager, appContext, sandboxManagerFactory)
+        ChatViewModelFactory(
+            application, settingsManager, chatDao, memoryManager, appContext, sandboxManagerFactory,
+            autoBackupManager, conversationRepository, settingsRepository, memoryRepository
+        )
 }
