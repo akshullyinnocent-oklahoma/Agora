@@ -31,6 +31,25 @@ static bool abort_callback(void * data) {
     return handle->cancelled;
 }
 
+// Returns the byte length of the largest prefix of `text` that ends on a
+// complete UTF-8 character boundary. llama frequently splits a multi-byte glyph
+// (CJK, Arabic/Persian, emoji, …) across token pieces, so a single piece may end
+// with a truncated sequence. Handing those raw bytes to NewStringUTF aborts the
+// VM ("input is not valid Modified UTF-8"), so callers buffer the incomplete tail
+// until the next token completes it.
+static size_t utf8_complete_prefix_len(const std::string & text) {
+    size_t len = text.length();
+    // A truncated lead byte can only be within the last 3 bytes of the buffer.
+    for (size_t i = 1; i <= 4 && i <= len; ++i) {
+        unsigned char c = static_cast<unsigned char>(text[len - i]);
+        if ((c & 0xE0) == 0xC0) return i < 2 ? len - i : len; // 2-byte sequence
+        if ((c & 0xF0) == 0xE0) return i < 3 ? len - i : len; // 3-byte sequence
+        if ((c & 0xF8) == 0xF0) return i < 4 ? len - i : len; // 4-byte sequence
+        // ASCII or continuation byte: keep scanning back for the lead byte.
+    }
+    return len;
+}
+
 extern "C" {
 
 JNIEXPORT jlong JNICALL
@@ -273,6 +292,7 @@ Java_com_newoether_agora_api_LlamaChatEngine_nativeChatGenerate(
     // Generation loop
     int32_t generated = 0;
     llama_token new_token_id;
+    std::string utf8_buf; // holds bytes not yet on a UTF-8 boundary
 
     // Generation loop
     while (generated < max_tokens) {
@@ -306,18 +326,22 @@ Java_com_newoether_agora_api_LlamaChatEngine_nativeChatGenerate(
             LOGE("llama_token_to_piece failed");
             break;
         }
-        std::string token_text(piece, n);
+        // Accumulate, then emit only the complete-UTF-8 prefix; the truncated
+        // tail (if any) is carried into the next token.
+        utf8_buf.append(piece, n);
+        size_t emit_len = utf8_complete_prefix_len(utf8_buf);
+        if (emit_len > 0) {
+            jstring jtoken = env->NewStringUTF(utf8_buf.substr(0, emit_len).c_str());
+            env->CallVoidMethod(callback, on_token, jtoken);
+            env->DeleteLocalRef(jtoken);
+            utf8_buf.erase(0, emit_len);
 
-        // Call back to Kotlin
-        jstring jtoken = env->NewStringUTF(token_text.c_str());
-        env->CallVoidMethod(callback, on_token, jtoken);
-        env->DeleteLocalRef(jtoken);
-
-        if (env->ExceptionCheck()) {
-            env->ExceptionDescribe();
-            env->ExceptionClear();
-            LOGD("Java exception in onToken, stopping generation");
-            break;
+            if (env->ExceptionCheck()) {
+                env->ExceptionDescribe();
+                env->ExceptionClear();
+                LOGD("Java exception in onToken, stopping generation");
+                break;
+            }
         }
 
         generated++;
@@ -514,6 +538,7 @@ Java_com_newoether_agora_api_LlamaChatEngine_nativeChatGenerateWithImages(
     llama_sampler_chain_add(smpl, llama_sampler_init_dist(LLAMA_DEFAULT_SEED));
 
     int32_t generated = 0;
+    std::string utf8_buf; // holds bytes not yet on a UTF-8 boundary
     while (generated < max_tokens) {
         if (handle->cancelled) break;
 
@@ -529,11 +554,16 @@ Java_com_newoether_agora_api_LlamaChatEngine_nativeChatGenerateWithImages(
         int32_t n = llama_token_to_piece(handle->vocab, new_token_id, piece, sizeof(piece), 0, true);
         if (n < 0) break;
 
-        jstring jtoken = env->NewStringUTF(std::string(piece, n).c_str());
-        env->CallVoidMethod(callback, on_token, jtoken);
-        env->DeleteLocalRef(jtoken);
+        utf8_buf.append(piece, n);
+        size_t emit_len = utf8_complete_prefix_len(utf8_buf);
+        if (emit_len > 0) {
+            jstring jtoken = env->NewStringUTF(utf8_buf.substr(0, emit_len).c_str());
+            env->CallVoidMethod(callback, on_token, jtoken);
+            env->DeleteLocalRef(jtoken);
+            utf8_buf.erase(0, emit_len);
 
-        if (env->ExceptionCheck()) { env->ExceptionClear(); break; }
+            if (env->ExceptionCheck()) { env->ExceptionClear(); break; }
+        }
 
         generated++;
         llama_batch single = llama_batch_get_one(&new_token_id, 1);
