@@ -85,7 +85,7 @@ fun SettingsProviderDetailPage(
                         dest.outputStream().use { output -> input.copyTo(output) }
                     }
                     val magic = ByteArray(4); dest.inputStream().use { it.read(magic) }
-                    if (magic[0] != 'G'.code.toByte() || magic[2] != 'U'.code.toByte() || magic[1] != 'G'.code.toByte() || magic[3] != 'F'.code.toByte()) {
+                    if (magic[0] != 'G'.code.toByte() || magic[1] != 'G'.code.toByte() || magic[2] != 'U'.code.toByte() || magic[3] != 'F'.code.toByte()) {
                         dest.delete(); showGgufError = true
                     } else { copiedFilePath = dest.absolutePath; showAddModelDialog = true }
                 } catch (e: Exception) { DebugLog.e("ProviderDetail", "GGUF import", e) }
