@@ -120,22 +120,35 @@ echo "  [1/4] Building libtalloc.so..."
 cp "$TALLOC_SRC/talloc.h" "$SYSROOT_INC/"
 echo "  [1/4] Done: $(stat -c%s "$SYSROOT_LIB/libtalloc.so") bytes"
 
-# ── Step 2: Build proot via GNUmakefile ────────────────────────
+# ── Step 2: Build proot (in-tree inside the build dir) ─────────
+# The proot GNUmakefile only builds correctly in-tree: its compile
+# rule uses "$(SRC)$<", and an out-of-tree `make -f` invocation makes
+# VPATH resolve $< to an absolute path, so $(SRC) gets prepended twice
+# (e.g. .../proot/src//.../proot/src/cli/cli.c). Copy the sources into
+# the build dir and build there so SRC stays relative.
 echo "  [2/4] Building proot (GNUmakefile)..."
+PROOT_BLD="$BLD_DIR/src"
+rm -rf "$PROOT_BLD"
+mkdir -p "$PROOT_BLD"
+cp -r "$PROOT_SRC/." "$PROOT_BLD/"
+# Drop any stale build artifacts that may have been copied from the
+# source tree (keeps the tracked .check_*.c probe sources intact).
+find "$PROOT_BLD" -name '*.o' -delete
+find "$PROOT_BLD" -name '*.d' -delete
+find "$PROOT_BLD" -name '*.res' -delete
+rm -f "$PROOT_BLD/build.h" "$PROOT_BLD/proot" "$PROOT_BLD/loader/loader" \
+      "$PROOT_BLD/.check_process_vm" "$PROOT_BLD/.check_seccomp_filter"
 (
-    cd "$BLD_DIR"
+    cd "$PROOT_BLD"
     export SOURCE_DATE_EPOCH=0
     export CPPFLAGS="-I${SYSROOT_INC} -DSYS_SECCOMP=1"
     export LDFLAGS="-L${SYSROOT_LIB}"
     export CC="${TC_PREFIX}/${CROSS_PREFIX}-clang"
-    # Out-of-tree build using make -f (works without src/ symlink)
-    rm -f proot loader/loader 2>/dev/null || true
-    make -f "$PROOT_SRC/GNUmakefile" \
-        CROSS_COMPILE="${CROSS_PREFIX}-" \
+    make CROSS_COMPILE="${CROSS_PREFIX}-" \
         PROOT_UNBUNDLE_LOADER="$LOADER_OUT" \
         proot
 )
-echo "  [2/4] Done: $(stat -c%s "$BLD_DIR/proot") bytes"
+echo "  [2/4] Done: $(stat -c%s "$PROOT_BLD/proot") bytes"
 
 # ── Step 3: Strip and deploy binaries to jniLibs ───────────────
 echo "  [3/4] Stripping and deploying..."
