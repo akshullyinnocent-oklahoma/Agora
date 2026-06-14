@@ -540,7 +540,7 @@ fun ChatApp(
                                     ) {
                                         Text(
                                             text = conversation.title,
-                                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
                                             maxLines = 1,
                                             style = MaterialTheme.typography.bodyLarge,
                                             color = if (isSelected) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSurface
