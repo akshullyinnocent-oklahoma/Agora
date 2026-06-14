@@ -170,10 +170,10 @@ private val settingsGroups = listOf(
 )
 
 private val SettingsBarHeight = 64.dp
-private val SettingsTitleDockTop = 18.dp       // docked title's top inside the bar (below the status bar)
+private val SettingsTitleDockTop = 20.dp       // docked title's top inside the bar (below the status bar)
 private val SettingsTitleBottomInset = 70.dp   // big title's top-left, measured up from the header bottom
-private val SettingsTitleExpandedFont = 40.sp
-private val SettingsTitleCollapsedFont = 22.sp
+private val SettingsTitleExpandedFont = 33.sp
+private val SettingsTitleCollapsedFont = 19.sp
 
 /** Gentle ease applied to the title's *scale + horizontal tuck* only — its vertical rise stays
  *  glued 1:1 to the scrolling header, so the shrink-and-dock follows a curve, not dead-linear. */
@@ -289,7 +289,7 @@ fun SettingsScreen(viewModel: ChatViewModel, onBack: () -> Unit) {
                     // header spacer (item 0) holds the big title and scrolls away 1:1; the overlay title
                     // rises glued to it (linear), while its scale + horizontal tuck are eased.
                     val statusBarTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
-                    val titleAreaHeight = 110.dp   // big-title header room — the "区间" knob; taller = longer rise
+                    val titleAreaHeight = 90.dp   // big-title header room — the "区间" knob; taller = longer rise
                     val titleTravel = SettingsBarHeight + titleAreaHeight - SettingsTitleBottomInset - SettingsTitleDockTop
                     val titleTravelPx = with(LocalDensity.current) { titleTravel.toPx() }
                     val fraction by remember(titleTravelPx) {
