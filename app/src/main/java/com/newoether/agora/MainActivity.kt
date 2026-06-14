@@ -67,6 +67,14 @@ class MainActivity : ComponentActivity() {
         val locale = when (langCode) {
             "zh" -> java.util.Locale("zh", "CN")
             "en" -> java.util.Locale("en")
+            "es" -> java.util.Locale("es")
+            "fr" -> java.util.Locale("fr")
+            "de" -> java.util.Locale("de")
+            "ru" -> java.util.Locale("ru")
+            "pt-BR" -> java.util.Locale("pt", "BR")
+            "ja" -> java.util.Locale("ja")
+            "ko" -> java.util.Locale("ko")
+            "ar" -> java.util.Locale("ar")
             else -> null
         }
         if (locale != null) {
