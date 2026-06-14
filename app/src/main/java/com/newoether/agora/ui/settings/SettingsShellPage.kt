@@ -72,37 +72,13 @@ fun SettingsShellPage(viewModel: ChatViewModel, onBack: () -> Unit) {
                 )
             }
         } else {
-            Scaffold(
-                containerColor = MaterialTheme.colorScheme.background,
-                contentWindowInsets = WindowInsets(0.dp),
-                topBar = {
-                    TopAppBar(
-                        title = { Text(stringResource(R.string.shell_title), fontWeight = FontWeight.Bold) },
-                        navigationIcon = {
-                            IconButton(onClick = onBack) {
-                                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
-                            }
-                        },
-                        colors = TopAppBarDefaults.topAppBarColors(
-                            containerColor = MaterialTheme.colorScheme.background,
-                            titleContentColor = MaterialTheme.colorScheme.onBackground,
-                        )
-                    )
-                },
-                floatingActionButton = { if (showDocFab) DocumentationFab("shell.md") },
-                floatingActionButtonPosition = FabPosition.Center,
-            ) { padding ->
-                val fm = androidx.compose.ui.platform.LocalFocusManager.current
-                val scrollState = rememberScrollState()
-                Column(
-                    modifier = Modifier
-                        .padding(padding)
-                        .navigationBarsPadding()
-                        .imePadding()
-                        .verticalScroll(scrollState)
-                        .clickable(indication = null, interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }) { fm.clearFocus() }
-                        .padding(horizontal = 16.dp, vertical = 16.dp)
-                ) {
+            val scrollState = rememberScrollState()
+            CollapsingSettingsScaffold(
+                title = stringResource(R.string.shell_title),
+                onBack = onBack,
+                scrollState = scrollState,
+                floatingActionButton = { if (showDocFab) DocumentationFab("shell.md") }
+            ) {
             SettingsGroup(title = stringResource(R.string.shell_title), items = buildList {
                 add {
                     SettingsItem(
@@ -183,7 +159,6 @@ fun SettingsShellPage(viewModel: ChatViewModel, onBack: () -> Unit) {
             }
 
             if (showDocFab) Spacer(Modifier.height(80.dp))
-                } // Column
             } // Scaffold content
         } // else
     } // AnimatedContent

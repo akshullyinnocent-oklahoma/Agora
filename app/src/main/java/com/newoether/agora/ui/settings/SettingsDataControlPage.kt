@@ -174,33 +174,11 @@ fun SettingsDataControlPage(viewModel: ChatViewModel, onBack: () -> Unit) {
 
     val showDocFab by viewModel.showDocumentationFab.collectAsState()
     Box(modifier = Modifier.fillMaxSize()) {
-        Scaffold(
-            containerColor = MaterialTheme.colorScheme.background,
-            contentWindowInsets = WindowInsets(0.dp),
-            topBar = {
-                TopAppBar(
-                    title = { Text(stringResource(R.string.settings_data_control), fontWeight = FontWeight.Bold) },
-                    navigationIcon = {
-                        IconButton(onClick = onBack) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
-                        }
-                    },
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = MaterialTheme.colorScheme.background,
-                        titleContentColor = MaterialTheme.colorScheme.onBackground
-                    )
-                )
-            },
-            floatingActionButton = { if (showDocFab) DocumentationFab("import-export.md") },
-            floatingActionButtonPosition = FabPosition.Center,
-        ) { padding ->
-            Column(
-                modifier = Modifier
-                    .padding(padding)
-                    .navigationBarsPadding()
-                    .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 16.dp, vertical = 16.dp)
-            ) {
+        CollapsingSettingsScaffold(
+            title = stringResource(R.string.settings_data_control),
+            onBack = onBack,
+            floatingActionButton = { if (showDocFab) DocumentationFab("import-export.md") }
+        ) {
                 // Import/Export group
                 SettingsGroup(title = stringResource(R.string.settings_data_control), items = listOf(
                     {
@@ -244,7 +222,7 @@ fun SettingsDataControlPage(viewModel: ChatViewModel, onBack: () -> Unit) {
                             leadingContent = {
                                 Icon(Icons.Default.Download, null, tint = MaterialTheme.colorScheme.primary)
                             },
-                            modifier = Modifier.clickable { claudeChatLauncher.launch(arrayOf("application/json", "*/*")) }
+                            modifier = Modifier.clickable { claudeChatLauncher.launch(arrayOf("application/zip", "*/*")) }
                         )
                     }
                 ))
@@ -283,7 +261,6 @@ fun SettingsDataControlPage(viewModel: ChatViewModel, onBack: () -> Unit) {
                 }
 
                 if (showDocFab) { Spacer(modifier = Modifier.height(80.dp)) }
-            }
         }
 
         // Progress dialog

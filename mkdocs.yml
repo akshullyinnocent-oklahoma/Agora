@@ -67,6 +67,7 @@ plugins:
             Parameters: 生成设置
             Title Generation: 标题生成
             Image Transcription: 图像转录
+            Image Generation: 图像生成
             Appearance: 外观
             Appearance & Language: 外观与语言
             Language: 语言
@@ -97,6 +98,7 @@ nav:
       - Parameters: generation.md
       - Title Generation: title-generation.md
   - Image Transcription: transcription.md
+  - Image Generation: image-generation.md
   - System Prompts: system-prompts.md
   - Agentic Tools:
       - Overview: tools.md

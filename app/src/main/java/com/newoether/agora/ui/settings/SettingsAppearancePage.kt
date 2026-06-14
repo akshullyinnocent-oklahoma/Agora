@@ -51,33 +51,11 @@ fun SettingsAppearancePage(viewModel: ChatViewModel, onBack: () -> Unit) {
         colorSchemeForPreset(currentPreset, currentStyle, isDark)
     }
 
-    Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
-        contentWindowInsets = WindowInsets(0.dp),
-        topBar = {
-            TopAppBar(
-                title = { Text(stringResource(R.string.appearance_title), fontWeight = FontWeight.Bold) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background,
-                    titleContentColor = MaterialTheme.colorScheme.onBackground,
-                )
-            )
-        },
-        floatingActionButton = { if (showDocFab) DocumentationFab("appearance.md") },
-        floatingActionButtonPosition = FabPosition.Center,
-    ) { padding ->
-        Column(
-            modifier = Modifier
-                .padding(padding)
-                .navigationBarsPadding()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp, vertical = 16.dp)
-        ) {
+    CollapsingSettingsScaffold(
+        title = stringResource(R.string.appearance_title),
+        onBack = onBack,
+        floatingActionButton = { if (showDocFab) DocumentationFab("appearance.md") }
+    ) {
             // ── Theme Mode ──
             SettingsGroup(
                 title = stringResource(R.string.theme_mode),
@@ -148,6 +126,13 @@ fun SettingsAppearancePage(viewModel: ChatViewModel, onBack: () -> Unit) {
                                 )
                             },
                             leadingContent = {
+                                RadioButton(
+                                    selected = preset == currentPreset,
+                                    onClick = { viewModel.setColorScheme(preset.name) },
+                                    enabled = !dynamicColor || !isDynamicAvailable
+                                )
+                            },
+                            trailingContent = {
                                 Box(
                                     modifier = Modifier
                                         .size(32.dp)
@@ -155,16 +140,10 @@ fun SettingsAppearancePage(viewModel: ChatViewModel, onBack: () -> Unit) {
                                         .background(presetPrimary)
                                 )
                             },
-                            trailingContent = {
-                                RadioButton(
-                                    selected = preset == currentPreset,
-                                    onClick = { viewModel.setColorScheme(preset.name) },
-                                    enabled = !dynamicColor || !isDynamicAvailable
-                                )
-                            },
                             modifier = Modifier
                                 .alpha(schemeAlpha)
-                                .clickable(enabled = schemeAlpha > 0.5f) { viewModel.setColorScheme(preset.name) }
+                                .clickable(enabled = schemeAlpha > 0.5f) { viewModel.setColorScheme(preset.name) },
+                            leadingSpacing = 8.dp
                         )
                     }
                 }
@@ -182,7 +161,7 @@ fun SettingsAppearancePage(viewModel: ChatViewModel, onBack: () -> Unit) {
                                     fontWeight = if (style == currentStyle) FontWeight.Bold else FontWeight.Normal
                                 )
                             },
-                            trailingContent = {
+                            leadingContent = {
                                 RadioButton(
                                     selected = style == currentStyle,
                                     onClick = { viewModel.setSchemeStyle(style.name) },
@@ -191,14 +170,14 @@ fun SettingsAppearancePage(viewModel: ChatViewModel, onBack: () -> Unit) {
                             },
                             modifier = Modifier
                                 .alpha(schemeAlpha)
-                                .clickable(enabled = schemeAlpha > 0.5f) { viewModel.setSchemeStyle(style.name) }
+                                .clickable(enabled = schemeAlpha > 0.5f) { viewModel.setSchemeStyle(style.name) },
+                            leadingSpacing = 8.dp
                         )
                     }
                 }
             )
 
             if (showDocFab) { Spacer(modifier = Modifier.height(80.dp)) }
-        }
     }
 }
 
@@ -207,12 +186,13 @@ private fun ThemeModeOption(label: String, icon: androidx.compose.ui.graphics.ve
     SettingsItem(
         headlineContent = { Text(label, fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal) },
         leadingContent = {
-            Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-        },
-        trailingContent = {
             RadioButton(selected = selected, onClick = onClick)
         },
-        modifier = Modifier.clickable { onClick() }
+        trailingContent = {
+            Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+        },
+        modifier = Modifier.clickable { onClick() },
+        leadingSpacing = 8.dp
     )
 }
 

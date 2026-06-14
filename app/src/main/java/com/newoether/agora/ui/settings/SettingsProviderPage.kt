@@ -92,30 +92,12 @@ fun SettingsProviderPage(viewModel: ChatViewModel, onBack: () -> Unit) {
                     }
                 }
 
-                Scaffold(
-                    containerColor = MaterialTheme.colorScheme.background,
-                    contentWindowInsets = WindowInsets(0.dp),
-                    topBar = {
-                        TopAppBar(
-                            title = { Text(stringResource(R.string.settings_provider), fontWeight = FontWeight.Bold) },
-                            navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back)) } },
-                            colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background, titleContentColor = MaterialTheme.colorScheme.onBackground)
-                        )
-                    },
-                    floatingActionButton = { if (showDocFab) DocumentationFab("provider.md") },
-                    floatingActionButtonPosition = FabPosition.Center,
-                ) { padding ->
-                    val fm = LocalFocusManager.current
-                    Column(
-                        modifier = Modifier
-                            .padding(padding)
-                            .navigationBarsPadding()
-                            .verticalScroll(scrollState)
-                            .clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) { fm.clearFocus() }
-                            .padding(horizontal = 16.dp)
-                    ) {
-                        Spacer(modifier = Modifier.height(16.dp))
-
+                CollapsingSettingsScaffold(
+                    title = stringResource(R.string.settings_provider),
+                    onBack = onBack,
+                    scrollState = scrollState,
+                    floatingActionButton = { if (showDocFab) DocumentationFab("provider.md") }
+                ) {
                         SettingsGroup(title = stringResource(R.string.provider_built_in), items = builtInNames.map { name ->
                             @Composable {
                                 val configured = isConfigured(name)
@@ -188,7 +170,6 @@ fun SettingsProviderPage(viewModel: ChatViewModel, onBack: () -> Unit) {
                         })
 
                         if (showDocFab) Spacer(modifier = Modifier.height(80.dp))
-                    }
                 }
 
                 // Add Custom Provider Dialog

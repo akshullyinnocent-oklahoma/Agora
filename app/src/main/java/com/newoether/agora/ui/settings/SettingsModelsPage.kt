@@ -63,33 +63,12 @@ fun SettingsModelsPage(viewModel: ChatViewModel, onBack: () -> Unit) {
     val showDocFab by viewModel.showDocumentationFab.collectAsState()
     val providers = availableModels.entries.filter { it.value.isNotEmpty() }
 
-    Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
-        contentWindowInsets = WindowInsets(0.dp),
-        topBar = {
-            TopAppBar(
-                title = { Text(stringResource(R.string.models_title), fontWeight = FontWeight.Bold) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background,
-                    titleContentColor = MaterialTheme.colorScheme.onBackground,
-                )
-            )
-        },
-        floatingActionButton = { if (showDocFab) DocumentationFab("models.md") },
-        floatingActionButtonPosition = FabPosition.Center,
-    ) { padding ->
-        LazyColumn(
-            modifier = Modifier
-                .padding(padding)
-                .navigationBarsPadding()
-                .fillMaxSize(),
-            contentPadding = PaddingValues(vertical = 16.dp)
-        ) {
+    CollapsingSettingsLazyScaffold(
+        title = stringResource(R.string.models_title),
+        onBack = onBack,
+        contentHorizontalPadding = 0.dp,
+        floatingActionButton = { if (showDocFab) DocumentationFab("models.md") }
+    ) {
             // ── Default Model section ──
             item(key = "section_default_title") {
                 SectionLabel(
@@ -258,7 +237,6 @@ fun SettingsModelsPage(viewModel: ChatViewModel, onBack: () -> Unit) {
             if (showDocFab) {
                 item(key = "doc_spacer") { Spacer(modifier = Modifier.height(80.dp)) }
             }
-        }
     }
 
     // ── Active Model Dialog ──

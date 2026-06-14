@@ -111,31 +111,10 @@ private fun PromptList(
     onDeleteRequest: (SystemPromptEntry) -> Unit,
     onBack: () -> Unit
 ) {
-    Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
-        contentWindowInsets = WindowInsets(0.dp),
-        topBar = {
-            TopAppBar(
-                title = { Text(stringResource(R.string.prompts_title), fontWeight = FontWeight.Bold) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background,
-                    titleContentColor = MaterialTheme.colorScheme.onBackground
-                )
-            )
-        }
-    ) { padding ->
-        Column(
-            modifier = Modifier
-                .padding(padding)
-                .navigationBarsPadding()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp, vertical = 16.dp)
-        ) {
+    CollapsingSettingsScaffold(
+        title = stringResource(R.string.prompts_title),
+        onBack = onBack
+    ) {
             val promptItems: List<@Composable () -> Unit> = buildList {
                 add {
                     SettingsItem(
@@ -193,6 +172,5 @@ private fun PromptList(
                 }
             }
             SettingsGroup(title = stringResource(R.string.prompts_title), items = promptItems)
-        }
     }
 }

@@ -44,33 +44,11 @@ fun SettingsTranscriptionPage(viewModel: ChatViewModel, onBack: () -> Unit) {
         enabledModels.filter { it !in transcriptionEnabledModels }.sortedBy { it }
     }
 
-    Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
-        contentWindowInsets = WindowInsets(0.dp),
-        topBar = {
-            TopAppBar(
-                title = { Text(stringResource(R.string.settings_transcription), fontWeight = FontWeight.Bold) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background,
-                    titleContentColor = MaterialTheme.colorScheme.onBackground,
-                )
-            )
-        },
-        floatingActionButton = { if (showDocFab) DocumentationFab("transcription.md") },
-        floatingActionButtonPosition = FabPosition.Center,
-    ) { padding ->
-        Column(
-            modifier = Modifier
-                .padding(padding)
-                .navigationBarsPadding()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp, vertical = 16.dp)
-        ) {
+    CollapsingSettingsScaffold(
+        title = stringResource(R.string.settings_transcription),
+        onBack = onBack,
+        floatingActionButton = { if (showDocFab) DocumentationFab("transcription.md") }
+    ) {
             SettingsGroup(
                 title = stringResource(R.string.transcription_model),
                 items = listOf({
@@ -235,7 +213,6 @@ fun SettingsTranscriptionPage(viewModel: ChatViewModel, onBack: () -> Unit) {
                 })
             )
             if (showDocFab) { Spacer(modifier = Modifier.height(80.dp)) }
-        }
     }
 
     if (showModelDialog) {

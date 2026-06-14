@@ -117,50 +117,22 @@ fun SystemPromptEditorPage(
         onBack()
     }
 
-    Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
-        contentWindowInsets = WindowInsets(0.dp),
-        topBar = {
-            TopAppBar(
-                title = { Text(if (isEdit) stringResource(R.string.prompts_edit_title) else stringResource(R.string.prompts_add_title), fontWeight = FontWeight.Bold) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
-                    }
-                },
-                actions = {
-                    IconButton(onClick = {
-                        if (title.isBlank()) {
-                            titleError = true
-                            return@IconButton
-                        }
-                        onSave(title, systemItems.toList(), userPrependItems.toList(), userPostpendItems.toList())
-                    }) {
-                        Icon(Icons.Default.Save, contentDescription = stringResource(R.string.provider_save))
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background,
-                    titleContentColor = MaterialTheme.colorScheme.onBackground
-                )
-            )
+    CollapsingSettingsScaffold(
+        title = if (isEdit) stringResource(R.string.prompts_edit_title) else stringResource(R.string.prompts_add_title),
+        onBack = onBack,
+        actions = {
+            IconButton(onClick = {
+                if (title.isBlank()) {
+                    titleError = true
+                    return@IconButton
+                }
+                onSave(title, systemItems.toList(), userPrependItems.toList(), userPostpendItems.toList())
+            }) {
+                Icon(Icons.Default.Save, contentDescription = stringResource(R.string.provider_save))
+            }
         },
-        floatingActionButton = { if (showDocFab) DocumentationFab("system-prompts.md") },
-        floatingActionButtonPosition = FabPosition.Center,
-    ) { padding ->
-        val focusManager = LocalFocusManager.current
-        Column(
-            modifier = Modifier
-                .padding(padding)
-                .navigationBarsPadding()
-                .imePadding()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp, vertical = 12.dp)
-                .clickable(
-                    indication = null,
-                    interactionSource = remember { MutableInteractionSource() }
-                ) { focusManager.clearFocus() }
-        ) {
+        floatingActionButton = { if (showDocFab) DocumentationFab("system-prompts.md") }
+    ) {
             OutlinedTextField(
                 value = title,
                 onValueChange = { title = it; titleError = false },
@@ -329,7 +301,6 @@ fun SystemPromptEditorPage(
             }
 
             if (showDocFab) { Spacer(modifier = Modifier.height(80.dp)) }
-        }
     }
 
     // Variable picker bottom sheet

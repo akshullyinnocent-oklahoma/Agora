@@ -85,6 +85,7 @@ fun SettingsItem(
     supportingContent: (@Composable () -> Unit)? = null,
     leadingContent: (@Composable () -> Unit)? = null,
     trailingContent: (@Composable () -> Unit)? = null,
+    leadingSpacing: Dp = 16.dp,
 ) {
     val verticalPadding = if (supportingContent == null) 12.dp else 16.dp
     Row(
@@ -99,7 +100,7 @@ fun SettingsItem(
             ) {
                 leadingContent()
             }
-            Spacer(modifier = Modifier.width(16.dp))
+            Spacer(modifier = Modifier.width(leadingSpacing))
         }
         Column(modifier = Modifier.weight(1f)) {
             CompositionLocalProvider(
@@ -169,71 +170,6 @@ private val settingsGroups = listOf(
     )),
 )
 
-private val SettingsBarHeight = 64.dp
-private val SettingsTitleDockTop = 20.dp       // docked title's top inside the bar (below the status bar)
-private val SettingsTitleBottomInset = 70.dp   // big title's top-left, measured up from the header bottom
-private val SettingsTitleExpandedFont = 33.sp
-private val SettingsTitleCollapsedFont = 19.sp
-
-/** Gentle ease applied to the title's *scale + horizontal tuck* only — its vertical rise stays
- *  glued 1:1 to the scrolling header, so the shrink-and-dock follows a curve, not dead-linear. */
-private val TitleEasing = CubicBezierEasing(0.2f, 0f, 0.5f, 1f)
-
-/**
- * iOS-style collapsing title. A single "Settings" Text whose **vertical** position is glued 1:1 to a
- * scrolling header (so the list always tracks the finger and the title never floats over content
- * rows), while its **scale + horizontal** position are an eased, non-linear function of [fraction]
- * (0 = expanded, 1 = docked). Drawn as an overlay above the list — one glyph, no cross-fade.
- */
-@Composable
-private fun CollapsingSettingsTitleBar(
-    title: String,
-    backDescription: String,
-    fraction: Float,
-    statusBarTop: Dp,
-    titleAreaHeight: Dp,
-    titleTravel: Dp,
-    onBack: () -> Unit
-) {
-    val scaleEnd = SettingsTitleCollapsedFont.value / SettingsTitleExpandedFont.value
-    val eased = TitleEasing.transform(fraction)
-    val titleScale = 1f - (1f - scaleEnd) * eased
-
-    val expandedY = statusBarTop + SettingsBarHeight + titleAreaHeight - SettingsTitleBottomInset
-    val titleY = expandedY - titleTravel * fraction   // linear 1:1 with scroll → docks at expandedY − travel
-    val titleX = 24.dp + (56.dp - 24.dp) * eased       // eased shrink-and-tuck beside the back arrow
-
-    Box(modifier = Modifier.fillMaxWidth()) {
-        // Opaque bar (incl. the status-bar strip) hides list content scrolling underneath it.
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(statusBarTop + SettingsBarHeight)
-                .background(MaterialTheme.colorScheme.background)
-        )
-        IconButton(
-            onClick = onBack,
-            modifier = Modifier.padding(start = 4.dp, top = statusBarTop + 8.dp)
-        ) {
-            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = backDescription)
-        }
-        Text(
-            text = title,
-            fontWeight = FontWeight.Bold,
-            fontSize = SettingsTitleExpandedFont,
-            maxLines = 1,
-            color = MaterialTheme.colorScheme.onBackground,
-            modifier = Modifier
-                .offset(x = titleX, y = titleY)
-                .graphicsLayer {
-                    scaleX = titleScale
-                    scaleY = titleScale
-                    transformOrigin = TransformOrigin(0f, 0f)
-                }
-        )
-    }
-}
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(viewModel: ChatViewModel, onBack: () -> Unit) {
@@ -284,118 +220,83 @@ fun SettingsScreen(viewModel: ChatViewModel, onBack: () -> Unit) {
                 "appearance" -> SettingsAppearancePage(viewModel, onBack = { selectedCategory = null })
                 "about" -> SettingsAboutPage(viewModel, onBack = { selectedCategory = null })
                 else -> {
-                    // Content scrolls 1:1 with the finger (nothing consumes the gesture). The title
-                    // morph is DERIVED from the real list scroll position via a non-linear map: a tall
-                    // header spacer (item 0) holds the big title and scrolls away 1:1; the overlay title
-                    // rises glued to it (linear), while its scale + horizontal tuck are eased.
-                    val statusBarTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
-                    val titleAreaHeight = 90.dp   // big-title header room — the "区间" knob; taller = longer rise
-                    val titleTravel = SettingsBarHeight + titleAreaHeight - SettingsTitleBottomInset - SettingsTitleDockTop
-                    val titleTravelPx = with(LocalDensity.current) { titleTravel.toPx() }
-                    val fraction by remember(titleTravelPx) {
-                        derivedStateOf {
-                            if (listState.firstVisibleItemIndex > 0) 1f
-                            else (listState.firstVisibleItemScrollOffset / titleTravelPx).coerceIn(0f, 1f)
-                        }
-                    }
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(MaterialTheme.colorScheme.background)
+                    CollapsingSettingsLazyScaffold(
+                        title = stringResource(R.string.settings_title),
+                        onBack = onBack,
+                        listState = listState
                     ) {
-                        LazyColumn(
-                            state = listState,
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .navigationBarsPadding()
-                                .padding(horizontal = 16.dp),
-                            contentPadding = PaddingValues(top = statusBarTop + SettingsBarHeight)
-                        ) {
-                            // Header that holds the big title; scrolls away 1:1 with the finger.
-                            item { Spacer(modifier = Modifier.height(titleAreaHeight)) }
-                            items(settingsGroups.size) { groupIndex ->
-                                val group = settingsGroups[groupIndex]
-                                Column(
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    if (group.titleRes != null) {
-                                        Text(
-                                            text = stringResource(group.titleRes),
-                                            style = MaterialTheme.typography.labelLarge,
-                                            color = MaterialTheme.colorScheme.primary,
-                                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
-                                        )
+                        items(settingsGroups.size) { groupIndex ->
+                            val group = settingsGroups[groupIndex]
+                            Column(
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                if (group.titleRes != null) {
+                                    Text(
+                                        text = stringResource(group.titleRes),
+                                        style = MaterialTheme.typography.labelLarge,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
+                                    )
+                                }
+                                group.items.forEachIndexed { index, cat ->
+                                    if (index > 0) {
+                                        Spacer(modifier = Modifier.height(2.dp))
                                     }
-                                    group.items.forEachIndexed { index, cat ->
-                                        if (index > 0) {
-                                            Spacer(modifier = Modifier.height(2.dp))
-                                        }
-                                        val isFirst = index == 0
-                                        val isLast = index == group.items.lastIndex
-                                        val shape = when {
-                                            group.items.size == 1 -> RoundedCornerShape(24.dp)
-                                            isFirst -> RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp, bottomStart = 5.dp, bottomEnd = 5.dp)
-                                            isLast -> RoundedCornerShape(topStart = 5.dp, topEnd = 5.dp, bottomStart = 24.dp, bottomEnd = 24.dp)
-                                            else -> RoundedCornerShape(5.dp)
-                                        }
-                                        Surface(
-                                            shape = shape,
-                                            color = MaterialTheme.colorScheme.surface,
-                                            tonalElevation = 1.dp,
+                                    val isFirst = index == 0
+                                    val isLast = index == group.items.lastIndex
+                                    val shape = when {
+                                        group.items.size == 1 -> RoundedCornerShape(24.dp)
+                                        isFirst -> RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp, bottomStart = 5.dp, bottomEnd = 5.dp)
+                                        isLast -> RoundedCornerShape(topStart = 5.dp, topEnd = 5.dp, bottomStart = 24.dp, bottomEnd = 24.dp)
+                                        else -> RoundedCornerShape(5.dp)
+                                    }
+                                    Surface(
+                                        shape = shape,
+                                        color = MaterialTheme.colorScheme.surface,
+                                        tonalElevation = 1.dp,
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clip(shape)
+                                            .clickable { selectedCategory = cat.key }
+                                    ) {
+                                        Row(
                                             modifier = Modifier
                                                 .fillMaxWidth()
-                                                .clip(shape)
-                                                .clickable { selectedCategory = cat.key }
+                                                .padding(horizontal = 16.dp, vertical = 16.dp),
+                                            verticalAlignment = Alignment.CenterVertically
                                         ) {
-                                            Row(
-                                                modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .padding(horizontal = 16.dp, vertical = 16.dp),
-                                                verticalAlignment = Alignment.CenterVertically
-                                            ) {
-                                                Icon(
-                                                    cat.icon,
-                                                    contentDescription = null,
-                                                    tint = MaterialTheme.colorScheme.primary,
-                                                    modifier = Modifier.size(24.dp)
+                                            Icon(
+                                                cat.icon,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.primary,
+                                                modifier = Modifier.size(24.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(16.dp))
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Text(
+                                                    text = stringResource(cat.titleRes),
+                                                    style = MaterialTheme.typography.bodyLarge
                                                 )
-                                                Spacer(modifier = Modifier.width(16.dp))
-                                                Column(modifier = Modifier.weight(1f)) {
-                                                    Text(
-                                                        text = stringResource(cat.titleRes),
-                                                        style = MaterialTheme.typography.bodyLarge
-                                                    )
-                                                    Spacer(modifier = Modifier.height(3.dp))
-                                                    Text(
-                                                        text = stringResource(cat.descriptionRes),
-                                                        style = MaterialTheme.typography.bodyMedium,
-                                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                                    )
-                                                }
-                                                Icon(
-                                                    Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                                                    contentDescription = null,
-                                                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                                                Spacer(modifier = Modifier.height(3.dp))
+                                                Text(
+                                                    text = stringResource(cat.descriptionRes),
+                                                    style = MaterialTheme.typography.bodyMedium,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                                 )
                                             }
+                                            Icon(
+                                                Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                                            )
                                         }
                                     }
                                 }
-                                if (groupIndex < settingsGroups.size - 1) {
-                                    Spacer(modifier = Modifier.height(20.dp))
-                                }
                             }
-                            item { Spacer(modifier = Modifier.height(32.dp)) }
+                            if (groupIndex < settingsGroups.size - 1) {
+                                Spacer(modifier = Modifier.height(20.dp))
+                            }
                         }
-                        CollapsingSettingsTitleBar(
-                            title = stringResource(R.string.settings_title),
-                            backDescription = stringResource(R.string.back),
-                            fraction = fraction,
-                            statusBarTop = statusBarTop,
-                            titleAreaHeight = titleAreaHeight,
-                            titleTravel = titleTravel,
-                            onBack = onBack
-                        )
                     }
                 }
             }

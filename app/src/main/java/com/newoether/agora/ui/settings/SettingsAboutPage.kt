@@ -48,39 +48,10 @@ fun SettingsAboutPage(viewModel: ChatViewModel, onBack: () -> Unit) {
         context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
     }
 
-    Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
-        contentWindowInsets = WindowInsets(0.dp),
-        topBar = {
-            TopAppBar(
-                title = { Text(stringResource(R.string.about_title), fontWeight = FontWeight.Bold) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background,
-                    titleContentColor = MaterialTheme.colorScheme.onBackground,
-                )
-            )
-        }
-    ) { padding ->
-        Column(
-            modifier = Modifier
-                .padding(padding)
-                .navigationBarsPadding()
-                .imePadding()
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .clickable(
-                    indication = null,
-                    interactionSource = remember { MutableInteractionSource() }
-                ) { focusManager.clearFocus() }
-                .padding(horizontal = 16.dp)
-        ) {
-            Spacer(modifier = Modifier.height(8.dp))
-
+    CollapsingSettingsScaffold(
+        title = stringResource(R.string.about_title),
+        onBack = onBack
+    ) {
             // -- App Info --
             SettingsGroup(title = stringResource(R.string.about_info), items = listOf({
                 SettingsItem(
@@ -208,6 +179,5 @@ fun SettingsAboutPage(viewModel: ChatViewModel, onBack: () -> Unit) {
             }
 
             Spacer(modifier = Modifier.height(32.dp))
-        }
     }
 }

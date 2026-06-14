@@ -42,33 +42,11 @@ fun SettingsGenerationPage(viewModel: ChatViewModel, onBack: () -> Unit) {
     val thinkingLevel by viewModel.thinkingLevel.collectAsState()
     val showDocFab by viewModel.showDocumentationFab.collectAsState()
 
-    Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
-        contentWindowInsets = WindowInsets(0.dp),
-        topBar = {
-            TopAppBar(
-                title = { Text(stringResource(R.string.generation_title), fontWeight = FontWeight.Bold) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background,
-                    titleContentColor = MaterialTheme.colorScheme.onBackground,
-                )
-            )
-        },
-        floatingActionButton = { if (showDocFab) DocumentationFab("generation.md") },
-        floatingActionButtonPosition = FabPosition.Center,
-    ) { padding ->
-        Column(
-            modifier = Modifier
-                .padding(padding)
-                .navigationBarsPadding()
-                .verticalScroll(rememberScrollState())
-                .padding(start = 16.dp, end = 16.dp, top = 16.dp)
-        ) {
+    CollapsingSettingsScaffold(
+        title = stringResource(R.string.generation_title),
+        onBack = onBack,
+        floatingActionButton = { if (showDocFab) DocumentationFab("generation.md") }
+    ) {
             // ── Section 1: Default Context Window ──
             SettingsGroup(
                 title = stringResource(R.string.context_window_default),
@@ -297,7 +275,6 @@ fun SettingsGenerationPage(viewModel: ChatViewModel, onBack: () -> Unit) {
             )
 
             if (showDocFab) { Spacer(modifier = Modifier.height(80.dp)) }
-        }
     }
 }
 

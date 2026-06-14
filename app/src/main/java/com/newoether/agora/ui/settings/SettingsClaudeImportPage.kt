@@ -5,10 +5,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
@@ -59,9 +56,14 @@ fun SettingsClaudeImportPage(
             // Preview the file
             scope.launch {
                 try {
-                    val json = context.contentResolver.openInputStream(uri)?.use { it.readBytes().decodeToString() }
-                    if (json != null) {
-                        viewModel.previewClaudeChat(json)
+                    val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                    if (bytes != null) {
+                        val jsonResult = ClaudeChatImporter().extractJsonFromBytes(bytes)
+                        if (jsonResult.isSuccess) {
+                            viewModel.previewClaudeChat(jsonResult.getOrThrow())
+                        } else {
+                            viewModel.setClaudeImportError(jsonResult.exceptionOrNull()?.localizedMessage ?: "Failed to read file")
+                        }
                     }
                 } catch (e: Exception) {
                     viewModel.setClaudeImportError(e.localizedMessage ?: "Unknown error")
@@ -70,31 +72,10 @@ fun SettingsClaudeImportPage(
         }
     }
 
-    Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
-        contentWindowInsets = WindowInsets(0.dp),
-        topBar = {
-            TopAppBar(
-                title = { Text(stringResource(R.string.claude_import_title), fontWeight = FontWeight.Bold) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background,
-                    titleContentColor = MaterialTheme.colorScheme.onBackground
-                )
-            )
-        }
-    ) { padding ->
-        Column(
-            modifier = Modifier
-                .padding(padding)
-                .navigationBarsPadding()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp, vertical = 16.dp)
-        ) {
+    CollapsingSettingsScaffold(
+        title = stringResource(R.string.claude_import_title),
+        onBack = onBack
+    ) {
             // File selection card
             SettingsGroup(
                 title = stringResource(R.string.claude_import_title),
@@ -112,7 +93,7 @@ fun SettingsClaudeImportPage(
                             leadingContent = {
                                 Icon(Icons.Default.Download, null, tint = MaterialTheme.colorScheme.primary)
                             },
-                            modifier = Modifier.clickable { filePickerLauncher.launch(arrayOf("application/json", "application/zip", "*/*")) }
+                            modifier = Modifier.clickable { filePickerLauncher.launch(arrayOf("application/zip", "*/*")) }
                         )
                     }
                     if (importPreview != null) {
@@ -147,8 +128,6 @@ fun SettingsClaudeImportPage(
                     }
                 }
             )
-
-         }
     }
 
     // Import strategy dialog

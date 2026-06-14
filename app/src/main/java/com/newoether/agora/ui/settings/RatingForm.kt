@@ -1,5 +1,7 @@
 package com.newoether.agora.ui.settings
 
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -172,57 +174,74 @@ fun RatingForm(
             }
         }
 
-        // Submit button
+        // Submit button — never actually disabled (the if in onClick guards submission), but it
+        // shows the standard M3 disabled colors when not ready, animated smoothly between states.
+        val isReady = rating > 0 && !submitting && !submitted
+        val btnContainerColor by animateColorAsState(
+            if (isReady) MaterialTheme.colorScheme.primary
+            else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f),
+            tween(300), label = "ratingBtnContainer"
+        )
+        val btnContentColor by animateColorAsState(
+            if (isReady) MaterialTheme.colorScheme.onPrimary
+            else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
+            tween(300), label = "ratingBtnContent"
+        )
         Button(
             onClick = {
-                scope.launch {
-                    submitting = true
-                    submitError = false
-                    try {
-                        val json = buildString {
-                            append("{\"rating\":$rating,\"app\":\"${context.packageName}\"")
-                            if (name.isNotBlank()) append(",\"name\":${jsonEscape(name)}")
-                            if (email.isNotBlank()) append(",\"email\":${jsonEscape(email)}")
-                            if (comment.isNotBlank()) append(",\"comment\":${jsonEscape(comment)}")
-                            append("}")
+                if (isReady) {
+                    scope.launch {
+                        submitting = true
+                        submitError = false
+                        try {
+                            val json = buildString {
+                                append("{\"rating\":$rating,\"app\":\"${context.packageName}\"")
+                                if (name.isNotBlank()) append(",\"name\":${jsonEscape(name)}")
+                                if (email.isNotBlank()) append(",\"email\":${jsonEscape(email)}")
+                                if (comment.isNotBlank()) append(",\"comment\":${jsonEscape(comment)}")
+                                append("}")
+                            }
+                            val body = json.toRequestBody("application/json".toMediaType())
+                            val request = Request.Builder()
+                                .url("https://newoether.space/api/rating")
+                                .post(body)
+                                .build()
+                            withContext(Dispatchers.IO) { HttpClient.client.newCall(request).execute() }
+                            submitted = true
+                            onSubmitted()
+                        } catch (_: Exception) {
+                            submitError = true
+                        } finally {
+                            submitting = false
                         }
-                        val body = json.toRequestBody("application/json".toMediaType())
-                        val request = Request.Builder()
-                            .url("https://newoether.space/api/rating")
-                            .post(body)
-                            .build()
-                        withContext(Dispatchers.IO) { HttpClient.client.newCall(request).execute() }
-                        submitted = true
-                        onSubmitted()
-                    } catch (_: Exception) {
-                        submitError = true
-                    } finally {
-                        submitting = false
                     }
                 }
             },
-            enabled = rating > 0 && !submitting && !submitted,
             shape = RoundedCornerShape(50),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = btnContainerColor,
+                contentColor = btnContentColor
+            ),
             modifier = Modifier.fillMaxWidth().height(52.dp)
         ) {
-            if (submitting) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(22.dp),
-                    strokeWidth = 2.5.dp,
-                    color = MaterialTheme.colorScheme.primary
-                )
-            } else if (submitted) {
-                Text(
-                    text = stringResource(R.string.rating_success),
-                    style = MaterialTheme.typography.labelLarge,
-                    fontWeight = FontWeight.Medium
-                )
-            } else {
-                Text(
-                    text = stringResource(R.string.rating_submit),
-                    style = MaterialTheme.typography.labelLarge,
-                    fontWeight = FontWeight.Medium
-                )
+            Crossfade(targetState = submitting to submitted, label = "ratingBtn") { (loading, done) ->
+                when {
+                    loading -> CircularProgressIndicator(
+                        modifier = Modifier.size(22.dp),
+                        strokeWidth = 2.5.dp,
+                        color = btnContentColor
+                    )
+                    done -> Text(
+                        text = stringResource(R.string.rating_success),
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Medium
+                    )
+                    else -> Text(
+                        text = stringResource(R.string.rating_submit),
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
             }
         }
     }

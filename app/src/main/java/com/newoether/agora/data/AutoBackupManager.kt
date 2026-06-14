@@ -100,16 +100,19 @@ class AutoBackupManager(
 
             val categories = categoryKeys
                 .mapNotNull { DataExporter.ExportCategory.fromManifestKey(it) }
-                .filter { it != DataExporter.ExportCategory.API_KEYS }
                 .toSet()
 
             if (categories.isEmpty()) return@withContext null
+
+            // Honor the user's auto-backup category selection, including API keys (the dialog
+            // shows an explicit warning when that box is checked).
+            val includeApiKeys = DataExporter.ExportCategory.API_KEYS in categories
 
             val exporter = DataExporter(context, chatDao, settingsManager, memoryManager)
             exporter.export(
                 uri = Uri.fromFile(tmpFile),
                 categories = categories,
-                includeApiKeys = false,
+                includeApiKeys = includeApiKeys,
                 onProgress = {}
             )
 

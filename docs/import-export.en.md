@@ -66,30 +66,40 @@ When importing, you choose how Agora handles data that already exists on your de
 
 Import conversations from other AI chat platforms.
 
+Both Claude and ChatGPT export your data as a **`.zip` archive**. Agora imports that `.zip` directly — there is no need to unzip it first, and Agora does **not** accept loose `.json` files.
+
 ### Import from Claude
 
-Import conversations from a Claude export file:
+**1. Export from Claude.** Go to [Claude](https://claude.ai/) → **Settings → Data Controls → Export data**. Claude prepares the archive quickly — usually in **under an hour** — and emails you a download link.
 
-1. Export your data from [Claude](https://claude.ai/) (Settings → Export Data)
-2. In Agora, go to **Settings → Data Control → Third Party → Import from Claude**
-3. Select the exported JSON file
-4. Review the preview — see conversation count and message count
-5. Choose **Merge** or **Replace** strategy
-6. Tap **Import**
+!!! warning "Download promptly"
+    Claude's download link **expires quickly**. Grab the `.zip` as soon as the email arrives — if you wait too long, the link goes dead and you'll have to request a new export.
+
+**2. Import into Agora.**
+
+1. Go to **Settings → Data Control → Third Party → Import from Claude**
+2. Select the exported `.zip` file
+3. Review the preview — see conversation count and message count
+4. Choose **Merge** or **Replace** strategy
+5. Tap **Import**
 
 !!! note
-    Agora imports conversations from Claude's JSON export format. Attachments are detected and shown in the preview. Attachments themselves are not imported — only the message text.
+    Agora reads the conversation data straight out of Claude's `.zip` export. Attachments are detected and shown in the preview, but only the message text is imported — attachment files themselves are not.
 
 ### Import from ChatGPT
 
-Import conversations from a ChatGPT export `.zip` file:
+**1. Export from ChatGPT.** Go to [ChatGPT](https://chatgpt.com/) → **Settings → Data Controls → Export data**. ChatGPT processes the request and emails you a download link when it's ready.
 
-1. Export your data from [ChatGPT](https://chatgpt.com/) (Settings → Data Controls → Export)
-2. In Agora, go to **Settings → Data Control → Third Party → Import from ChatGPT**
-3. Select the `.zip` file
-4. Review the preview
-5. Choose **Merge** or **Replace** strategy
-6. Tap **Import**
+!!! info "Be patient"
+    ChatGPT's export typically takes **1–2 days** to arrive. This is normal — wait for the email rather than re-requesting.
+
+**2. Import into Agora.**
+
+1. Go to **Settings → Data Control → Third Party → Import from ChatGPT**
+2. Select the downloaded `.zip` file
+3. Review the preview
+4. Choose **Merge** or **Replace** strategy
+5. Tap **Import**
 
 !!! note
     Both user and assistant messages are imported. Message roles are preserved.
@@ -109,7 +119,7 @@ Agora can automatically back up your data on a schedule. You don't need to remem
 ### How It Works
 
 - Auto backup runs periodically in the background using Android WorkManager
-- When a backup is due, Agora exports all your data (except API keys) to the configured directory
+- When a backup is due, Agora exports your selected categories to the configured directory
 - A notification appears only if a backup fails — successful backups are silent
 - Old backups are automatically deleted based on your retention settings
 
@@ -118,7 +128,7 @@ Agora can automatically back up your data on a schedule. You don't need to remem
 1. Go to **Settings → Data Control → Auto Backup**
 2. Toggle **Auto Backup** on/off
 3. Set **Backup every** — choose 1 day, 3 days, 5 days, 1 week, or 1 month
-4. Choose **Export content** — select which categories to include (API keys are excluded from auto backup)
+4. Choose **Export content** — select which categories to include. API keys **can** be included (a warning is shown when you tick that box) — only enable it if the backup location is private and secure. API keys are **not** included by default.
 5. Set **Backup location** — tap to pick a folder (defaults to `Download/Agora/Backup`)
 6. Toggle **Auto delete old backups** on/off, and set **Delete older than** period
 

@@ -42,36 +42,11 @@ fun SettingsWebSearchPage(viewModel: ChatViewModel, onBack: () -> Unit) {
     // No-op bring-into-view to prevent auto-scrolling on text field focus
     val showDocFab by viewModel.showDocumentationFab.collectAsState()
 
-    Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
-        contentWindowInsets = WindowInsets(0.dp),
-        topBar = {
-            TopAppBar(
-                title = { Text(stringResource(R.string.web_search_title), fontWeight = FontWeight.Bold) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background,
-                    titleContentColor = MaterialTheme.colorScheme.onBackground,
-                )
-            )
-        },
-        floatingActionButton = { if (showDocFab) DocumentationFab("web-search.md") },
-        floatingActionButtonPosition = FabPosition.Center,
-    ) { padding ->
-        val fm = androidx.compose.ui.platform.LocalFocusManager.current
-        Column(
-            modifier = Modifier
-                .padding(padding)
-                .navigationBarsPadding()
-                .imePadding()
-                .verticalScroll(rememberScrollState())
-                .clickable(indication = null, interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }) { fm.clearFocus() }
-                .padding(horizontal = 16.dp, vertical = 16.dp)
-        ) {
+    CollapsingSettingsScaffold(
+        title = stringResource(R.string.web_search_title),
+        onBack = onBack,
+        floatingActionButton = { if (showDocFab) DocumentationFab("web-search.md") }
+    ) {
             SettingsGroup(title = stringResource(R.string.web_search_title), items = buildList {
                 add {
                     SettingsItem(
@@ -243,7 +218,6 @@ fun SettingsWebSearchPage(viewModel: ChatViewModel, onBack: () -> Unit) {
             }
 
             if (showDocFab) { Spacer(modifier = Modifier.height(80.dp)) }
-        }
     }
 
     if (showProviderDialog) {

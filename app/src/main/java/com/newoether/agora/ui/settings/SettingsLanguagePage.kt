@@ -42,31 +42,10 @@ fun SettingsLanguagePage(viewModel: ChatViewModel, onBack: () -> Unit) {
         LanguageOption("ar", "العربية")
     )
 
-    Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
-        contentWindowInsets = WindowInsets(0.dp),
-        topBar = {
-            TopAppBar(
-                title = { Text(stringResource(R.string.language_title), fontWeight = FontWeight.Bold) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background,
-                    titleContentColor = MaterialTheme.colorScheme.onBackground,
-                )
-            )
-        }
-    ) { padding ->
-        Column(
-            modifier = Modifier
-                .padding(padding)
-                .navigationBarsPadding()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp, vertical = 16.dp)
-        ) {
+    CollapsingSettingsScaffold(
+        title = stringResource(R.string.language_title),
+        onBack = onBack
+    ) {
             val changeLanguage: (String) -> Unit = { code ->
                 if (code != appLanguage) {
                     viewModel.setAppLanguage(code)
@@ -105,6 +84,5 @@ fun SettingsLanguagePage(viewModel: ChatViewModel, onBack: () -> Unit) {
                     }
                 }
             )
-        }
     }
 }

@@ -107,35 +107,11 @@ fun SettingsSearchPage(viewModel: ChatViewModel, onBack: () -> Unit) {
     }
     val showDocFab by viewModel.showDocumentationFab.collectAsState()
 
-    Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
-        contentWindowInsets = WindowInsets(0.dp),
-        topBar = {
-            TopAppBar(
-                title = { Text(stringResource(R.string.search_title), fontWeight = FontWeight.Bold) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background,
-                    titleContentColor = MaterialTheme.colorScheme.onBackground,
-                )
-            )
-        },
-        floatingActionButton = { if (showDocFab) DocumentationFab("search.md") },
-        floatingActionButtonPosition = FabPosition.Center,
-    ) { padding ->
-        val fm = LocalFocusManager.current
-        Column(
-            modifier = Modifier
-                .padding(padding)
-                .navigationBarsPadding()
-                .verticalScroll(rememberScrollState())
-                .clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) { fm.clearFocus() }
-                .padding(horizontal = 16.dp, vertical = 16.dp)
-        ) {
+    CollapsingSettingsScaffold(
+        title = stringResource(R.string.search_title),
+        onBack = onBack,
+        floatingActionButton = { if (showDocFab) DocumentationFab("search.md") }
+    ) {
             SettingsGroup(
                 title = stringResource(R.string.memory_access_title),
                 items = listOf(
@@ -521,7 +497,6 @@ fun SettingsSearchPage(viewModel: ChatViewModel, onBack: () -> Unit) {
             )
 
             if (showDocFab) { Spacer(modifier = Modifier.height(80.dp)) }
-        }
 
         if (showRemoteDialog) {
             val provider = embeddingProviders[selectedProviderIdx]

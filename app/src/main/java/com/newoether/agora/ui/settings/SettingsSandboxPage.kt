@@ -9,7 +9,6 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -34,7 +33,6 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.unit.Velocity
-import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
@@ -49,7 +47,6 @@ import kotlinx.coroutines.launch
 @Composable
 fun SettingsSandboxPage(sandboxManager: SandboxManager, onBack: () -> Unit, showDocFab: Boolean = false) {
     val scope = rememberCoroutineScope()
-    val fm = LocalFocusManager.current
     val listState = androidx.compose.foundation.lazy.rememberLazyListState()
     val ctx = androidx.compose.ui.platform.LocalContext.current
 
@@ -112,34 +109,12 @@ fun SettingsSandboxPage(sandboxManager: SandboxManager, onBack: () -> Unit, show
         try { diskUsageMB = sandboxManager.getDiskUsageMB() } catch (_: Exception) {}
     }
 
-    Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
-        contentWindowInsets = WindowInsets(0.dp),
-        topBar = {
-            TopAppBar(
-                title = { Text(stringResource(R.string.sandbox_mgmt_title), fontWeight = FontWeight.Bold) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background,
-                    titleContentColor = MaterialTheme.colorScheme.onBackground
-                )
-            )
-        },
-        floatingActionButton = { if (showDocFab) DocumentationFab("sandbox.md") },
-        floatingActionButtonPosition = FabPosition.Center,
-    ) { padding ->
-        LazyColumn(
-            state = listState,
-            modifier = Modifier
-                .padding(padding)
-                .navigationBarsPadding()
-                .clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) { fm.clearFocus() }
-                .padding(horizontal = 16.dp)
-        ) {
+    CollapsingSettingsLazyScaffold(
+        title = stringResource(R.string.sandbox_mgmt_title),
+        onBack = onBack,
+        listState = listState,
+        floatingActionButton = { if (showDocFab) DocumentationFab("sandbox.md") }
+    ) {
             // ═══ Loading ═══
             if (checking) {
                 item {
@@ -150,7 +125,6 @@ fun SettingsSandboxPage(sandboxManager: SandboxManager, onBack: () -> Unit, show
             } else {
                 // ═══ Dashboard ═══
                 item {
-                    Spacer(Modifier.height(16.dp))
                     SettingsGroup(title = stringResource(R.string.sandbox_env), items = listOf({
                         if (!available) {
                             // Not installed
@@ -491,7 +465,6 @@ fun SettingsSandboxPage(sandboxManager: SandboxManager, onBack: () -> Unit, show
                     }
                 }
             }
-        }
     }
 
     // ── Delete confirm dialog ──

@@ -30,33 +30,11 @@ fun SettingsTitleGenPage(viewModel: ChatViewModel, onBack: () -> Unit) {
     var showTitleModelDialog by remember { mutableStateOf(false) }
     val showDocFab by viewModel.showDocumentationFab.collectAsState()
 
-    Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
-        contentWindowInsets = WindowInsets(0.dp),
-        topBar = {
-            TopAppBar(
-                title = { Text(stringResource(R.string.settings_title_gen), fontWeight = FontWeight.Bold) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background,
-                    titleContentColor = MaterialTheme.colorScheme.onBackground,
-                )
-            )
-        },
-        floatingActionButton = { if (showDocFab) DocumentationFab("title-generation.md") },
-        floatingActionButtonPosition = FabPosition.Center,
-    ) { padding ->
-        Column(
-            modifier = Modifier
-                .padding(padding)
-                .navigationBarsPadding()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp, vertical = 16.dp)
-        ) {
+    CollapsingSettingsScaffold(
+        title = stringResource(R.string.settings_title_gen),
+        onBack = onBack,
+        floatingActionButton = { if (showDocFab) DocumentationFab("title-generation.md") }
+    ) {
             SettingsGroup(
                 title = stringResource(R.string.settings_title_gen),
                 items = buildList {
@@ -90,7 +68,6 @@ fun SettingsTitleGenPage(viewModel: ChatViewModel, onBack: () -> Unit) {
                 }
             )
             if (showDocFab) { Spacer(modifier = Modifier.height(80.dp)) }
-        }
     }
 
     if (showTitleModelDialog) {

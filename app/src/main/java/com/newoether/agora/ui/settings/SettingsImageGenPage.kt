@@ -88,6 +88,7 @@ fun SettingsImageGenPage(viewModel: ChatViewModel, onBack: () -> Unit) {
     val modelAliases by viewModel.modelAliases.collectAsState()
     var showModelDialog by remember { mutableStateOf(false) }
     var showAllModels by remember { mutableStateOf(false) }
+    val showDocFab by viewModel.showDocumentationFab.collectAsState()
 
     // Source from ALL synced models (image models needn't be enabled for chat). Default to the
     // image-likely subset so the list stays short; "show all" is the escape hatch for odd names.
@@ -95,34 +96,11 @@ fun SettingsImageGenPage(viewModel: ChatViewModel, onBack: () -> Unit) {
     val imageModels = remember(allModels) { allModels.filter { isLikelyImageModel(it) } }
     val pickList = if (showAllModels || imageModels.isEmpty()) allModels else imageModels
 
-    Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
-        contentWindowInsets = WindowInsets(0.dp),
-        topBar = {
-            TopAppBar(
-                title = { Text(stringResource(R.string.settings_image_gen), fontWeight = FontWeight.Bold) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background,
-                    titleContentColor = MaterialTheme.colorScheme.onBackground,
-                )
-            )
-        }
-    ) { padding ->
-        val fm = androidx.compose.ui.platform.LocalFocusManager.current
-        Column(
-            modifier = Modifier
-                .padding(padding)
-                .navigationBarsPadding()
-                .imePadding()
-                .verticalScroll(rememberScrollState())
-                .clickable(indication = null, interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }) { fm.clearFocus() }
-                .padding(horizontal = 16.dp, vertical = 16.dp)
-        ) {
+    CollapsingSettingsScaffold(
+        title = stringResource(R.string.settings_image_gen),
+        onBack = onBack,
+        floatingActionButton = { if (showDocFab) DocumentationFab("image-generation.md") }
+    ) {
             SettingsGroup(title = stringResource(R.string.settings_image_gen), items = listOf({
                 SettingsItem(
                     headlineContent = { Text(stringResource(R.string.image_gen_enable)) },
@@ -209,7 +187,6 @@ fun SettingsImageGenPage(viewModel: ChatViewModel, onBack: () -> Unit) {
                     }
                 }))
             }
-        }
     }
 
     if (showModelDialog) {
