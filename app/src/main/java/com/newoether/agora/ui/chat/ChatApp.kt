@@ -405,7 +405,7 @@ fun ChatApp(
                         .padding(horizontal = 16.dp, vertical = 20.dp)
                         .clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) { focusManager.clearFocus() }
                 ) {
-                    Text(stringResource(R.string.conversations), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                    Text(stringResource(R.string.conversations), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
                     Spacer(modifier = Modifier.height(12.dp))
 
                     var searchQuery by remember { mutableStateOf("") }
@@ -540,7 +540,7 @@ fun ChatApp(
                                     ) {
                                         Text(
                                             text = conversation.title,
-                                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                                             maxLines = 1,
                                             style = MaterialTheme.typography.bodyLarge,
                                             color = if (isSelected) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSurface
