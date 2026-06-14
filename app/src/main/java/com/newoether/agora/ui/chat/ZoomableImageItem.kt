@@ -39,6 +39,7 @@ internal fun ZoomableImageItem(
     url: String,
     onTap: () -> Unit,
     onScaleChanged: (Float) -> Unit = {},
+    onLongPress: (() -> Unit)? = null,
     consumeConditionally: Boolean = false
 ) {
     val scope = rememberCoroutineScope()
@@ -105,6 +106,7 @@ internal fun ZoomableImageItem(
             .pointerInput(url) {
                 detectTapGestures(
                     onTap = { onTap() },
+                    onLongPress = onLongPress?.let { cb -> { _ -> cb() } },
                     onDoubleTap = { tapOffset ->
                         animationJob?.cancel()
                         animationJob = scope.launch {

@@ -65,7 +65,8 @@ fun FullScreenMediaViewer(
     pdfSelectedPages: Set<Int>? = null,
     onTogglePdfPage: ((Int) -> Unit)? = null,
     onClose: () -> Unit,
-    onNavigate: (Int) -> Unit
+    onNavigate: (Int) -> Unit,
+    onMessage: (String) -> Unit = {}
 ) {
     val url = urls.getOrNull(initialIndex) ?: return
     val isPdf = pdfPages.isNotEmpty()
@@ -108,12 +109,12 @@ fun FullScreenMediaViewer(
     }
 
     if (urls.size > 1) {
-        MediaPager(urls, initialIndex, onClose, onNavigate)
+        MediaPager(urls, initialIndex, onClose, onNavigate, onMessage)
         return
     }
 
     // Single image — full zoom/pan experience
-    SingleImage(url = url, onClose = onClose)
+    SingleImage(url = url, onClose = onClose, onMessage = onMessage)
 }
 
 // --- PDF pager (existing logic) ---
@@ -227,12 +228,14 @@ private fun MediaPager(
     urls: List<String>,
     initialIndex: Int,
     onClose: () -> Unit,
-    onNavigate: (Int) -> Unit
+    onNavigate: (Int) -> Unit,
+    onMessage: (String) -> Unit = {}
 ) {
     val context = LocalContext.current
     var currentScale by remember { mutableFloatStateOf(1f) }
     var showOverlay by remember { mutableStateOf(true) }
     var closing by remember { mutableStateOf(false) }
+    var actionsForUrl by remember { mutableStateOf<String?>(null) }
     val pagerState = rememberPagerState(initialPage = initialIndex.coerceIn(0, urls.size - 1)) { urls.size }
     LaunchedEffect(pagerState.currentPage) { onNavigate(pagerState.currentPage) }
     LaunchedEffect(closing) { if (closing) { kotlinx.coroutines.delay(400); onClose() } }
@@ -262,10 +265,12 @@ private fun MediaPager(
                     url = mediaUrl,
                     onTap = { showOverlay = !showOverlay },
                     onScaleChanged = { if (page == pagerState.currentPage) currentScale = it },
+                    onLongPress = { actionsForUrl = mediaUrl },
                     consumeConditionally = true
                 )
             }
         }
+        actionsForUrl?.let { ImageActionsSheet(url = it, onMessage = onMessage, onDismiss = { actionsForUrl = null }) }
         AnimatedVisibility(
             visible = showOverlay,
             enter = fadeIn(),
@@ -309,16 +314,20 @@ private fun MediaPager(
 @Composable
 private fun SingleImage(
     url: String,
-    onClose: () -> Unit
+    onClose: () -> Unit,
+    onMessage: (String) -> Unit = {}
 ) {
     var showOverlay by remember { mutableStateOf(true) }
+    var showActions by remember { mutableStateOf(false) }
 
     Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.9f))) {
         ZoomableImageItem(
             url = url,
             onTap = { showOverlay = !showOverlay },
+            onLongPress = { showActions = true },
             consumeConditionally = true
         )
+        if (showActions) ImageActionsSheet(url = url, onMessage = onMessage, onDismiss = { showActions = false })
         AnimatedVisibility(
             visible = showOverlay,
             enter = fadeIn(),

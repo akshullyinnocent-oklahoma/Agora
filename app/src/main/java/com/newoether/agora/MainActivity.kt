@@ -226,7 +226,10 @@ fun MainNavigation(viewModel: ChatViewModel, settingsManager: SettingsManager) {
     val snackbarHostState = remember { SnackbarHostState() }
     var chatSnackbarOffset by remember { mutableStateOf(0.dp) }
     val navBarPadding = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
-    val targetSnackbarPadding = if (showSettings) navBarPadding else chatSnackbarOffset
+    // Full-screen media viewer (and settings) drop the snackbar to the bottom (nav-bar inset only);
+    // in chat it floats above the bottom bar. The animateDpAsState below turns the change into a
+    // rise/fall animation as the viewer opens/closes.
+    val targetSnackbarPadding = if (showSettings || fullScreenMediaUrls != null) navBarPadding else chatSnackbarOffset
     val snackbarBottomPadding by animateDpAsState(
         targetValue = targetSnackbarPadding,
         animationSpec = spring(dampingRatio = 1.0f, stiffness = 1000f),
@@ -575,7 +578,8 @@ fun MainNavigation(viewModel: ChatViewModel, settingsManager: SettingsManager) {
                     pdfSelectedPages = if (lastPdfPages.isNotEmpty() && pdfPreviewFromDialog) pdfViewerSelection else null,
                     onTogglePdfPage = lastPdfTogglePage,
                     onClose = { viewModel.clearPreviews(); fullScreenMediaUrls = null; pdfPreviewFromDialog = false },
-                    onNavigate = { idx -> fullScreenMediaIndex = idx }
+                    onNavigate = { idx -> fullScreenMediaIndex = idx },
+                    onMessage = { viewModel.emitSnackbar(it) }
                 )
             }
 

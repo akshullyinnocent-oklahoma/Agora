@@ -22,6 +22,7 @@ import com.newoether.agora.api.LlamaEngine
 import com.newoether.agora.data.EmbeddingIndexer
 import com.newoether.agora.util.Constants
 import com.newoether.agora.util.SearchResultFormatter
+import com.newoether.agora.tool.ImageGenToolProvider
 import com.newoether.agora.tool.MemoryToolProvider
 import com.newoether.agora.tool.RagToolProvider
 import com.newoether.agora.tool.ShellToolProvider
@@ -84,6 +85,11 @@ data class GenerationContext(
     val webSearchProvider: String = "brave",
     val webSearchNumResults: Int = 5,
     val webSearchBaseUrl: String = "",
+    val imageGenEnabled: Boolean = false,
+    val imageGenApiKey: String = "",
+    val imageGenBaseUrl: String = "",
+    val imageGenModel: String = "gpt-image-1",
+    val imageGenSize: String = "1024x1024",
     val shellEnabled: Boolean = false,
     val shellDevices: List<com.newoether.agora.data.ShellDeviceConfig> = emptyList(),
     val sandboxEnabled: Boolean = false,
@@ -113,13 +119,17 @@ class GenerationManager(
     private val memoryToolProvider = MemoryToolProvider(memoryManager)
     private val webSearchToolProvider = WebSearchToolProvider()
     private val ragToolProvider = RagToolProvider()
+    private val imageGenToolProvider = ImageGenToolProvider(app)
     private val shellToolProvider = ShellToolProvider(sandboxFactory).also { stp ->
         // Forward to the ViewModel-provided gate at call time (read the var lazily).
         stp.confirm = { server, summary -> onConfirmShellCommand?.invoke(server, summary) ?: true }
     }
     private val toolProviders: List<ToolProvider> = listOf(
-        memoryToolProvider, webSearchToolProvider, ragToolProvider, shellToolProvider
+        memoryToolProvider, webSearchToolProvider, ragToolProvider, imageGenToolProvider, shellToolProvider
     )
+
+    fun buildImageGenTool(ctx: GenerationContext): List<ToolDefinition> =
+        imageGenToolProvider.definitions(ctx)
 
     private val transcriptionManager = TranscriptionManager(providers, chatDao, context)
 
@@ -644,7 +654,8 @@ class GenerationManager(
         val ragTool = buildRagTool(ctx)
         val shellTool = buildShellTool(ctx)
         val fileTool = buildFileTool(ctx)
-        val allTools = memoryTools + webSearchTool + ragTool + shellTool + fileTool
+        val imageGenTool = buildImageGenTool(ctx)
+        val allTools = memoryTools + webSearchTool + ragTool + imageGenTool + shellTool + fileTool
         val providerConfig = ProviderConfig(
             apiKey = config.apiKey,
             modelId = config.modelId,
@@ -699,6 +710,7 @@ class GenerationManager(
         var currentStatus = MessageStatus.SENDING
         var retryText: String? = null
         val segments = mutableListOf<MessageSegment>()
+        val generatedImages = mutableListOf<String>()
         var currentThoughtBuf = StringBuilder()
         var currentThoughtSignature: String? = null
         val placeholder = chatDao.getMessagesForConversation(conversationId).first().find { it.id == modelMessageId }
@@ -746,6 +758,7 @@ class GenerationManager(
                 status = currentStatus, participant = Participant.MODEL,
                 timestamp = startTime, thoughtTimeMs = totalThoughtTimeMs,
                 modelName = modelName, toolCall = toolCallData,
+                images = generatedImages.toList(),
                 segments = buildLiveSegments(segments, currentThoughtBuf, currentThoughtSignature),
                 retryText = retryText
             )
@@ -824,6 +837,7 @@ class GenerationManager(
                         onStreamUpdate(modelMessage())
                         lastEmitMs = System.currentTimeMillis()
                         val result = executeTool(event.name, event.arguments, ctx)
+                        generatedImages.addAll(imageGenToolProvider.drainImages())
                         val clipped = result.take(Constants.MAX_TOOL_RESULT_LENGTH)
                         val idx = segments.indexOfLast { it.toolCallId == event.id }
                         if (idx >= 0) {
@@ -856,6 +870,7 @@ class GenerationManager(
                         lastEmitMs = System.currentTimeMillis()
                         val tcds = event.calls.map { call ->
                             val result = executeTool(call.name, call.arguments, ctx)
+                            generatedImages.addAll(imageGenToolProvider.drainImages())
                             val clipped = result.take(Constants.MAX_TOOL_RESULT_LENGTH)
                             val idx = segments.indexOfLast { it.toolCallId == call.id }
                             if (idx >= 0) {
@@ -1005,7 +1020,8 @@ class GenerationManager(
                             val effectiveParentId = parentId
                             chatDao.upsertMessage(MessageEntity(
                                 id = modelMessageId, conversationId = conversationId, parentId = effectiveParentId,
-                                text = totalText, thoughts = totalThoughts.ifBlank { null },
+                                text = totalText, images = generatedImages.toList(),
+                                thoughts = totalThoughts.ifBlank { null },
                                 thoughtTitle = totalThoughtTitle, tokenCount = totalTokenCount,
                                 status = currentStatus, participant = Participant.MODEL, timestamp = startTime,
                                 thoughtTimeMs = totalThoughtTimeMs, modelName = modelName, toolCallJson = segmentsJson

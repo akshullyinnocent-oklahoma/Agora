@@ -26,6 +26,18 @@ interface SandboxManager {
     /** Whether an install/uninstall operation is in progress. */
     val isBusy: StateFlow<Boolean>
 
+    /** Whether the base-rootfs install (download + extract) is currently running.
+     *  Held on the manager so the UI can leave and re-enter the page without losing state. */
+    val isInstallingRootfs: StateFlow<Boolean>
+
+    /** Download progress of the base rootfs in 0f..1f, or null when not downloading
+     *  (or when the total size is unknown — show an indeterminate bar then). */
+    val downloadProgress: StateFlow<Float?>
+
+    /** Fire-and-forget base-rootfs install (download + extract). Runs on the manager's
+     *  own scope so it survives navigation; observe [isInstallingRootfs] / [downloadProgress]. */
+    fun installRootfs()
+
     /** Last typed package name — persisted across navigation. */
     var pendingPkgName: String
 

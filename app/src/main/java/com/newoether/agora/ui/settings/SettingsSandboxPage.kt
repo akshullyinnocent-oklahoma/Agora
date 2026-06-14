@@ -57,7 +57,7 @@ fun SettingsSandboxPage(sandboxManager: SandboxManager, onBack: () -> Unit, show
     var available by remember { mutableStateOf(false) }
     var checking by remember { mutableStateOf(true) }
     var backendPackagesLoading by remember { mutableStateOf(false) }
-    var installingRootfs by remember { mutableStateOf(false) } // rootfs install (blocking, in UI scope)
+    var attemptedInstall by remember { mutableStateOf(false) } // set when user taps Install (this session)
     var installError by remember { mutableStateOf<String?>(null) }
     var installPkg by rememberSaveable { mutableStateOf(sandboxManager.pendingPkgName) }
     var lastInstallResult by remember { mutableStateOf<Boolean?>(null) } // local: success/fail for button state
@@ -69,6 +69,9 @@ fun SettingsSandboxPage(sandboxManager: SandboxManager, onBack: () -> Unit, show
     // Collected from sandbox manager backend
     val terminalOutput by sandboxManager.terminalOutput.collectAsState()
     val isBusy by sandboxManager.isBusy.collectAsState()
+    // Rootfs install runs on the manager's own scope, so its state survives leaving/re-entering.
+    val installingRootfs by sandboxManager.isInstallingRootfs.collectAsState()
+    val downloadProgress by sandboxManager.downloadProgress.collectAsState()
     val showTerminal = terminalOutput.isNotBlank()
 
     fun clearAllState() { installPkg = ""; installError = null; deleteConfirm = null; lastInstallResult = null }
@@ -85,6 +88,18 @@ fun SettingsSandboxPage(sandboxManager: SandboxManager, onBack: () -> Unit, show
             if (available) sandboxManager.refreshPackageList()
         } catch (_: Exception) {}
         checking = false
+    }
+
+    // When a user-initiated rootfs install finishes, re-check availability and surface any error.
+    LaunchedEffect(installingRootfs) {
+        if (!installingRootfs && attemptedInstall) {
+            attemptedInstall = false
+            try {
+                available = sandboxManager.isAvailable()
+                if (available) { installError = null; sandboxManager.refreshPackageList() }
+                else installError = sandboxManager.lastError ?: ctx.getString(R.string.sandbox_install_failed)
+            } catch (e: Exception) { installError = e.message }
+        }
     }
 
     // Package list comes directly from backend — always live
@@ -151,10 +166,16 @@ fun SettingsSandboxPage(sandboxManager: SandboxManager, onBack: () -> Unit, show
                                         Text(stringResource(R.string.sandbox_not_installed), color = MaterialTheme.colorScheme.onSurfaceVariant)
                                         if (installingRootfs) {
                                             Spacer(Modifier.height(8.dp))
-                                            LinearProgressIndicator(modifier = Modifier.fillMaxWidth().height(4.dp))
+                                            val p = downloadProgress
+                                            if (p != null) {
+                                                LinearProgressIndicator(progress = { p }, modifier = Modifier.fillMaxWidth().height(4.dp))
+                                            } else {
+                                                LinearProgressIndicator(modifier = Modifier.fillMaxWidth().height(4.dp))
+                                            }
                                             Spacer(Modifier.height(4.dp))
                                             Text(
-                                                stringResource(R.string.sandbox_extracting_rootfs),
+                                                if (p != null) stringResource(R.string.sandbox_downloading_rootfs, (p * 100).toInt())
+                                                else stringResource(R.string.sandbox_extracting_rootfs),
                                                 style = MaterialTheme.typography.bodySmall,
                                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                                             )
@@ -186,16 +207,9 @@ fun SettingsSandboxPage(sandboxManager: SandboxManager, onBack: () -> Unit, show
                                 trailingContent = {
                                     if (!installingRootfs && !isBusy) {
                                         TextButton(onClick = {
-                                            scope.launch {
-                                                installingRootfs = true; clearAllState()
-                                                try {
-                                                    sandboxManager.reset()
-                                                    val ok = sandboxManager.install()
-                                                    if (ok) { available = true; sandboxManager.refreshPackageList() }
-                                                    else { installError = sandboxManager.lastError ?: ctx.getString(R.string.sandbox_install_failed) }
-                                                } catch (e: Exception) { installError = e.message }
-                                                installingRootfs = false
-                                            }
+                                            clearAllState()
+                                            attemptedInstall = true
+                                            sandboxManager.installRootfs()
                                         }) { Text(stringResource(R.string.sandbox_install), style = MaterialTheme.typography.labelMedium) }
                                     }
                                 }

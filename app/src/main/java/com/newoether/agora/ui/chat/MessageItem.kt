@@ -322,6 +322,7 @@ private fun toolDisplayName(toolName: String?): String {
         "search_conversations" -> stringResource(R.string.tool_search_conversations)
         "list_shells" -> stringResource(R.string.tool_list_shells)
         "execute_shell_command" -> stringResource(R.string.tool_execute_shell)
+        "generate_image" -> stringResource(R.string.tool_generate_image)
         else -> (toolName ?: stringResource(R.string.tool_context)).split("_").joinToString(" ") { it.replaceFirstChar { c -> c.uppercaseChar() } }
     }
 }
@@ -425,6 +426,11 @@ private fun toolSummary(seg: MessageSegment): String {
             else if (command != null) stringResource(R.string.tool_shell_executing, command.take(80))
             else stringResource(R.string.tool_shell_done)
         }
+        "generate_image" -> when {
+            isError -> stringResource(R.string.tool_call_failed)
+            content.isEmpty() -> stringResource(R.string.tool_generating_image)
+            else -> stringResource(R.string.tool_generated_image)
+        }
         else -> {
             if (isError) stringResource(R.string.tool_call_failed)
             else stringResource(R.string.tool_done)
@@ -496,6 +502,8 @@ private fun toolResultSummary(toolName: String, toolArgs: String, result: String
             if (command != null) stringResource(R.string.tool_shell_executing, command.take(80))
             else stringResource(R.string.tool_shell_done)
         }
+        "generate_image" -> if (result.isEmpty()) stringResource(R.string.tool_generating_image)
+            else stringResource(R.string.tool_generated_image)
         else -> stringResource(R.string.tool_done)
     }
 }
@@ -1355,6 +1363,31 @@ fun MessageItem(
                                                 }
                                         )
                                     }
+                                }
+                            }
+                        }
+                        if (message.participant == Participant.MODEL && message.images.isNotEmpty()) {
+                            val genImages = message.images
+                            androidx.compose.foundation.lazy.LazyRow(
+                                modifier = Modifier.padding(top = if (debouncedText.isNotEmpty()) 8.dp else 0.dp),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                itemsIndexed(genImages) { idx, path ->
+                                    AttachmentThumbnailItem(
+                                        type = "image",
+                                        imagePath = path,
+                                        fileName = path.substringAfterLast("/"),
+                                        originalUri = null,
+                                        textContent = null,
+                                        pdfPages = emptyList(),
+                                        allMediaUrls = genImages,
+                                        mediaIndex = idx,
+                                        handlers = ThumbnailClickHandlers(
+                                            onMediaClick = onMediaClick,
+                                            onFileClick = onFileContentClick,
+                                            onPdfClick = onPdfPagesClick
+                                        )
+                                    )
                                 }
                             }
                         }

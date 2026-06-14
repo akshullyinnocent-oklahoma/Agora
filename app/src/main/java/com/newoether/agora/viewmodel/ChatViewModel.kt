@@ -406,6 +406,9 @@ class ChatViewModel(
     val webSearchApiKeys = settingsManager.webSearchApiKeys.stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
     val webSearchNumResults = settingsManager.webSearchNumResults.stateIn(viewModelScope, SharingStarted.Eagerly, 5)
     val webSearchBaseUrl = settingsManager.webSearchBaseUrl.stateIn(viewModelScope, SharingStarted.Eagerly, "")
+    val imageGenEnabled = settingsManager.imageGenEnabled.stateIn(viewModelScope, SharingStarted.Eagerly, false)
+    val imageGenModel = settingsManager.imageGenModel.stateIn(viewModelScope, SharingStarted.Eagerly, null)
+    val imageGenSize = settingsManager.imageGenSize.stateIn(viewModelScope, SharingStarted.Eagerly, "1024x1024")
     val showDocumentationFab = settingsManager.showDocumentationFab.stateIn(viewModelScope, SharingStarted.Eagerly, true)
     val shellEnabled = settingsManager.shellEnabled.stateIn(viewModelScope, SharingStarted.Eagerly, false)
     val shellConfirmEnabled = settingsManager.shellConfirmEnabled.stateIn(viewModelScope, SharingStarted.Eagerly, true)
@@ -840,6 +843,26 @@ class ChatViewModel(
             else null
     }
 
+    // Image generation reuses the selected model's provider credentials (mirrors transcription).
+    private fun resolveImageGenModelId(): String =
+        imageGenModel.value?.let { com.newoether.agora.model.ModelId.parse(it).modelName.removePrefix("models/") } ?: ""
+
+    private fun resolveImageGenApiKey(): String {
+        val model = imageGenModel.value ?: return ""
+        val providerName = getProviderForModel(model)
+        if (providerName == "Local") return ""
+        val activeKeyId = activeApiKeyIds.value[providerName]
+        return apiKeys.value.find { it.id == activeKeyId }?.key ?: ""
+    }
+
+    private fun resolveImageGenBaseUrl(): String {
+        val model = imageGenModel.value ?: return ""
+        val providerName = getProviderForModel(model)
+        return providerBaseUrls.value[providerName]
+            ?: if (providerName !in builtInProviders) getProviderInstance(providerName).defaultBaseUrl
+            else ""
+    }
+
     fun setAccessPastConversations(enabled: Boolean) = settingsDelegate.setAccessPastConversations(enabled)
     fun setAccessSavedMemories(enabled: Boolean) = settingsDelegate.setAccessSavedMemories(enabled)
     fun setAccessActiveMemory(enabled: Boolean) = settingsDelegate.setAccessActiveMemory(enabled)
@@ -1238,6 +1261,9 @@ class ChatViewModel(
     fun setWebSearchApiKey(provider: String, apiKey: String) = settingsDelegate.setWebSearchApiKey(provider, apiKey)
     fun setWebSearchNumResults(n: Int) = settingsDelegate.setWebSearchNumResults(n)
     fun setWebSearchBaseUrl(url: String) = settingsDelegate.setWebSearchBaseUrl(url)
+    fun setImageGenEnabled(enabled: Boolean) = settingsDelegate.setImageGenEnabled(enabled)
+    fun setImageGenModel(model: String?) = settingsDelegate.setImageGenModel(model)
+    fun setImageGenSize(size: String) = settingsDelegate.setImageGenSize(size)
     fun setShowDocumentationFab(enabled: Boolean) = settingsDelegate.setShowDocumentationFab(enabled)
     fun setShellEnabled(enabled: Boolean) = settingsDelegate.setShellEnabled(enabled)
     fun setSandboxEnabled(enabled: Boolean) = settingsDelegate.setSandboxEnabled(enabled)
@@ -1355,6 +1381,11 @@ class ChatViewModel(
             webSearchProvider = webSearchProvider.value,
             webSearchNumResults = webSearchNumResults.value,
             webSearchBaseUrl = webSearchBaseUrl.value,
+            imageGenEnabled = imageGenEnabled.value && imageGenModel.value?.contains(":") == true,
+            imageGenApiKey = resolveImageGenApiKey(),
+            imageGenBaseUrl = resolveImageGenBaseUrl(),
+            imageGenModel = resolveImageGenModelId(),
+            imageGenSize = imageGenSize.value,
             shellEnabled = effectiveSettings.shellEnabled ?: shellEnabled.value,
             shellDevices = shellDevices.value,
             sandboxEnabled = sandboxEnabled.value,

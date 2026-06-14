@@ -18,12 +18,23 @@ import java.net.URL
 import java.nio.file.FileSystems
 class ProotSandboxManager(private val context: Context) : SandboxManager {
 
-    private val alpineMirror = "https://dl-cdn.alpinelinux.org/alpine/edge/main"
+    // Pin to the stable v3.21 branch to match the downloaded minirootfs (3.21.0). Using edge here
+    // caused `apk upgrade` to pull divergent packages (e.g. yash-binsh vs busybox-binsh /bin/sh
+    // conflict) and rotates signing keys; the stable branch avoids both.
+    private val alpineMirror = "https://dl-cdn.alpinelinux.org/alpine/v3.21/main"
+    // Base rootfs is fetched on-device at install time (not bundled in the APK), then verified
+    // against this pinned SHA-256 before extraction. Stable v3.21 release URL.
+    private val rootfsUrl = "https://dl-cdn.alpinelinux.org/alpine/v3.21/releases/aarch64/alpine-minirootfs-3.21.0-aarch64.tar.gz"
+    private val rootfsSha256 = "f31202c4070c4ef7de9e157e1bd01cb4da3a2150035d74ea5372c5e86f1efac1"
     private var sandboxScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val _terminalOutput = MutableStateFlow("")
     override val terminalOutput: StateFlow<String> = _terminalOutput.asStateFlow()
     private val _isBusy = MutableStateFlow(false)
     override val isBusy: StateFlow<Boolean> = _isBusy.asStateFlow()
+    private val _isInstallingRootfs = MutableStateFlow(false)
+    override val isInstallingRootfs: StateFlow<Boolean> = _isInstallingRootfs.asStateFlow()
+    private val _downloadProgress = MutableStateFlow<Float?>(null)
+    override val downloadProgress: StateFlow<Float?> = _downloadProgress.asStateFlow()
     private val _packageList = MutableStateFlow<List<SandboxManager.PackageInfo>>(emptyList())
     override val packageList: StateFlow<List<SandboxManager.PackageInfo>> = _packageList.asStateFlow()
 
@@ -75,16 +86,14 @@ class ProotSandboxManager(private val context: Context) : SandboxManager {
 
             val tmpTar = File(context.filesDir, "alpine-rootfs.tar.gz")
             try {
-                val assetFiles = context.assets.list("") ?: emptyArray()
-                val assetName = if (assetFiles.any { it == "alpine-minirootfs.tar" }) "alpine-minirootfs.tar" else "alpine-minirootfs.tar.gz"
-                context.assets.open(assetName).use { input -> tmpTar.outputStream().use { output -> input.copyTo(output) } }
-
-                if (assetName.endsWith(".tar")) {
-                    org.apache.commons.compress.archivers.tar.TarArchiveInputStream(tmpTar.inputStream()).use { tar -> extractTarEntries(tar, rootfsDir) }
-                } else {
-                    java.util.zip.GZIPInputStream(tmpTar.inputStream()).use { gz ->
-                        org.apache.commons.compress.archivers.tar.TarArchiveInputStream(gz).use { tar -> extractTarEntries(tar, rootfsDir) }
-                    }
+                // Fetch the base rootfs on-device (not shipped in the APK) and verify its checksum.
+                _terminalOutput.value += "Downloading Alpine minirootfs…\n"
+                downloadRootfs(rootfsUrl, tmpTar)
+                // Switch the bar to indeterminate while we extract.
+                _downloadProgress.value = null
+                _terminalOutput.value += "Extracting rootfs…\n"
+                java.util.zip.GZIPInputStream(tmpTar.inputStream()).use { gz ->
+                    org.apache.commons.compress.archivers.tar.TarArchiveInputStream(gz).use { tar -> extractTarEntries(tar, rootfsDir) }
                 }
             } finally { tmpTar.delete() }
 
@@ -101,10 +110,65 @@ class ProotSandboxManager(private val context: Context) : SandboxManager {
                 val d = File(rootfsDir, dir)
                 if (d.isDirectory) d.walkTopDown().filter { it.isFile }.forEach { it.setExecutable(true) }
             }
-            // Auto-upgrade to latest repo versions on fresh install
-            try { apkUpgrade { _terminalOutput.value += it + "\n" } } catch (_: Throwable) {}
+            // No auto `apk upgrade` here: the freshly-downloaded minirootfs is already a coherent
+            // pinned release. Running upgrade immediately makes apk re-resolve /bin/sh and dead-locks
+            // on the busybox-binsh vs yash-binsh `cmd:sh` conflict. Packages upgrade on demand.
             isAvailable()
         } catch (e: Throwable) { e.printStackTrace(); lastError = e.message; false }
+    }
+
+    override fun installRootfs() {
+        if (_isInstallingRootfs.value) return
+        sandboxScope.launch {
+            _isInstallingRootfs.value = true
+            _downloadProgress.value = null
+            _terminalOutput.value = ""
+            _packageList.value = emptyList()
+            try {
+                // NOTE: don't call reset() here — it cancels sandboxScope (i.e. this very
+                // coroutine). install() already wipes any stale rootfs before extracting.
+                val ok = install()
+                if (ok) refreshPackageList()
+            } catch (e: Throwable) {
+                e.printStackTrace(); lastError = e.message
+            } finally {
+                _isInstallingRootfs.value = false
+                _downloadProgress.value = null
+            }
+        }
+    }
+
+    /** Download [url] to [dest], streaming SHA-256 + progress, then verify against [rootfsSha256]. */
+    private fun downloadRootfs(url: String, dest: File) {
+        val conn = URL(url).openConnection() as HttpURLConnection
+        try {
+            conn.connectTimeout = 30000
+            conn.readTimeout = 60000
+            conn.instanceFollowRedirects = true
+            conn.connect()
+            if (conn.responseCode !in 200..299) error("HTTP ${conn.responseCode} fetching rootfs")
+            val total = conn.contentLengthLong
+            val digest = java.security.MessageDigest.getInstance("SHA-256")
+            var downloaded = 0L
+            conn.inputStream.use { input ->
+                dest.outputStream().use { output ->
+                    val buf = ByteArray(64 * 1024)
+                    while (true) {
+                        val n = input.read(buf)
+                        if (n < 0) break
+                        output.write(buf, 0, n)
+                        digest.update(buf, 0, n)
+                        downloaded += n
+                        _downloadProgress.value = if (total > 0) (downloaded.toFloat() / total).coerceIn(0f, 1f) else null
+                    }
+                }
+            }
+            val hex = digest.digest().joinToString("") { "%02x".format(it) }
+            if (!hex.equals(rootfsSha256, ignoreCase = true)) {
+                dest.delete()
+                error("rootfs checksum mismatch (expected $rootfsSha256, got $hex)")
+            }
+        } finally { conn.disconnect() }
     }
 
     override fun installPackage(name: String) {

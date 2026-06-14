@@ -14,6 +14,11 @@ class PlaySandboxManager : SandboxManager {
     private val _isBusy = MutableStateFlow(false)
     override var pendingPkgName: String = ""
     override val isBusy: StateFlow<Boolean> = _isBusy
+    private val _isInstallingRootfs = MutableStateFlow(false)
+    override val isInstallingRootfs: StateFlow<Boolean> = _isInstallingRootfs
+    private val _downloadProgress = MutableStateFlow<Float?>(null)
+    override val downloadProgress: StateFlow<Float?> = _downloadProgress
+    override fun installRootfs() {}
     private val _packageList = MutableStateFlow<List<SandboxManager.PackageInfo>>(emptyList())
     override val packageList: StateFlow<List<SandboxManager.PackageInfo>> = _packageList
     override suspend fun refreshPackageList() {}
