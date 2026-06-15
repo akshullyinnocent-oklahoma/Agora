@@ -798,6 +798,7 @@ class ChatViewModel(
     fun updateModelAlias(model: String, alias: String) = settingsDelegate.updateModelAlias(model, alias, modelAliases.value)
 
     fun addApiKey(name: String, key: String, provider: String) = settingsDelegate.addApiKey(name, key, provider, apiKeys.value)
+    fun upsertApiKey(name: String, key: String, provider: String) = settingsDelegate.upsertApiKey(name, key, provider, apiKeys.value)
     fun deleteApiKey(id: String) = settingsDelegate.deleteApiKey(id, apiKeys.value, activeApiKeyIds.value)
     fun updateApiKey(id: String, name: String, key: String) = settingsDelegate.updateApiKey(id, name, key, apiKeys.value)
     fun setActiveApiKey(provider: String, id: String) = settingsDelegate.setActiveApiKey(provider, id)
@@ -2412,6 +2413,41 @@ class ChatViewModel(
         if (!committed) sendGate.set(false)
     }
         return true
+    }
+
+    /**
+     * Onboarding-focused model fetch for a single provider.
+     *
+     * Unlike [fetchAvailableModels] this carries no global side effects: no
+     * `_isSyncingModels` guard (so re-entry always refetches the latest key),
+     * no enabled-set intersection, and no snackbar. It is a plain suspend
+     * function so the caller's coroutine owns its lifecycle — cancelling that
+     * coroutine cooperatively aborts the in-flight network request, which keeps
+     * the welcome flow seamless (no stale result can land after the user edits
+     * their key and returns). Results are persisted so the [availableModels]
+     * flow updates the list. Returns the prefixed model ids, or empty on
+     * failure / unconfigured provider.
+     */
+    suspend fun fetchModelsForProvider(name: String): List<String> {
+        if (name == "Local") return emptyList()
+        // Ensure custom providers are registered before lookup.
+        customProviders.value.forEach { config ->
+            if (config.name !in providers) {
+                providers[config.name] = CustomOpenAiProvider(config.name, providerBaseUrls.value[config.name] ?: "")
+            }
+        }
+        val provider = providers[name] ?: return emptyList()
+        val activeKey = apiKeys.value.find { it.id == activeApiKeyIds.value[name] }?.key ?: ""
+        if (!isProviderConfigured(name, activeKey)) return emptyList()
+        val baseUrl = if (name !in builtInProviders) {
+            providerBaseUrls.value[name]?.takeIf { it.isNotBlank() } ?: provider.defaultBaseUrl
+        } else {
+            providerBaseUrls.value[name]
+        }
+        val raw = withTimeout(10_000L) { provider.fetchModels(activeKey, baseUrl) }
+        val prefixed = raw.map { "$name:${it.removePrefix("models/")}" }
+        if (prefixed.isNotEmpty()) settingsManager.saveAvailableModels(name, prefixed)
+        return prefixed
     }
 
     fun fetchAvailableModels() {

@@ -103,6 +103,21 @@ class SettingsDelegate(
         }
     }
 
+    /**
+     * Store exactly one key for [provider]: update the existing entry in place if
+     * there is one, otherwise add it — and drop any extra entries for the same
+     * provider. Idempotent under repeated/concurrent calls, so onboarding (which
+     * may fire the save more than once) never accumulates duplicates.
+     */
+    fun upsertApiKey(name: String, key: String, provider: String, currentKeys: List<ApiKeyEntry>) {
+        scope.launch {
+            val existing = currentKeys.firstOrNull { it.provider == provider }
+            val entry = existing?.copy(name = name, key = key) ?: ApiKeyEntry(name = name, key = key, provider = provider)
+            settingsManager.saveApiKeys(currentKeys.filter { it.provider != provider } + entry)
+            settingsManager.setActiveApiKeyId(provider, entry.id)
+        }
+    }
+
     fun deleteApiKey(id: String, currentKeys: List<ApiKeyEntry>, activeApiKeyIds: Map<String, String>) {
         scope.launch {
             val entry = currentKeys.find { it.id == id } ?: return@launch

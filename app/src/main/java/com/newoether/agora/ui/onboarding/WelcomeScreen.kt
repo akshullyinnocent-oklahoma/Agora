@@ -4,6 +4,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.animateDpAsState
@@ -30,7 +31,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -47,11 +47,13 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -144,9 +146,15 @@ fun WelcomeScreen(
     // ── Onboarding state ──
     val builtInProviders = listOf("Google", "OpenAI", "Anthropic", "DeepSeek", "Qwen", "Ollama", "Open Router")
     val customProviders by viewModel.customProviders.collectAsState()
-    val allProviders = builtInProviders + customProviders.map { it.name } + "Local"
+    val allProviders = (builtInProviders + customProviders.map { it.name } + "Custom" + "Local").distinct()
     var selectedProvider by remember { mutableStateOf<String?>(null) }
+    // True for any user-defined OpenAI-compatible provider (the "Custom" slot or an
+    // already-created custom provider) — these need both a base URL and an API key.
+    val isCustomProvider = selectedProvider != null &&
+        selectedProvider != "Local" && selectedProvider != "Ollama" &&
+        selectedProvider !in builtInProviders
     var apiKeyText by remember { mutableStateOf("") }
+    var baseUrlText by remember { mutableStateOf("") }
     var apiKeyVisible by remember { mutableStateOf(false) }
     var selectedModelId by remember { mutableStateOf<String?>(null) }
     val autoBackupEnabled by viewModel.autoBackupEnabled.collectAsState()
@@ -158,12 +166,17 @@ fun WelcomeScreen(
     // Pre-fill API key / URL when switching to a configured provider
     LaunchedEffect(selectedProvider) {
         val p = selectedProvider ?: return@LaunchedEffect
-        when (p) {
-            "Ollama" -> {
+        when {
+            p == "Ollama" -> {
                 val url = existingProviderUrls["Ollama"]
                 if (!url.isNullOrBlank()) apiKeyText = url
             }
-            "Local" -> { /* no pre-fill */ }
+            p == "Local" -> { /* no pre-fill */ }
+            p != "Custom" && p !in builtInProviders -> {
+                // Existing custom provider: pre-fill both its URL and key.
+                existingProviderUrls[p]?.takeIf { it.isNotBlank() }?.let { baseUrlText = it }
+                existingApiKeys.find { it.provider == p }?.key?.takeIf { it.isNotBlank() }?.let { apiKeyText = it }
+            }
             else -> {
                 val key = existingApiKeys.find { it.provider == p }?.key
                 if (!key.isNullOrBlank()) apiKeyText = key
@@ -243,32 +256,56 @@ fun WelcomeScreen(
     var showContent by remember { mutableStateOf(false) }
     val contentAlpha by animateFloatAsState(if (showContent) 1f else 0f, tween(600))
 
+    // Persist whatever the API Key page collected for the selected provider. Custom
+    // providers register their base URL (creating the provider if new) plus key; the
+    // built-in/Ollama/Local paths stay as before. Blank fields are skipped.
+    val saveProviderCredentials: () -> Unit = save@{
+        val p = selectedProvider ?: return@save
+        when {
+            p == "Local" -> { /* handled by GGUF import */ }
+            p == "Ollama" -> if (apiKeyText.isNotBlank()) viewModel.setProviderBaseUrl("Ollama", apiKeyText)
+            isCustomProvider -> {
+                if (baseUrlText.isNotBlank()) {
+                    if (customProviders.none { it.name == p }) viewModel.addCustomProvider(p, baseUrlText)
+                    else viewModel.setProviderBaseUrl(p, baseUrlText)
+                }
+                if (apiKeyText.isNotBlank()) viewModel.upsertApiKey(p, apiKeyText, p)
+            }
+            else -> if (apiKeyText.isNotBlank()) viewModel.upsertApiKey(p, apiKeyText, p)
+        }
+    }
+
     val fm = LocalFocusManager.current
     var prevPage by remember { mutableIntStateOf(0) }
     var fetchJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
+    var isFetchingModels by remember { mutableStateOf(false) }
     LaunchedEffect(pagerState.currentPage) {
-        // Save API key / URL when leaving API Key page (handles both swipe and button)
-        if (prevPage == PAGE_API_KEY && selectedProvider != null && apiKeyText.isNotBlank()) {
-            when (selectedProvider) {
-                "Ollama" -> viewModel.setProviderBaseUrl("Ollama", apiKeyText)
-                "Local" -> { /* handled by GGUF import */ }
-                else -> viewModel.addApiKey(selectedProvider!!, apiKeyText, selectedProvider!!)
-            }
-        }
+        // Save provider credentials when leaving the API Key page (swipe or button).
+        if (prevPage == PAGE_API_KEY) saveProviderCredentials()
         prevPage = pagerState.currentPage
         fm.clearFocus()
         if (pagerState.currentPage !in visitedPages) {
             visitedPages.add(pagerState.currentPage)
             players[pagerState.currentPage]?.playWhenReady = true
         }
-        // On Model Select page: cancel any stale fetch from a previous visit,
-        // then fetch after a short delay to let async key/URL save commit.
+        // Models are fetched only while the Model Select page is visible. (Re)fetch
+        // on every entry with the latest key; cancel on leave so an in-flight request
+        // never lands off-screen (no list jump) and a stale key's result never wins.
+        fetchJob?.cancel()
         if (pagerState.currentPage == PAGE_MODEL_CONFIG && selectedProvider != null && selectedProvider != "Local") {
-            fetchJob?.cancel()
+            isFetchingModels = true
             fetchJob = scope.launch {
-                kotlinx.coroutines.delay(300)
-                viewModel.fetchAvailableModels()
+                try {
+                    kotlinx.coroutines.delay(300) // debounce swipe-through + let async key save commit
+                    viewModel.fetchModelsForProvider(selectedProvider!!)
+                } catch (_: Exception) {
+                    // Cancellation or network failure: keep whatever the list already shows.
+                } finally {
+                    isFetchingModels = false
+                }
             }
+        } else {
+            isFetchingModels = false
         }
     }
 
@@ -289,7 +326,10 @@ fun WelcomeScreen(
     AnimatedVisibility(visible = !exiting, exit = fadeOut(tween(300))) {
         val fm = LocalFocusManager.current
         Box(modifier = Modifier.fillMaxSize().clickable(indication = null, interactionSource = defocusInteractionSource) { fm.clearFocus() }) {
-            Column(modifier = Modifier.fillMaxSize().imePadding(), horizontalAlignment = Alignment.CenterHorizontally) {
+            // No imePadding here: with adjustNothing we let the keyboard overlay the
+            // content instead of compressing the column (which would squeeze the
+            // centered card and push the lower field out of view).
+            Column(modifier = Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
 
                 // Skip button
                 Box(Modifier.fillMaxWidth().padding(top = 48.dp, end = 16.dp).alpha(contentAlpha), contentAlignment = Alignment.CenterEnd) {
@@ -314,14 +354,17 @@ fun WelcomeScreen(
                                 PAGE_PROVIDER -> ProviderPage(
                                     providers = allProviders,
                                     selected = selectedProvider,
-                                    onSelect = { selectedProvider = it; apiKeyText = "" },
+                                    onSelect = { selectedProvider = it; apiKeyText = ""; baseUrlText = "" },
                                     modifier = Modifier.fillMaxWidth().padding(horizontal = 36.dp).alpha(contentAlpha),
                                     configuredProviders = existingApiKeys.map { it.provider }.toSet() + existingProviderUrls.filter { it.value.isNotBlank() }.keys
                                 )
                                 PAGE_API_KEY -> ApiKeyPage(
                                     provider = selectedProvider,
+                                    isCustom = isCustomProvider,
                                     apiKeyText = apiKeyText,
                                     onApiKeyChange = { apiKeyText = it },
+                                    baseUrlText = baseUrlText,
+                                    onBaseUrlChange = { baseUrlText = it },
                                     apiKeyVisible = apiKeyVisible,
                                     onToggleVisibility = { apiKeyVisible = !apiKeyVisible },
                                     isImporting = isImportingGGUF,
@@ -333,16 +376,23 @@ fun WelcomeScreen(
                                     val pModels = if (selectedProvider != null) availableModels[selectedProvider] ?: emptyList() else emptyList()
                                     val lModels = localChatModels.map { "Local:${it.modelId}" }
                                     val models = if (selectedProvider == "Local") lModels else pModels
+                                    val applyModel: (String) -> Unit = { id ->
+                                        selectedModelId = id
+                                        viewModel.setSelectedModel(id)
+                                        viewModel.setEnabledModels(setOf(id))
+                                    }
+                                    // Auto-apply the first model whenever the current selection
+                                    // isn't in the list (initial load, or after a provider/key change).
                                     LaunchedEffect(models) {
-                                        if (selectedModelId == null && models.isNotEmpty()) {
-                                            selectedModelId = models.first()
+                                        if (models.isNotEmpty() && selectedModelId !in models) {
+                                            applyModel(models.first())
                                         }
                                     }
                                     ModelPage(
                                         models = models,
                                         selectedId = selectedModelId,
-                                        onSelect = { selectedModelId = it },
-                                        onFetch = { viewModel.fetchAvailableModels() },
+                                        isLoading = isFetchingModels,
+                                        onSelect = applyModel,
                                         modifier = Modifier.fillMaxWidth().padding(horizontal = 36.dp).alpha(contentAlpha)
                                     )
                                 }
@@ -368,11 +418,13 @@ fun WelcomeScreen(
                             val title = when {
                                 index == PAGE_API_KEY && selectedProvider == "Local" -> stringResource(R.string.onboarding_gguf_title)
                                 index == PAGE_API_KEY && selectedProvider == "Ollama" -> stringResource(R.string.onboarding_server_url_title)
+                                index == PAGE_API_KEY && isCustomProvider -> stringResource(R.string.onboarding_custom_title)
                                 else -> page.title
                             }
                             val desc = when {
                                 index == PAGE_API_KEY && selectedProvider == "Local" -> stringResource(R.string.onboarding_gguf_desc)
                                 index == PAGE_API_KEY && selectedProvider == "Ollama" -> stringResource(R.string.onboarding_ollama_desc)
+                                index == PAGE_API_KEY && isCustomProvider -> stringResource(R.string.onboarding_custom_desc)
                                 index == PAGE_API_KEY && selectedProvider != null -> stringResource(R.string.onboarding_api_key_for, selectedProvider!!)
                                 else -> page.description
                             }
@@ -407,24 +459,9 @@ fun WelcomeScreen(
                     Button(onClick = {
                         if (last) { exiting = true }
                         else {
-                            when (pagerState.currentPage) {
-                                PAGE_PROVIDER -> { if (selectedProvider != null && selectedProvider != "Local") apiKeyText = "" }
-                                PAGE_API_KEY -> {
-                                    if (selectedProvider != null && apiKeyText.isNotBlank()) {
-                                        when (selectedProvider) {
-                                            "Local" -> { /* handled by GGUF import */ }
-                                            "Ollama" -> viewModel.setProviderBaseUrl("Ollama", apiKeyText)
-                                            else -> viewModel.addApiKey(selectedProvider!!, apiKeyText, selectedProvider!!)
-                                        }
-                                    }
-                                }
-                                PAGE_MODEL_CONFIG -> {
-                                    if (selectedModelId != null) {
-                                        viewModel.setSelectedModel(selectedModelId!!)
-                                        viewModel.setEnabledModels(setOf(selectedModelId!!))
-                                    }
-                                }
-                            }
+                            // Credentials are saved by the page-leave effect (covers both
+                            // swipe and this button), so we only advance here.
+                            if (pagerState.currentPage == PAGE_PROVIDER && selectedProvider != null && selectedProvider != "Local") apiKeyText = ""
                             scope.launch { pagerState.animateScrollToPage(pagerState.currentPage + 1, animationSpec = tween<Float>(500, easing = CubicBezierEasing(0.2f, 0.0f, 0.0f, 1.0f))) }
                         }
                     }, Modifier.fillMaxWidth(), shape = RoundedCornerShape(50), enabled = showContent, colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)) {
@@ -498,6 +535,7 @@ private fun ProviderPage(providers: List<String>, selected: String?, onSelect: (
                     when {
                         iconRes != 0 -> Icon(painterResource(iconRes), null, tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.size(20.dp))
                         p == "Local" -> Icon(Icons.Filled.AutoAwesome, null, tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.size(20.dp))
+                        p == "Custom" -> Icon(Icons.Filled.Tune, null, tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.size(20.dp))
                         else -> Icon(Icons.Filled.Cloud, null, tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.size(20.dp))
                     }
                     Spacer(Modifier.width(8.dp))
@@ -513,7 +551,8 @@ private fun ProviderPage(providers: List<String>, selected: String?, onSelect: (
 
 @Composable
 private fun ApiKeyPage(
-    provider: String?, apiKeyText: String, onApiKeyChange: (String) -> Unit,
+    provider: String?, isCustom: Boolean, apiKeyText: String, onApiKeyChange: (String) -> Unit,
+    baseUrlText: String, onBaseUrlChange: (String) -> Unit,
     apiKeyVisible: Boolean, onToggleVisibility: () -> Unit,
     isImporting: Boolean, onImportGGUF: () -> Unit, modifier: Modifier,
     localModels: List<com.newoether.agora.data.LocalChatModelConfig> = emptyList()
@@ -557,6 +596,33 @@ private fun ApiKeyPage(
                     singleLine = true, shape = RoundedCornerShape(50)
                 )
             }
+        } else if (isCustom) {
+            val fm = LocalFocusManager.current
+            Column(Modifier.padding(32.dp).fillMaxWidth().clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) { fm.clearFocus() }) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Filled.Tune, null, tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.size(36.dp))
+                    Spacer(Modifier.width(12.dp))
+                    Text(provider, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
+                }
+                Spacer(Modifier.height(20.dp))
+                OutlinedTextField(
+                    value = baseUrlText, onValueChange = onBaseUrlChange, modifier = Modifier.fillMaxWidth(),
+                    placeholder = { Text(stringResource(R.string.onboarding_custom_base_url_hint), maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                    singleLine = true, shape = RoundedCornerShape(50)
+                )
+                Spacer(Modifier.height(12.dp))
+                OutlinedTextField(
+                    value = apiKeyText, onValueChange = onApiKeyChange, modifier = Modifier.fillMaxWidth(),
+                    placeholder = { Text(stringResource(R.string.onboarding_api_key_hint)) },
+                    visualTransformation = if (apiKeyVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                    trailingIcon = {
+                        IconButton(onClick = onToggleVisibility) {
+                            Icon(if (apiKeyVisible) Icons.Filled.VisibilityOff else Icons.Filled.Visibility, stringResource(if (apiKeyVisible) R.string.onboarding_hide_key else R.string.onboarding_show_key), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    },
+                    singleLine = true, shape = RoundedCornerShape(50)
+                )
+            }
         } else {
             val fm = LocalFocusManager.current
             Column(Modifier.padding(32.dp).fillMaxWidth().clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) { fm.clearFocus() }) {
@@ -588,11 +654,23 @@ private fun ApiKeyPage(
 }
 
 @Composable
-private fun ModelPage(models: List<String>, selectedId: String?, onSelect: (String) -> Unit, onFetch: () -> Unit, modifier: Modifier) {
+private fun ModelPage(models: List<String>, selectedId: String?, isLoading: Boolean, onSelect: (String) -> Unit, modifier: Modifier) {
     Surface(modifier, RoundedCornerShape(28.dp), color = MaterialTheme.colorScheme.surfaceContainer, tonalElevation = 2.dp) {
         if (models.isEmpty()) {
-            Column(Modifier.padding(32.dp).fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(stringResource(R.string.onboarding_no_models), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            // While a fetch is in flight show a quiet spinner instead of the empty
+            // state, so the list never flashes "no models" then jumps into view.
+            // Fixed-height slot keeps the card identical between both states, and
+            // Crossfade fades the spinner in/out rather than popping.
+            Box(Modifier.fillMaxWidth().padding(32.dp).height(40.dp), contentAlignment = Alignment.Center) {
+                Crossfade(targetState = isLoading, animationSpec = tween(400), label = "modelLoading") { loading ->
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        if (loading) {
+                            CircularProgressIndicator(modifier = Modifier.size(28.dp), strokeWidth = 3.dp, color = MaterialTheme.colorScheme.primary)
+                        } else {
+                            Text(stringResource(R.string.onboarding_no_models), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
+                        }
+                    }
+                }
             }
         } else {
             val scrollState = rememberScrollState()
