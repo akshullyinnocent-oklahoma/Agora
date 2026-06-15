@@ -758,6 +758,9 @@
     <string name="onboarding_gguf_desc">Importiere ein GGUF-Modell für die Inferenz auf dem Gerät.</string>
     <string name="onboarding_ollama_desc">Gib die URL deines Ollama-Servers ein.</string>
     <string name="onboarding_api_key_for">Gib deinen API-Schlüssel für %1$s ein.</string>
+    <string name="onboarding_custom_title">Eigener Anbieter</string>
+    <string name="onboarding_custom_desc">Verbinde jede OpenAI-kompatible API. Gib ihre Basis-URL und den Schlüssel ein.</string>
+    <string name="onboarding_custom_base_url_hint">Basis-URL (z. B. https://api.example.com/v1)</string>
     <string name="onboarding_skip">Überspringen</string>
     <string name="onboarding_continue">Weiter</string>
     <string name="onboarding_get_started">Loslegen</string>
