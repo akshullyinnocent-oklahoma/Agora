@@ -159,6 +159,7 @@ fun WelcomeScreen(
     var selectedModelId by remember { mutableStateOf<String?>(null) }
     val autoBackupEnabled by viewModel.autoBackupEnabled.collectAsState()
     val availableModels by viewModel.availableModels.collectAsState()
+    val modelAliases by viewModel.modelAliases.collectAsState()
     val localChatModels by viewModel.localChatModels.collectAsState()
     val existingApiKeys by viewModel.apiKeys.collectAsState()
     val existingProviderUrls by viewModel.providerBaseUrls.collectAsState()
@@ -394,6 +395,7 @@ fun WelcomeScreen(
                                     }
                                     ModelPage(
                                         models = models,
+                                        modelAliases = modelAliases,
                                         selectedId = selectedModelId,
                                         isLoading = isFetchingModels,
                                         onSelect = applyModel,
@@ -658,7 +660,7 @@ private fun ApiKeyPage(
 }
 
 @Composable
-private fun ModelPage(models: List<String>, selectedId: String?, isLoading: Boolean, onSelect: (String) -> Unit, modifier: Modifier) {
+private fun ModelPage(models: List<String>, modelAliases: Map<String, String>, selectedId: String?, isLoading: Boolean, onSelect: (String) -> Unit, modifier: Modifier) {
     Surface(modifier, RoundedCornerShape(28.dp), color = MaterialTheme.colorScheme.surfaceContainer, tonalElevation = 2.dp) {
         if (models.isEmpty()) {
             // While a fetch is in flight show a quiet spinner instead of the empty
@@ -696,7 +698,7 @@ private fun ModelPage(models: List<String>, selectedId: String?, isLoading: Bool
                 Column(Modifier.verticalScroll(scrollState)) {
                     Spacer(Modifier.height(10.dp))
                     models.forEach { m ->
-                        val name = com.newoether.agora.model.ModelId.parse(m).modelName.removePrefix("models/")
+                        val name = modelAliases[m] ?: com.newoether.agora.model.ModelId.parse(m).modelName.removePrefix("models/")
                         Row(Modifier.fillMaxWidth().padding(start = 8.dp, end = 20.dp).clip(RoundedCornerShape(28.dp)).clickable { onSelect(m) }.padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                             RadioButton(selected = selectedId == m, onClick = { onSelect(m) })
                             Spacer(Modifier.width(8.dp))
