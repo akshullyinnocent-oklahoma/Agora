@@ -798,6 +798,8 @@
     <string name="pdf_rendering_progress">جارٍ عرض الصفحة %1$d من %2$d…</string>
     <string name="pdf_send_pages">إرسال %1$d صفحة</string>
     <string name="pdf_page_content_desc">الصفحة %1$d</string>
+    <string name="pdf_pages_selected">%1$d محدد</string>
+    <string name="video_between_frames">~%1$s بين الإطارات</string>
     <!-- SSH host-key pinning -->
     <string name="shell_ssh_verify_host_key">التحقق من مفتاح المضيف وتثبيته</string>
     <string name="shell_ssh_host_key_pinned">تم تثبيت مفتاح المضيف</string>

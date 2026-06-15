@@ -802,6 +802,8 @@
     <string name="pdf_rendering_progress">正在渲染第 %1$d / %2$d 页…</string>
     <string name="pdf_send_pages">发送 %1$d 页</string>
     <string name="pdf_page_content_desc">第 %1$d 页</string>
+    <string name="pdf_pages_selected">已选 %1$d 页</string>
+    <string name="video_between_frames">每帧间隔约 %1$s</string>
     <!-- SSH host-key pinning -->
     <string name="shell_ssh_verify_host_key">验证并固定主机密钥</string>
     <string name="shell_ssh_host_key_pinned">已固定主机密钥</string>

@@ -72,6 +72,7 @@ import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.newoether.agora.R
+import com.newoether.agora.ui.theme.ChatType
 import com.newoether.agora.data.local.MessageEntity
 import com.newoether.agora.model.Participant
 import com.newoether.agora.ui.components.AnimatedBlobBackground
@@ -540,7 +541,7 @@ fun ChatApp(
                                     ) {
                                         Text(
                                             text = conversation.title,
-                                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 11.dp),
                                             maxLines = 1,
                                             style = MaterialTheme.typography.bodyLarge,
                                             color = if (isSelected) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSurface
@@ -681,8 +682,7 @@ fun ChatApp(
                                         if (isNewChatMode) {
                                             Text(
                                                 text = currentTitle,
-                                                fontWeight = FontWeight.Bold,
-                                                style = MaterialTheme.typography.titleSmall.copy(fontSize = 20.sp),
+                                                style = ChatType.brandTitle,
                                                 maxLines = 1,
                                                 overflow = TextOverflow.Ellipsis,
                                                 modifier = Modifier.widthIn(max = 180.dp)
@@ -691,15 +691,14 @@ fun ChatApp(
                                             Column(modifier = Modifier.widthIn(max = 180.dp)) {
                                                 Text(
                                                     text = currentTitle,
-                                                    fontWeight = FontWeight.Bold,
-                                                    style = if (totalTokens > 0) MaterialTheme.typography.titleSmall else MaterialTheme.typography.titleSmall.copy(fontSize = 16.sp),
+                                                    style = ChatType.conversationTitle,
                                                     maxLines = 1,
                                                     overflow = TextOverflow.Ellipsis
                                                 )
                                                 if (totalTokens > 0) {
                                                     Text(
                                                         text = stringResource(R.string.total_tokens, totalTokens),
-                                                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                                                        style = ChatType.micro,
                                                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                                                         maxLines = 1
                                                     )

@@ -798,6 +798,8 @@
     <string name="pdf_rendering_progress">ページ %1$d/%2$d をレンダリング中…</string>
     <string name="pdf_send_pages">%1$d ページを送信</string>
     <string name="pdf_page_content_desc">ページ %1$d</string>
+    <string name="pdf_pages_selected">%1$d 件選択</string>
+    <string name="video_between_frames">フレーム間隔 約%1$s</string>
     <!-- SSH host-key pinning -->
     <string name="shell_ssh_verify_host_key">ホストキーを検証して固定</string>
     <string name="shell_ssh_host_key_pinned">ホストキーを固定済み</string>

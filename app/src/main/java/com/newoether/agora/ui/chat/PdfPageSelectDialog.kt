@@ -18,7 +18,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.newoether.agora.R
 
@@ -55,7 +54,7 @@ fun PdfPageSelectDialog(
             Column(modifier = Modifier.padding(20.dp)) {
                 Text(
                     stringResource(R.string.pdf_select_title),
-                    style = MaterialTheme.typography.titleLarge,
+                    style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.Bold
                 )
                 Spacer(Modifier.height(4.dp))
@@ -74,7 +73,7 @@ fun PdfPageSelectDialog(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        "${selectedPages.size} selected",
+                        stringResource(R.string.pdf_pages_selected, selectedPages.size),
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.primary
                     )
@@ -148,11 +147,10 @@ fun PdfPageSelectDialog(
                                                     .padding(horizontal = 4.dp, vertical = 1.dp)
                                             ) {
                                                 Text(
-                                                    "$page",
-                                                    color = Color.White,
-                                                    fontSize = 10.sp,
-                                                    lineHeight = 12.sp
-                                                )
+                                                "$page",
+                                                color = Color.White,
+                                                style = MaterialTheme.typography.labelSmall
+                                            )
                                             }
                                         } else {
                                             Text(
@@ -205,7 +203,7 @@ fun PdfPageSelectDialog(
                     Button(
                         onClick = { onConfirm(PdfPageSelection(selectedPages, effectiveTotal)) },
                         shape = RoundedCornerShape(50),
-                        enabled = selectedPages.isNotEmpty()
+                        enabled = selectedPages.isNotEmpty() && !isLoading
                     ) {
                         Text(stringResource(R.string.pdf_send_pages, selectedPages.size))
                     }

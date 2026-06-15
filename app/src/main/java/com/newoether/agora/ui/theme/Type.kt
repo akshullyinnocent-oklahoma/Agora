@@ -135,3 +135,64 @@ val Typography = Typography(
         letterSpacing = 0.5.sp
     )
 )
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ChatType — single source of truth for the chat surface's typographic scale.
+//
+// The chat page is an information-dense, immersive-reading surface and so uses a
+// TIGHTER scale than the 1.2 (minor-third) geometric scale that drives Settings'
+// big collapsing titles. Here the ratio is ~1.15 (major-second), anchored at the
+// reading body (15sp). Outfit's tall x-height makes 15sp read like ~16sp Roboto.
+//
+// Five semantic tiers — never reach past them on a chat Text:
+//   · Title   — brand 20 · sheet 19 · conversation 17   (the only sizes ≥17)
+//   · Input   — 16 (slightly above body for a comfortable touch target)
+//   · Body    — 15 (user + assistant message text; the anchor)
+//   · Sub     — 13 (thought body; clearly subordinate to body)
+//   · Meta    — 12 labels/status · 11 micro (token counts, badges)
+//
+// Hierarchy is carried by SIZE + WEIGHT + COLOR together: e.g. the collapsed
+// "thought for Ns" eyebrow is meta(12) but Bold + primary, so it out-ranks the
+// 13sp thought body it introduces despite being smaller. Call sites supply color.
+object ChatType {
+    // Title tier
+    // Brand wordmark in the new-chat capsule: prominent in the empty state, one
+    // clean step above the active-conversation title (20 → 15).
+    val brandTitle = TextStyle(fontFamily = OutfitFamily, fontWeight = FontWeight.Bold, fontSize = 20.sp, lineHeight = 26.sp)
+    val sheetTitle = TextStyle(fontFamily = OutfitFamily, fontWeight = FontWeight.Bold, fontSize = 19.sp, lineHeight = 25.sp)
+    // Active-conversation title: one step below the brand wordmark (16 → 15),
+    // Bold so it still reads as a title against the 15sp Normal body.
+    val conversationTitle = TextStyle(fontFamily = OutfitFamily, fontWeight = FontWeight.Bold, fontSize = 15.sp, lineHeight = 20.sp)
+
+    // Input tier
+    val input = TextStyle(fontFamily = OutfitFamily, fontWeight = FontWeight.Normal, fontSize = 16.sp, lineHeight = 23.sp, letterSpacing = 0.5.sp)
+
+    // Body tier
+    val body = TextStyle(fontFamily = OutfitFamily, fontWeight = FontWeight.Normal, fontSize = 15.sp, lineHeight = 22.sp)
+    val thoughtBody = TextStyle(fontFamily = OutfitFamily, fontWeight = FontWeight.Normal, fontSize = 13.sp, lineHeight = 19.sp)
+
+    // Meta tier
+    val meta = TextStyle(fontFamily = OutfitFamily, fontWeight = FontWeight.Medium, fontSize = 12.sp, lineHeight = 17.sp)
+    val micro = TextStyle(fontFamily = OutfitFamily, fontWeight = FontWeight.Medium, fontSize = 11.sp, lineHeight = 15.sp)
+
+    // Code / mono
+    val code = TextStyle(fontFamily = MonoFamily, fontWeight = FontWeight.Normal, fontSize = 14.sp, lineHeight = 20.sp)
+    val thoughtCode = TextStyle(fontFamily = MonoFamily, fontWeight = FontWeight.Normal, fontSize = 12.sp, lineHeight = 17.sp)
+
+    // Assistant markdown headings — even ~1.15 steps; h1 reined in (22, not 24)
+    // so the jump from h2 stays proportional and h1 doesn't shout over 15sp body.
+    val mdH1 = TextStyle(fontFamily = OutfitFamily, fontWeight = FontWeight.Bold, fontSize = 22.sp, lineHeight = 28.sp)
+    val mdH2 = TextStyle(fontFamily = OutfitFamily, fontWeight = FontWeight.Bold, fontSize = 19.sp, lineHeight = 25.sp)
+    val mdH3 = TextStyle(fontFamily = OutfitFamily, fontWeight = FontWeight.SemiBold, fontSize = 17.sp, lineHeight = 23.sp)
+    val mdH4 = TextStyle(fontFamily = OutfitFamily, fontWeight = FontWeight.SemiBold, fontSize = 16.sp, lineHeight = 22.sp)
+    val mdH5 = TextStyle(fontFamily = OutfitFamily, fontWeight = FontWeight.Medium, fontSize = 15.sp, lineHeight = 22.sp)
+    val mdH6 = TextStyle(fontFamily = OutfitFamily, fontWeight = FontWeight.Medium, fontSize = 15.sp, lineHeight = 22.sp)
+
+    // Thought-block headings — one tier below assistant markdown.
+    val thH1 = TextStyle(fontFamily = OutfitFamily, fontWeight = FontWeight.Bold, fontSize = 18.sp, lineHeight = 23.sp)
+    val thH2 = TextStyle(fontFamily = OutfitFamily, fontWeight = FontWeight.Bold, fontSize = 16.sp, lineHeight = 21.sp)
+    val thH3 = TextStyle(fontFamily = OutfitFamily, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, lineHeight = 20.sp)
+    val thH4 = TextStyle(fontFamily = OutfitFamily, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, lineHeight = 19.sp)
+    val thH5 = TextStyle(fontFamily = OutfitFamily, fontWeight = FontWeight.Medium, fontSize = 13.sp, lineHeight = 19.sp)
+    val thH6 = TextStyle(fontFamily = OutfitFamily, fontWeight = FontWeight.Normal, fontSize = 13.sp, lineHeight = 19.sp)
+}

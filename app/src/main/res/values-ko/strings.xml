@@ -798,6 +798,8 @@
     <string name="pdf_rendering_progress">페이지 %1$d/%2$d 렌더링 중…</string>
     <string name="pdf_send_pages">%1$d 페이지 보내기</string>
     <string name="pdf_page_content_desc">페이지 %1$d</string>
+    <string name="pdf_pages_selected">%1$d개 선택됨</string>
+    <string name="video_between_frames">프레임 간격 ~%1$s</string>
     <!-- SSH host-key pinning -->
     <string name="shell_ssh_verify_host_key">호스트 키 확인 및 고정</string>
     <string name="shell_ssh_host_key_pinned">호스트 키 고정됨</string>

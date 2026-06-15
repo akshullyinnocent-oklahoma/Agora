@@ -77,12 +77,16 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import com.newoether.agora.R
+import com.newoether.agora.ui.theme.ChatType
 import com.newoether.agora.util.noOpBringIntoView
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.layout.onSizeChanged
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
@@ -184,6 +188,12 @@ fun ChatBottomBar(
     var pendingPdfIsRendering by remember { mutableStateOf(false) }
     var pendingPdfRenderProgress by remember { mutableStateOf(0 to 0) }
     var pdfDialogHiddenForPreview by remember { mutableStateOf(false) }
+    // Background render job for the page-select dialog, so a dismiss can cancel it and
+    // let renderAllPages clean up its partially-written page files.
+    var pdfRenderJob by remember { mutableStateOf<Job?>(null) }
+    // In-flight video frame-extraction jobs, keyed by video uri, so removing a video while
+    // it is still extracting can cancel the job (which deletes its partial frame files).
+    val videoExtractionJobs = remember { mutableMapOf<String, Job>() }
 
     // Video slicing dialog state
     var showVideoSliceDialog by remember { mutableStateOf(false) }
@@ -192,6 +202,13 @@ fun ChatBottomBar(
     var pendingVideoQueue by remember { mutableStateOf<List<String>>(emptyList()) }
 
     val context = LocalContext.current
+
+    /** Clear the attachment list after a successful send. The extracted-frame / rendered-page
+     *  files are now owned by the stored message (via images field in MessageEntity) — they
+     *  must NOT be deleted here; message deletion handles that. */
+    fun clearAttachments() {
+        selectedAttachments = emptyList()
+    }
 
     // Restore PDF dialog after viewer closes
     LaunchedEffect(fullScreenViewerUrls) {
@@ -230,6 +247,7 @@ fun ChatBottomBar(
                 var timeUs = 0L
                 val intervalUs = intervalMs * 1000L
                 for (i in 0 until frameCount) {
+                    ensureActive()
                     val bitmap = retriever.getFrameAtTime(
                         timeUs, android.media.MediaMetadataRetriever.OPTION_CLOSEST
                     )
@@ -245,6 +263,10 @@ fun ChatBottomBar(
                     processingStates = processingStates + (videoUri to (i + 1).toFloat() / frameCount)
                 }
                 } finally { retriever.release() }
+            } catch (c: CancellationException) {
+                // Removed mid-extraction: drop the partial frame files instead of orphaning them.
+                paths.forEach { runCatching { java.io.File(it).delete() } }
+                throw c
             } catch (_: Exception) {}
             processingStates = processingStates - videoUri
             paths
@@ -313,7 +335,7 @@ fun ChatBottomBar(
                     showPdfPageDialog = true
                     // Initialize selection to first 5 pages
                     onInitPdfSelection?.invoke((0 until minOf(pageCount, 5)).toSet())
-                    coroutineScope.launch(Dispatchers.IO) {
+                    pdfRenderJob = coroutineScope.launch(Dispatchers.IO) {
                         val paths = com.newoether.agora.util.PdfPageRenderer.renderAllPages(
                             context, uri, maxPages = pageCount,
                             onProgress = { cur, total -> pendingPdfRenderProgress = cur to total }
@@ -487,10 +509,21 @@ fun ChatBottomBar(
                                 .background(Color.Black.copy(alpha = 0.8f), CircleShape)
                                 .clip(RoundedCornerShape(18.dp))
                                 .clickable {
-                                    // Clean up pre-extracted frame files
                                     val removed = selectedAttachments.getOrNull(index)
+                                    // Cancel in-flight video extraction + delete partial frames
+                                    if (removed != null && videoExtractionJobs.containsKey(removed.uri)) {
+                                        videoExtractionJobs[removed.uri]?.cancel()
+                                        videoExtractionJobs.remove(removed.uri)
+                                    }
+                                    // Clean up pre-extracted video frame files
                                     if (removed?.processedFrames != null) {
                                         for (path in removed.processedFrames) {
+                                            try { java.io.File(path).delete() } catch (_: Exception) {}
+                                        }
+                                    }
+                                    // Clean up PDF page preview files
+                                    if (removed?.preRenderedPaths != null) {
+                                        for (path in removed.preRenderedPaths) {
                                             try { java.io.File(path).delete() } catch (_: Exception) {}
                                         }
                                     }
@@ -523,7 +556,7 @@ fun ChatBottomBar(
         }
 
         Box(modifier = Modifier.fillMaxWidth().then(if (isExpanded) Modifier.weight(1f) else Modifier).noOpBringIntoView()) {
-            TextField(state = textFieldState, scrollState = scrollState, modifier = Modifier.fillMaxWidth().then(if (isExpanded) Modifier.fillMaxHeight() else Modifier).focusRequester(focusRequester).verticalScrollbar(scrollState, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)), placeholder = { Text(stringResource(R.string.ask_agora), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)) }, enabled = true, lineLimits = TextFieldLineLimits.MultiLine(1, if (isExpanded) Int.MAX_VALUE else 6), colors = TextFieldDefaults.colors(focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent, disabledIndicatorColor = Color.Transparent, focusedContainerColor = Color.Transparent, unfocusedContainerColor = Color.Transparent, disabledContainerColor = Color.Transparent, cursorColor = MaterialTheme.colorScheme.primary), textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface))
+            TextField(state = textFieldState, scrollState = scrollState, modifier = Modifier.fillMaxWidth().then(if (isExpanded) Modifier.fillMaxHeight() else Modifier).focusRequester(focusRequester).verticalScrollbar(scrollState, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)), placeholder = { Text(stringResource(R.string.ask_agora), style = ChatType.input, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)) }, enabled = true, lineLimits = TextFieldLineLimits.MultiLine(1, if (isExpanded) Int.MAX_VALUE else 6), colors = TextFieldDefaults.colors(focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent, disabledIndicatorColor = Color.Transparent, focusedContainerColor = Color.Transparent, unfocusedContainerColor = Color.Transparent, disabledContainerColor = Color.Transparent, cursorColor = MaterialTheme.colorScheme.primary), textStyle = ChatType.input.copy(color = MaterialTheme.colorScheme.onSurface))
             androidx.compose.animation.AnimatedVisibility(
                 visible = !isExpanded,
                 enter = fadeIn(tween(250)),
@@ -879,7 +912,7 @@ fun ChatBottomBar(
             LaunchedEffect(pendingSend, anyProcessing) {
                 if (pendingSend && !anyProcessing) {
                     if (onSendMessage(textFieldState.text.toString(), selectedAttachments)) {
-                        selectedAttachments = emptyList()
+                        clearAttachments()
                         textFieldState.edit { replace(0, length, "") }
                         onCollapse()
                     }
@@ -900,7 +933,7 @@ fun ChatBottomBar(
                             pendingSend = true
                         } else {
                             if (onSendMessage(textFieldState.text.toString(), selectedAttachments)) {
-                                selectedAttachments = emptyList()
+                                clearAttachments()
                                 textFieldState.edit { replace(0, length, "") }
                                 onCollapse()
                             }
@@ -983,18 +1016,31 @@ fun ChatBottomBar(
             },
             onConfirm = { selection ->
                 showPdfPageDialog = false
+                val rendered = pendingPdfRenderedPaths
+                val sel = selection.selectedPages
+                // Keep only the selected pages; delete the rest so unselected pages don't
+                // pile up in filesDir. The kept paths are re-indexed 0..n so the attachment
+                // and the send path (which filters preRenderedPaths by selectedPages) stay in sync.
+                val keptPaths = rendered.filterIndexed { i, _ -> i in sel }
+                rendered.filterIndexedTo(mutableListOf()) { i, _ -> i !in sel }
+                    .forEach { runCatching { java.io.File(it).delete() } }
                 selectedAttachments = selectedAttachments + com.newoether.agora.model.SelectedAttachment(
                     uri = pendingPdfUri!!, type = "pdf",
                     mimeType = pendingPdfMimeType,
                     fileName = pendingPdfFileName,
-                    selectedPages = selection.selectedPages,
-                    preRenderedPaths = pendingPdfRenderedPaths
+                    selectedPages = keptPaths.indices.toSet(),
+                    preRenderedPaths = keptPaths
                 )
                 pendingPdfUri = null
                 pendingPdfRenderedPaths = emptyList()
             },
             onDismiss = {
                 showPdfPageDialog = false
+                // Cancel an in-flight render (renderAllPages deletes its own partial files on
+                // cancellation) and delete any fully-rendered pages — nothing was attached.
+                pdfRenderJob?.cancel()
+                pdfRenderJob = null
+                pendingPdfRenderedPaths.forEach { runCatching { java.io.File(it).delete() } }
                 pendingPdfUri = null
                 pendingPdfRenderedPaths = emptyList()
                 pendingPdfIsRendering = false
@@ -1031,13 +1077,16 @@ fun ChatBottomBar(
                 selectedAttachments = selectedAttachments + attachment
                 processingStates = processingStates + (vidUri to 0f)
 
-                // Start frame extraction and store result paths
-                coroutineScope.launch(Dispatchers.IO) {
+                // Start frame extraction and store result paths; track job so an X-delete while
+                // extracting can cancel it (extractVideoFrames cleans up partial files on cancel).
+                val job = coroutineScope.launch(Dispatchers.IO) {
                     val framePaths = extractVideoFrames(vidUri, result.frameCount, result.intervalMs)
                     selectedAttachments = selectedAttachments.map { a ->
                         if (a.uri == vidUri) a.copy(processedFrames = framePaths) else a
                     }
+                    videoExtractionJobs.remove(vidUri)
                 }
+                videoExtractionJobs[vidUri] = job
 
                 // Process next video in queue
                 processNextVideo()
@@ -1069,8 +1118,8 @@ private fun ProviderBadge(provider: String) {
     ) {
         Text(
             provider,
+            style = ChatType.micro,
             color = badgeColor,
-            fontSize = 10.sp,
             modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
         )
     }

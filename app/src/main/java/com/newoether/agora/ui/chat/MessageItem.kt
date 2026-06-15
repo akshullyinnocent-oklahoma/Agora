@@ -122,6 +122,7 @@ import com.newoether.agora.model.MessageSegment
 import com.newoether.agora.model.MessageStatus
 import com.newoether.agora.model.Participant
 import com.newoether.agora.ui.theme.MonoFamily
+import com.newoether.agora.ui.theme.ChatType
 import com.newoether.agora.ui.components.*
 import com.mikepenz.markdown.m3.Markdown
 import com.mikepenz.markdown.m3.markdownColor
@@ -136,13 +137,25 @@ private fun mergeAdjacentSegments(segs: List<MessageSegment>): List<MessageSegme
     val merged = mutableListOf<MessageSegment>()
     for (seg in segs) {
         val last = merged.lastOrNull()
-        if (last != null && last.type == seg.type && (seg.type == "thought" || seg.type == "transcription")) {
+        // Only continuous reasoning (thought) is merged into one flowing block.
+        // Transcriptions stay separate: each describes a distinct image, so a
+        // 1:1 image↔block correspondence must be preserved.
+        if (last != null && last.type == seg.type && seg.type == "thought") {
             merged[merged.lastIndex] = last.copy(content = last.content + seg.content)
         } else {
             merged.add(seg)
         }
     }
     return merged
+}
+
+// Label a transcription segment; numbers them ("Image Transcription 1/2/…") only
+// when more than one is present, so a single image keeps the clean unnumbered name.
+private fun transcriptionLabel(segs: List<MessageSegment>, index: Int): String {
+    val total = segs.count { it.type == "transcription" }
+    if (total <= 1) return "Image Transcription"
+    val ordinal = segs.take(index + 1).count { it.type == "transcription" }
+    return "Image Transcription $ordinal"
 }
 
 private val prettyPrinter = Json { prettyPrint = true }
@@ -173,7 +186,7 @@ private fun parseJsonOrNull(text: String): JsonElement? {
                         ) {
                             Text(
                                 text = key,
-                                style = MaterialTheme.typography.labelSmall,
+                                style = ChatType.meta,
                                 color = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                             )
@@ -183,11 +196,11 @@ private fun parseJsonOrNull(text: String): JsonElement? {
                             is JsonPrimitive -> JsonPrimitiveView(value)
                             is kotlinx.serialization.json.JsonNull -> JsonNullView()
                             is kotlinx.serialization.json.JsonObject -> Text(
-                                "{…}", style = MaterialTheme.typography.bodySmall,
+                                "{…}", style = ChatType.thoughtBody,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                             is kotlinx.serialization.json.JsonArray -> Text(
-                                "[…]", style = MaterialTheme.typography.bodySmall,
+                                "[…]", style = ChatType.thoughtBody,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
@@ -215,7 +228,7 @@ private fun parseJsonOrNull(text: String): JsonElement? {
         val allPrimitive = arr.all { it is JsonPrimitive || it is kotlinx.serialization.json.JsonNull }
         if (allPrimitive && arr.size <= 8) {
             Row(modifier = Modifier.padding(vertical = 1.dp)) {
-                Text("[", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("[", style = ChatType.thoughtBody, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 arr.forEachIndexed { i, item ->
                     when (item) {
                         is JsonPrimitive -> JsonPrimitiveView(item, inline = true)
@@ -223,10 +236,10 @@ private fun parseJsonOrNull(text: String): JsonElement? {
                         else -> {}
                     }
                     if (i < arr.lastIndex) {
-                        Text(", ", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(", ", style = ChatType.thoughtBody, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
-                Text("]", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("]", style = ChatType.thoughtBody, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         } else {
             Column {
@@ -238,7 +251,7 @@ private fun parseJsonOrNull(text: String): JsonElement? {
                         ) {
                             Text(
                                 text = "$i",
-                                style = MaterialTheme.typography.labelSmall,
+                                style = ChatType.meta,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                             )
@@ -263,9 +276,9 @@ private fun parseJsonOrNull(text: String): JsonElement? {
             else -> MaterialTheme.colorScheme.tertiary
         }
         val style = if (primitive.isString && !inline) {
-            MaterialTheme.typography.bodySmall
+            ChatType.thoughtBody
         } else {
-            MaterialTheme.typography.bodySmall.copy(fontFamily = MonoFamily)
+            ChatType.thoughtBody.copy(fontFamily = MonoFamily)
         }
         Text(
             text = primitive.content,
@@ -278,7 +291,7 @@ private fun parseJsonOrNull(text: String): JsonElement? {
     private fun JsonNullView() {
         Text(
             text = "—",
-            style = MaterialTheme.typography.bodySmall,
+            style = ChatType.thoughtBody,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
@@ -292,7 +305,7 @@ private fun parseJsonOrNull(text: String): JsonElement? {
             SelectionContainer {
                 Text(
                     text = text,
-                    style = MaterialTheme.typography.bodySmall.copy(fontFamily = MonoFamily),
+                    style = ChatType.thoughtBody.copy(fontFamily = MonoFamily),
                     color = MaterialTheme.colorScheme.onSurface
                 )
             }
@@ -575,10 +588,10 @@ fun MessageItem(
             title = { Text(stringResource(R.string.message_info), fontWeight = FontWeight.Bold) },
             text = {
                 Column {
-                    Text(stringResource(R.string.time_with_label, dateString), style = MaterialTheme.typography.bodyMedium)
+                    Text(stringResource(R.string.time_with_label, dateString), style = MaterialTheme.typography.bodyMedium.copy(fontSize = 14.sp, lineHeight = 20.sp))
                     if (message.participant == Participant.MODEL) {
                         Spacer(modifier = Modifier.height(8.dp))
-                        Text(stringResource(R.string.model_with_label, modelDisplay), style = MaterialTheme.typography.bodyMedium)
+                        Text(stringResource(R.string.model_with_label, modelDisplay), style = MaterialTheme.typography.bodyMedium.copy(fontSize = 14.sp, lineHeight = 20.sp))
                     }
                 }
             },
@@ -655,39 +668,39 @@ fun MessageItem(
     }
 
     val currentTypography = MaterialTheme.typography
+    // Chat-specific markdown scale — optimized for immersive reading.
+    // Outfit's large x-height means 15sp reads like ~16sp Roboto.
+    // Heading steps of 3sp (h1→h2→h3) and 2sp (h3→h4) create
+    // a visible but not jarring hierarchy during long-form reading.
     val customTypography = markdownTypography(
-        text = currentTypography.bodyMedium,
-        h1 = currentTypography.headlineSmall,
-        h2 = currentTypography.titleLarge,
-        h3 = currentTypography.titleMedium,
-        h4 = currentTypography.titleSmall,
-        h5 = currentTypography.titleSmall,
-        h6 = currentTypography.titleSmall,
-        code = currentTypography.bodyMedium.copy(
-            fontFamily = MonoFamily,
-            fontSize = 13.sp
-        ),
-        inlineCode = currentTypography.bodyMedium.copy(
-            fontFamily = MonoFamily,
-            fontSize = 13.sp
-        ),
+        text = ChatType.body,
+        h1 = ChatType.mdH1,
+        h2 = ChatType.mdH2,
+        h3 = ChatType.mdH3,
+        h4 = ChatType.mdH4,
+        h5 = ChatType.mdH5,
+        h6 = ChatType.mdH6,
+        code = ChatType.code,
+        inlineCode = ChatType.code,
     )
     
-    // Dedicated compact typography for thoughts
+    // Compact typography for thought blocks — subordinate to main chat body.
+    // One tier below main markdown: body at 13sp (vs 15sp), headings similarly
+    // stepped down. Readable for paragraph-level content but clearly secondary.
     val thoughtTypography = markdownTypography(
-        text = currentTypography.bodyMedium.copy(fontSize = 12.sp, lineHeight = 16.sp),
-        paragraph = currentTypography.bodyMedium.copy(fontSize = 12.sp, lineHeight = 16.sp),
-        ordered = currentTypography.bodyMedium.copy(fontSize = 12.sp, lineHeight = 16.sp),
-        bullet = currentTypography.bodyMedium.copy(fontSize = 12.sp, lineHeight = 16.sp),
-        list = currentTypography.bodyMedium.copy(fontSize = 12.sp, lineHeight = 16.sp),
-        h1 = currentTypography.bodyMedium.copy(fontSize = 18.sp, fontWeight = FontWeight.Bold),
-        h2 = currentTypography.bodyMedium.copy(fontSize = 16.sp, fontWeight = FontWeight.Bold),
-        h3 = currentTypography.bodyMedium.copy(fontSize = 15.sp, fontWeight = FontWeight.SemiBold),
-        h4 = currentTypography.bodyMedium.copy(fontSize = 14.sp, fontWeight = FontWeight.SemiBold),
-        h5 = currentTypography.bodyMedium.copy(fontSize = 13.sp),
-        h6 = currentTypography.bodyMedium.copy(fontSize = 12.sp),
-        code = currentTypography.bodyMedium.copy(fontFamily = MonoFamily, fontSize = 12.sp),
-        inlineCode = currentTypography.bodyMedium.copy(fontFamily = MonoFamily, fontSize = 12.sp),
+        text = ChatType.thoughtBody,
+        paragraph = ChatType.thoughtBody,
+        ordered = ChatType.thoughtBody,
+        bullet = ChatType.thoughtBody,
+        list = ChatType.thoughtBody,
+        h1 = ChatType.thH1,
+        h2 = ChatType.thH2,
+        h3 = ChatType.thH3,
+        h4 = ChatType.thH4,
+        h5 = ChatType.thH5,
+        h6 = ChatType.thH6,
+        code = ChatType.thoughtCode,
+        inlineCode = ChatType.thoughtCode,
     )
 
     val fg = MaterialTheme.colorScheme.onBackground
@@ -704,8 +717,8 @@ fun MessageItem(
         codeBackground = codeBg,
         inlineCodeBackground = Color.Transparent,
     )
-    val customMarkdownPadding = markdownPadding(block = 7.dp)
-    val thoughtMarkdownPadding = markdownPadding(block = 4.dp)
+    val customMarkdownPadding = markdownPadding(block = 8.dp)
+    val thoughtMarkdownPadding = markdownPadding(block = 5.dp)
 
     val customMarkdownComponents = remember {
         markdownComponents(
@@ -897,7 +910,7 @@ fun MessageItem(
                                 SelectionContainer {
                                     Text(
                                         text = message.text,
-                                        style = MaterialTheme.typography.bodyMedium,
+                                        style = ChatType.body,
                                         color = textColor
                                     )
                                 }
@@ -1045,10 +1058,10 @@ fun MessageItem(
                         ) {
                             val text = displayText ?: return@AnimatedVisibility
                             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 6.dp)) {
-                                Box(modifier = Modifier.size(18.dp), contentAlignment = Alignment.Center) {
+                                Box(modifier = Modifier.size(16.dp), contentAlignment = Alignment.Center) {
                                     if (isStreaming) {
                                         CircularProgressIndicator(
-                                            modifier = Modifier.size(16.dp),
+                                            modifier = Modifier.size(14.dp),
                                             color = if (text == thinkingStatus) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.primary,
                                             strokeWidth = 2.dp,
                                             trackColor = MaterialTheme.colorScheme.surfaceVariant,
@@ -1059,11 +1072,11 @@ fun MessageItem(
                                             MessageStatus.STOPPED -> Icons.Default.Stop
                                             else -> Icons.Default.Info
                                         }
-                                        Icon(icon, null, modifier = Modifier.size(16.dp), tint = if (message.status == MessageStatus.SUCCESS) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.error)
+                                        Icon(icon, null, modifier = Modifier.size(14.dp), tint = if (message.status == MessageStatus.SUCCESS) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.error)
                                     }
                                 }
                                 Spacer(modifier = Modifier.width(8.dp))
-                                Text(text, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text(text, style = ChatType.meta, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         }
                     }
@@ -1177,17 +1190,17 @@ fun MessageItem(
                                         .padding(10.dp)
                                 ) {
                                     if (isToolCalling || isToolInProgress) {
-                                        Icon(Icons.Default.Build, null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f))
+                                        Icon(Icons.Default.Build, null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f))
                                     } else if (!isThinking && !hasThought && toolCount > 0) {
-                                        Icon(Icons.Default.Build, null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f))
+                                        Icon(Icons.Default.Build, null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f))
                                     } else if (isTranscribing || collapsedTitle == "Image Transcription") {
-                                        Icon(Icons.Filled.Image, null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f))
+                                        Icon(Icons.Filled.Image, null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f))
                                     } else {
-                                        Icon(androidx.compose.ui.res.painterResource(id = com.newoether.agora.R.drawable.neurology_24), null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f))
+                                        Icon(androidx.compose.ui.res.painterResource(id = com.newoether.agora.R.drawable.neurology_24), null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f))
                                     }
                                     Spacer(modifier = Modifier.width(8.dp))
                                     Text(
-                                        collapsedTitle, style = MaterialTheme.typography.labelMedium,
+                                        collapsedTitle, style = ChatType.thoughtBody,
                                         color = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f),
                                         fontWeight = FontWeight.Bold, maxLines = 1,
                                         overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f)
@@ -1227,9 +1240,9 @@ fun MessageItem(
                                                         .padding(horizontal = 10.dp, vertical = 8.dp)
                                                 ) {
                                                     Text(
-                                                        if (seg.type == "transcription") "Image Transcription" else stringResource(R.string.tool_thinking),
-                                                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
-                                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                                                        if (seg.type == "transcription") transcriptionLabel(segs, idx) else stringResource(R.string.tool_thinking),
+                                                        style = ChatType.meta,
+                                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                                                         fontWeight = FontWeight.SemiBold
                                                     )
                                                     if (seg.content.isNotBlank()) {
@@ -1239,15 +1252,15 @@ fun MessageItem(
                                                         } else flat
                                                         Text(
                                                             text = preview,
-                                                            style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
-                                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                            style = ChatType.meta.copy(fontWeight = FontWeight.Normal),
+                                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
                                                             maxLines = 1,
                                                             overflow = TextOverflow.Ellipsis
                                                         )
                                                     } else {
                                                         Text(
                                                             text = "Image transcription is empty.",
-                                                            style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
+                                                            style = ChatType.meta.copy(fontWeight = FontWeight.Normal),
                                                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
                                                         )
                                                     }
@@ -1262,14 +1275,14 @@ fun MessageItem(
                                                 ) {
                                                     Text(
                                                         toolDisplayName(seg.toolName),
-                                                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
-                                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                                                        style = ChatType.meta,
+                                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                                                         fontWeight = FontWeight.SemiBold
                                                     )
                                                     Text(
                                                         text = toolSummary(seg),
-                                                        style = MaterialTheme.typography.bodySmall.copy(fontSize = 10.sp, lineHeight = 13.sp),
-                                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                        style = ChatType.meta.copy(fontWeight = FontWeight.Normal),
+                                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                                                     )
                                                 }
                                             }
@@ -1309,7 +1322,7 @@ fun MessageItem(
                                         SelectionContainer {
                                             Text(
                                                 debouncedText.ifEmpty { stringResource(R.string.failed_to_generate) },
-                                                style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium, lineHeight = 18.sp),
+                                                style = ChatType.body.copy(fontWeight = FontWeight.Medium),
                                                 color = MaterialTheme.colorScheme.error.copy(alpha = 0.8f)
                                             )
                                         }
@@ -1368,25 +1381,23 @@ fun MessageItem(
                         }
                         if (message.participant == Participant.MODEL && message.images.isNotEmpty()) {
                             val genImages = message.images
-                            androidx.compose.foundation.lazy.LazyRow(
+                            // Generated images are primary output, not input references:
+                            // render as a full-width square card, image cropped to fill
+                            // with rounded corners, tap to view fullscreen.
+                            Column(
                                 modifier = Modifier.padding(top = if (debouncedText.isNotEmpty()) 8.dp else 0.dp),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                itemsIndexed(genImages) { idx, path ->
-                                    AttachmentThumbnailItem(
-                                        type = "image",
-                                        imagePath = path,
-                                        fileName = path.substringAfterLast("/"),
-                                        originalUri = null,
-                                        textContent = null,
-                                        pdfPages = emptyList(),
-                                        allMediaUrls = genImages,
-                                        mediaIndex = idx,
-                                        handlers = ThumbnailClickHandlers(
-                                            onMediaClick = onMediaClick,
-                                            onFileClick = onFileContentClick,
-                                            onPdfClick = onPdfPagesClick
-                                        )
+                                genImages.forEachIndexed { idx, path ->
+                                    coil.compose.AsyncImage(
+                                        model = path,
+                                        contentDescription = null,
+                                        contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .aspectRatio(1f)
+                                            .clip(RoundedCornerShape(12.dp))
+                                            .clickable { onMediaClick(genImages, idx) }
                                     )
                                 }
                             }
@@ -1396,7 +1407,7 @@ fun MessageItem(
                                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)) {
                                     Icon(Icons.Default.Info, null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f))
                                     Spacer(modifier = Modifier.width(8.dp))
-                                    Text(stringResource(R.string.generation_stopped), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f))
+                                    Text(stringResource(R.string.generation_stopped), style = ChatType.meta, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f))
                                 }
                             }
                         }
@@ -1662,7 +1673,7 @@ fun MessageItem(
                 ) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
-                    shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp),
+                    shape = RoundedCornerShape(topStart = 26.dp, topEnd = 26.dp),
                     shadowElevation = 8.dp,
                     color = MaterialTheme.colorScheme.surfaceContainer
                 ) {
@@ -1711,10 +1722,9 @@ fun MessageItem(
                             // Fixed title
                             Text(
                                 text = if (seg.type == "tool") toolDisplayName(seg.toolName)
-                                    else if (seg.type == "transcription") "Image Transcription"
+                                    else if (seg.type == "transcription") transcriptionLabel(liveSegs, selectedSegmentIndex)
                                     else stringResource(R.string.tool_thinking),
-                                style = MaterialTheme.typography.titleLarge,
-                                fontWeight = FontWeight.Bold,
+                                style = ChatType.sheetTitle,
                                 modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp)
                             )
                             HorizontalDivider(
@@ -1731,7 +1741,10 @@ fun MessageItem(
                                 .verticalScroll(scrollState)
                                 .noOpBringIntoView()
                                 .padding(horizontal = 24.dp)
-                                .padding(top = 12.dp)
+                                // Markdown content (thinking, transcription) hugs its title with a
+                                // unified 4dp; tool detail leads with an Arguments/Result label, so it
+                                // gets a slightly larger 6dp.
+                                .padding(top = if (seg.type == "tool") 6.dp else 4.dp)
                                 .navigationBarsPadding()
                                 .padding(bottom = 32.dp)
                         ) {
@@ -1740,7 +1753,7 @@ fun MessageItem(
                                 if (!args.isNullOrBlank() && args != "{}") {
                                     Text(
                                         stringResource(R.string.arguments_label),
-                                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                                        style = ChatType.meta,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                     Spacer(modifier = Modifier.height(4.dp))
@@ -1750,7 +1763,7 @@ fun MessageItem(
 
                                 Text(
                                     stringResource(R.string.result_label),
-                                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
+                                    style = ChatType.meta,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                                 Spacer(modifier = Modifier.height(4.dp))
@@ -1760,14 +1773,14 @@ fun MessageItem(
                                 } else {
                                     Text(
                                         text = stringResource(R.string.tool_calling_ellipsis),
-                                        style = MaterialTheme.typography.bodySmall,
+                                        style = ChatType.meta,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                 }
                             } else if (seg.type == "transcription" && seg.content.isBlank()) {
                                 Text(
                                     text = "Image transcription is empty.",
-                                    style = MaterialTheme.typography.bodyMedium,
+                                    style = ChatType.body,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
                                 )
                             } else {

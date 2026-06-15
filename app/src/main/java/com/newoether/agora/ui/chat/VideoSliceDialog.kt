@@ -149,8 +149,11 @@ fun VideoSliceDialog(
                         valueRange = 2f..20f,
                         steps = 17
                     )
+                    val betweenLabel = (effectiveIntervalMs / 1000f).let {
+                        if (it < 1) "${(it * 1000).roundToInt()}ms" else "${it.roundToInt()}s"
+                    }
                     Text(
-                        "~${(effectiveIntervalMs / 1000f).let { if (it < 1) "${(it * 1000).roundToInt()}ms" else "${it.roundToInt()}s" }} between frames",
+                        stringResource(R.string.video_between_frames, betweenLabel),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )

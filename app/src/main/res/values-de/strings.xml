@@ -798,6 +798,8 @@
     <string name="pdf_rendering_progress">Seite %1$d von %2$d wird gerendert…</string>
     <string name="pdf_send_pages">%1$d Seiten senden</string>
     <string name="pdf_page_content_desc">Seite %1$d</string>
+    <string name="pdf_pages_selected">%1$d ausgewählt</string>
+    <string name="video_between_frames">~%1$s zwischen Bildern</string>
     <!-- SSH host-key pinning -->
     <string name="shell_ssh_verify_host_key">Hostschlüssel prüfen und anheften</string>
     <string name="shell_ssh_host_key_pinned">Hostschlüssel angeheftet</string>

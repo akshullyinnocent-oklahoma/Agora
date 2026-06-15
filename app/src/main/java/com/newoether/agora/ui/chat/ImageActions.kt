@@ -22,6 +22,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
 import com.newoether.agora.R
 import kotlinx.coroutines.Dispatchers
@@ -102,6 +103,17 @@ fun ImageActionsSheet(url: String, onMessage: (String) -> Unit, onDismiss: () ->
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var showInfo by remember { mutableStateOf(false) }
+    val sheetState = rememberModalBottomSheetState()
+
+    // Animate the sheet down before running the action, so every option exits with a
+    // collapse animation instead of vanishing abruptly. The composable stays in
+    // composition during hide(), so actions that need it (the Info dialog, an in-flight
+    // save) keep working.
+    fun collapseThen(action: () -> Unit) {
+        scope.launch {
+            try { sheetState.hide() } finally { action() }
+        }
+    }
 
     // Routed through the single global snackbar host (a new message dismisses the previous one).
     val savedMsg = stringResource(R.string.img_saved)
@@ -120,17 +132,17 @@ fun ImageActionsSheet(url: String, onMessage: (String) -> Unit, onDismiss: () ->
         androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
     ) { granted -> if (granted) doSave() else onMessage(failMsg) }
 
-    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = MaterialTheme.colorScheme.surfaceContainer) {
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState, containerColor = MaterialTheme.colorScheme.surfaceContainer) {
         Column(modifier = Modifier.navigationBarsPadding().padding(bottom = 12.dp)) {
             ActionRow(Icons.Default.Download, stringResource(R.string.img_action_save)) {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) doSave()
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) collapseThen { doSave() }
                 else permLauncher.launch(android.Manifest.permission.WRITE_EXTERNAL_STORAGE)
             }
             ActionRow(Icons.Default.Share, stringResource(R.string.img_action_share)) {
-                shareImage(context, url); onDismiss()
+                collapseThen { shareImage(context, url); onDismiss() }
             }
             ActionRow(Icons.Default.Info, stringResource(R.string.info)) {
-                showInfo = true
+                collapseThen { showInfo = true }
             }
         }
     }
@@ -142,7 +154,7 @@ fun ImageActionsSheet(url: String, onMessage: (String) -> Unit, onDismiss: () ->
             onDismissRequest = { showInfo = false; onDismiss() },
             title = { Text(stringResource(R.string.info), fontWeight = FontWeight.Bold) },
             text = {
-                Column {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     InfoLine(stringResource(R.string.img_info_dimensions), info?.let { "${it.width} × ${it.height}" } ?: "—")
                     InfoLine(stringResource(R.string.img_info_size), info?.let { formatBytes(it.sizeBytes) } ?: "—")
                 }
@@ -166,8 +178,9 @@ private fun ActionRow(icon: ImageVector, label: String, onClick: () -> Unit) {
 
 @Composable
 private fun InfoLine(label: String, value: String) {
-    Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-        Text(label, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
-        Text(value, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
-    }
+    // Matches the message info dialog: single "Label: value" line at bodyMedium 14/20.
+    Text(
+        "$label: $value",
+        style = MaterialTheme.typography.bodyMedium.copy(fontSize = 14.sp, lineHeight = 20.sp)
+    )
 }

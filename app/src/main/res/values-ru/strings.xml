@@ -798,6 +798,8 @@
     <string name="pdf_rendering_progress">Отрисовка страницы %1$d из %2$d…</string>
     <string name="pdf_send_pages">Отправить %1$d страниц</string>
     <string name="pdf_page_content_desc">Страница %1$d</string>
+    <string name="pdf_pages_selected">Выбрано: %1$d</string>
+    <string name="video_between_frames">~%1$s между кадрами</string>
     <!-- SSH host-key pinning -->
     <string name="shell_ssh_verify_host_key">Проверить и закрепить ключ хоста</string>
     <string name="shell_ssh_host_key_pinned">Ключ хоста закреплён</string>
