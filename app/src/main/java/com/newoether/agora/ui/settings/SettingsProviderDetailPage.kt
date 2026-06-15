@@ -108,7 +108,7 @@ fun SettingsProviderDetailPage(
     }
 
     CollapsingSettingsScaffold(
-        title = providerName,
+        title = if (isLocal) stringResource(R.string.local_title) else providerName,
         onBack = onBack,
         actions = {
             if (isCustom) {

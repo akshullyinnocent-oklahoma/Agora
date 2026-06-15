@@ -76,6 +76,7 @@ class MainActivity : ComponentActivity() {
             "ja" -> java.util.Locale("ja")
             "ko" -> java.util.Locale("ko")
             "ar" -> java.util.Locale("ar")
+            "zh-Hant" -> java.util.Locale.forLanguageTag("zh-Hant")
             else -> null
         }
         if (locale != null) {

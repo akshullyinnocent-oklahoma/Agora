@@ -8,7 +8,7 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
-import androidx.compose.foundation.BorderStroke
+
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -310,8 +310,6 @@ fun SettingsSandboxPage(sandboxManager: SandboxManager, onBack: () -> Unit, show
                                     Surface(
                                         shape = RoundedCornerShape(8.dp),
                                         color = terminalBg,
-                                        // Light terminal can blend into a light card — outline it.
-                                        border = if (terminalDark) null else BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
                                         modifier = Modifier.padding(top = 16.dp).fillMaxWidth().height(260.dp)
                                     ) {
                                         SelectionContainer {
