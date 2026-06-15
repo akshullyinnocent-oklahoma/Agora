@@ -41,7 +41,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.AddPhotoAlternate
+import androidx.compose.material.icons.filled.Image
 
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Stop
@@ -606,7 +606,7 @@ fun ChatBottomBar(
                         DropdownMenuItem(
                             text = {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(Icons.Default.AddPhotoAlternate, null, modifier = Modifier.size(18.dp))
+                                    Icon(Icons.Default.Image, null, modifier = Modifier.size(18.dp))
                                     Spacer(modifier = Modifier.width(12.dp))
                                     Text(stringResource(R.string.photos))
                                 }
