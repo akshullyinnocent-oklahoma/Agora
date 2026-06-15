@@ -193,6 +193,10 @@ fun WelcomeScreen(
             kotlinx.coroutines.CoroutineScope(Dispatchers.IO).launch {
                 try {
                     val dest = File(context.filesDir, "chat_model_${UUID.randomUUID()}.gguf")
+                    val aliasName = com.newoether.agora.util.FileValidator.resolveFileName(context, uri)
+                        ?.let { if (it.substringAfterLast('.', "").equals("gguf", ignoreCase = true)) it.substringBeforeLast('.') else it }
+                        ?.trim()?.ifBlank { null }
+                        ?: dest.nameWithoutExtension
                     context.contentResolver.openInputStream(uri)?.use { input ->
                         dest.outputStream().use { output -> input.copyTo(output) }
                     }
@@ -205,7 +209,7 @@ fun WelcomeScreen(
                             localChatModels.forEach { viewModel.deleteLocalChatModel(it.id) }
                             viewModel.addLocalChatModel(LocalChatModelConfig(
                                 modelId = dest.nameWithoutExtension,
-                                alias = dest.nameWithoutExtension,
+                                alias = aliasName,
                                 localFilePath = dest.absolutePath
                             ))
                         }
