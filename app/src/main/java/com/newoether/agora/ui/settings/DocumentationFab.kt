@@ -33,9 +33,23 @@ import com.newoether.agora.R
 @Composable
 fun DocumentationFab(docPath: String, modifier: Modifier = Modifier) {
     val context = LocalContext.current
-    val isZh = java.util.Locale.getDefault().language == "zh"
+    val langTag = java.util.Locale.getDefault().toLanguageTag()
     val baseUrl = "https://newo-ether.github.io/Agora/"
-    val langPrefix = if (isZh) "zh/" else ""
+    // Map the resolved locale to the docs URL prefix.
+    // "en" and anything unrecognised → root (English); each supported
+    // language maps to its own subdirectory under the docs site.
+    val langPrefix = when {
+        langTag == "zh-Hant"  -> "zh-Hant/"
+        langTag.startsWith("zh") -> "zh/"
+        else -> {
+            val lang = java.util.Locale.getDefault().language
+            when (lang) {
+                "es", "fr", "de", "ru", "ja", "ko", "ar" -> "$lang/"
+                "pt" -> "pt-BR/"
+                else -> ""  // en or unknown → root (English)
+            }
+        }
+    }
 
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
