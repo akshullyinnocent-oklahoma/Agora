@@ -777,16 +777,18 @@ class ChatViewModel(
             _selectedChildren.collect { childrenMap ->
                 val id = _currentConversationId.value
                 if (id != null) {
-                    val conversation = chatDao.getConversation(id)
-                    if (conversation != null) {
-                        val stringKeyMap = childrenMap.mapKeys { it.key ?: "null" }
-                        val json = Json.encodeToString(stringKeyMap)
-                        if (conversation.selectedBranchesJson != json) {
-                            chatDao.upsertConversation(conversation.copy(selectedBranchesJson = json))
-                        }
-                    }
+                    persistSelectedChildren(id, childrenMap)
                 }
             }
+        }
+    }
+
+    private suspend fun persistSelectedChildren(conversationId: String, childrenMap: Map<String?, String>) {
+        val conversation = chatDao.getConversation(conversationId) ?: return
+        val stringKeyMap = childrenMap.mapKeys { it.key ?: "null" }
+        val json = Json.encodeToString(stringKeyMap)
+        if (conversation.selectedBranchesJson != json) {
+            chatDao.upsertConversation(conversation.copy(selectedBranchesJson = json))
         }
     }
 
@@ -1874,7 +1876,8 @@ class ChatViewModel(
         _allMessages.update { it.filter { m -> m.id != modelMessageId } + placeholder }
         val newMap = _selectedChildren.value.toMutableMap()
         newMap[parentId] = modelMessageId
-        _selectedChildren.value = newMap
+        val selectedAfterRegenerate = newMap.toMap()
+        _selectedChildren.value = selectedAfterRegenerate
 
         _streamingMessage.value = placeholder
         _isLoading.value = true
@@ -1907,17 +1910,18 @@ class ChatViewModel(
                     text = "", thoughts = null, thoughtTitle = null, status = MessageStatus.SENDING, participant = Participant.MODEL, timestamp = startTime,
                     modelName = currentActiveModel.value, toolCallJson = null
                 ))
-            } else {
-                // New branch — old message and its tool calls stay as a selectable branch
-                chatDao.upsertMessage(MessageEntity(
-                    id = modelMessageId, conversationId = currentId, parentId = parentId,
-                    text = "", thoughts = null, status = MessageStatus.SENDING, participant = Participant.MODEL, timestamp = startTime,
-                    modelName = currentActiveModel.value
-                ))
-            }
-            chatDao.getConversation(currentId)?.let { conv ->
-                chatDao.upsertConversation(conv.copy(lastUpdated = System.currentTimeMillis()))
-            }
+                } else {
+                    // New branch — old message and its tool calls stay as a selectable branch
+                    chatDao.upsertMessage(MessageEntity(
+                        id = modelMessageId, conversationId = currentId, parentId = parentId,
+                        text = "", thoughts = null, status = MessageStatus.SENDING, participant = Participant.MODEL, timestamp = startTime,
+                        modelName = currentActiveModel.value
+                    ))
+                }
+                persistSelectedChildren(currentId, selectedAfterRegenerate)
+                chatDao.getConversation(currentId)?.let { conv ->
+                    chatDao.upsertConversation(conv.copy(lastUpdated = System.currentTimeMillis()))
+                }
             val resolved = buildEffectiveSystemPrompt(currentId)
             val effectiveSettings = buildEffectiveConversationSettings(currentId)
             val (config, genCtx) = buildGenerationPair(
@@ -1995,7 +1999,9 @@ class ChatViewModel(
             ))
             val newMap = _selectedChildren.value.toMutableMap()
             newMap[messageToEdit.parentId] = newUserMessageId
-            _selectedChildren.value = newMap
+            val selectedAfterUserEdit = newMap.toMap()
+            _selectedChildren.value = selectedAfterUserEdit
+            persistSelectedChildren(currentId, selectedAfterUserEdit)
             val modelMessageId = UUID.randomUUID().toString()
             val startTime = System.currentTimeMillis() + 1
             chatDao.upsertMessage(MessageEntity(
@@ -2014,9 +2020,11 @@ class ChatViewModel(
             )
             streamUpdate(myUiToken, placeholder)
             _allMessages.update { it.filter { m -> m.id != modelMessageId } + placeholder }
-            val editChildren = _selectedChildren.value.toMutableMap()
+            val editChildren = selectedAfterUserEdit.toMutableMap()
             editChildren[newUserMessageId] = modelMessageId
-            _selectedChildren.value = editChildren
+            val selectedAfterModelEdit = editChildren.toMap()
+            _selectedChildren.value = selectedAfterModelEdit
+            persistSelectedChildren(currentId, selectedAfterModelEdit)
             val resolved = buildEffectiveSystemPrompt(currentId)
             val effectiveSettings = buildEffectiveConversationSettings(currentId)
             val (config, genCtx) = buildGenerationPair(

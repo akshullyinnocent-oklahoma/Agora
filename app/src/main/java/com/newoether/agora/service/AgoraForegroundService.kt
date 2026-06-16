@@ -7,24 +7,36 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
+import androidx.core.app.NotificationCompat
+import androidx.core.app.ServiceCompat
 import com.newoether.agora.MainActivity
 import com.newoether.agora.R
+import com.newoether.agora.util.DebugLog
 
 class AgoraForegroundService : Service() {
 
     companion object {
-        const val CHANNEL_ID = "agora_generation"
+        const val CHANNEL_ID = "agora_generation_status"
         const val NOTIFICATION_ID = 1
+        private const val COMPLETION_CHANNEL_ID = "agora_completed"
+        private const val COMPLETION_NOTIFICATION_ID = 2
+        private const val TAG = "AgoraForegroundService"
         private var instance: AgoraForegroundService? = null
 
         fun start(context: Context) {
-            val intent = Intent(context, AgoraForegroundService::class.java)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                context.startForegroundService(intent)
-            } else {
-                context.startService(intent)
+            val appContext = context.applicationContext
+            val intent = Intent(appContext, AgoraForegroundService::class.java)
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    appContext.startForegroundService(intent)
+                } else {
+                    appContext.startService(intent)
+                }
+            } catch (e: RuntimeException) {
+                DebugLog.w(TAG, "Failed to start foreground service", e)
             }
         }
 
@@ -38,13 +50,14 @@ class AgoraForegroundService : Service() {
         }
 
         fun createChannel(context: Context) {
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
             val manager = context.getSystemService(NotificationManager::class.java)
             val channel = NotificationChannel(
                 CHANNEL_ID,
                 "Generation",
-                NotificationManager.IMPORTANCE_MIN
+                NotificationManager.IMPORTANCE_LOW
             ).apply {
-                description = "Hidden ongoing notification while Agora is generating"
+                description = "Ongoing notification while Agora is generating"
                 setShowBadge(false)
                 setSound(null, null)
             }
@@ -52,8 +65,33 @@ class AgoraForegroundService : Service() {
         }
 
         fun showCompletionNotification(context: Context, responseText: String) {
+            createCompletionChannel(context)
+            val manager = context.getSystemService(NotificationManager::class.java)
+            val notification = NotificationCompat.Builder(context, COMPLETION_CHANNEL_ID)
+                .setContentTitle(context.getString(R.string.agora_responded))
+                .setContentText(if (responseText.length > 200) responseText.take(200) + "…" else responseText)
+                .setSmallIcon(R.drawable.ic_notification)
+                .setContentIntent(createPendingIntent(context, 1))
+                .setAutoCancel(true)
+                .setPriority(NotificationCompat.PRIORITY_HIGH)
+                .setStyle(
+                    NotificationCompat.BigTextStyle().bigText(
+                        if (responseText.length > 200) responseText.take(200) + "…" else responseText
+                    )
+                )
+                .build()
+
+            try {
+                manager.notify(COMPLETION_NOTIFICATION_ID, notification)
+            } catch (e: RuntimeException) {
+                DebugLog.w(TAG, "Failed to show completion notification", e)
+            }
+        }
+
+        private fun createCompletionChannel(context: Context) {
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
             val channel = NotificationChannel(
-                "agora_completed",
+                COMPLETION_CHANNEL_ID,
                 "Response Ready",
                 NotificationManager.IMPORTANCE_HIGH
             ).apply {
@@ -62,76 +100,83 @@ class AgoraForegroundService : Service() {
             }
             val manager = context.getSystemService(NotificationManager::class.java)
             manager.createNotificationChannel(channel)
+        }
 
-            val pendingIntent = PendingIntent.getActivity(
-                context, 1,
+        private fun createPendingIntent(context: Context, requestCode: Int): PendingIntent {
+            return PendingIntent.getActivity(
+                context,
+                requestCode,
                 Intent(context, MainActivity::class.java).apply {
                     flags = Intent.FLAG_ACTIVITY_SINGLE_TOP
                 },
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
-
-            val preview = if (responseText.length > 200) responseText.take(200) + "…" else responseText
-            val notification = Notification.Builder(context, "agora_completed")
-                .setContentTitle(context.getString(R.string.agora_responded))
-                .setContentText(preview)
-                .setSmallIcon(R.drawable.ic_notification)
-                .setContentIntent(pendingIntent)
-                .setAutoCancel(true)
-                .setStyle(Notification.BigTextStyle().bigText(preview))
-                .build()
-
-            manager.notify(2, notification)
         }
     }
+
+    private var currentText: String = "Generating response…"
 
     override fun onCreate() {
         super.onCreate()
         instance = this
-        val pendingIntent = PendingIntent.getActivity(
-            this, 0,
-            Intent(this, MainActivity::class.java).apply {
-                flags = Intent.FLAG_ACTIVITY_SINGLE_TOP
-            },
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-
-        val notification = Notification.Builder(this, CHANNEL_ID)
-            .setContentTitle(getString(R.string.app_name))
-            .setContentText("Generating response…")
-            .setSmallIcon(R.drawable.ic_notification)
-            .setOngoing(true)
-            .setContentIntent(pendingIntent)
-            .build()
-
-        startForeground(NOTIFICATION_ID, notification)
+        promoteToForeground(currentText)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        promoteToForeground(currentText)
         return START_NOT_STICKY
     }
 
     override fun onDestroy() {
         super.onDestroy()
-        instance = null
+        if (instance === this) instance = null
     }
 
     private fun updateNotificationText(text: String) {
-        val pendingIntent = PendingIntent.getActivity(
-            this, 0,
-            Intent(this, MainActivity::class.java).apply {
-                flags = Intent.FLAG_ACTIVITY_SINGLE_TOP
-            },
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-        val notification = Notification.Builder(this, CHANNEL_ID)
+        promoteToForeground(text)
+    }
+
+    private fun promoteToForeground(text: String) {
+        currentText = text
+        createChannel(this)
+        val notification = buildGenerationNotification(text)
+        try {
+            ServiceCompat.startForeground(
+                this,
+                NOTIFICATION_ID,
+                notification,
+                foregroundServiceType()
+            )
+        } catch (e: RuntimeException) {
+            DebugLog.w(TAG, "Failed to promote foreground service", e)
+            stopSelf()
+        }
+    }
+
+    private fun buildGenerationNotification(text: String): Notification {
+        return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle(getString(R.string.app_name))
             .setContentText(text)
             .setSmallIcon(R.drawable.ic_notification)
             .setOngoing(true)
-            .setContentIntent(pendingIntent)
+            .setOnlyAlertOnce(true)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setCategory(NotificationCompat.CATEGORY_PROGRESS)
+            .setContentIntent(createPendingIntent(this, 0))
             .build()
-        startForeground(NOTIFICATION_ID, notification)
+    }
+
+    private fun foregroundServiceType(): Int {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
+        } else {
+            0
+        }
+    }
+
+    override fun onTimeout(type: Int, reason: Int) {
+        DebugLog.w(TAG, "Foreground service timed out: type=$type reason=$reason")
+        stopSelf()
     }
 
     override fun onBind(intent: Intent?): IBinder? = null

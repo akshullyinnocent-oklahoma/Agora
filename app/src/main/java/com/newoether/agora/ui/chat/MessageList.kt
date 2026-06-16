@@ -32,6 +32,7 @@ fun MessageList(
     modifier: Modifier = Modifier,
     contentPadding: PaddingValues = PaddingValues(8.dp),
     state: LazyListState = rememberLazyListState(),
+    userScrollEnabled: Boolean = true,
     isLoading: Boolean = false,
     isSwitching: Boolean = false,
     visualizeContextRollout: Boolean = false,
@@ -90,7 +91,8 @@ fun MessageList(
             modifier = Modifier.fillMaxSize(),
             contentPadding = contentPadding,
             reverseLayout = false,
-            state = state
+            state = state,
+            userScrollEnabled = userScrollEnabled
         ) {
             items(messages, key = { it.id }) { message ->
                 val isLastMessage = messages.lastOrNull()?.id == message.id

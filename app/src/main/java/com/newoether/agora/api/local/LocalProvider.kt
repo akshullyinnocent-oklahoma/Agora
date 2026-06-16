@@ -3,6 +3,7 @@ package com.newoether.agora.api.local
 import com.newoether.agora.api.*
 
 import android.content.Context
+import com.newoether.agora.R
 import com.newoether.agora.util.DebugLog
 import com.newoether.agora.api.util.ThinkingParser
 import com.newoether.agora.data.SettingsManager
@@ -26,6 +27,7 @@ class LocalProvider(
 
     companion object {
         private const val TAG = "LocalProvider"
+        private const val CONTEXT_EXCEEDED_PREFIX = "LOCAL_CONTEXT_EXCEEDED:"
     }
 
     override val name: String = "Local"
@@ -147,12 +149,26 @@ class LocalProvider(
             throw e
         } catch (e: Exception) {
             DebugLog.e(TAG, "Generation failed", e)
-            emit(StreamEvent.Error(GenerationError.LocalModel("Generation failed: ${e.message}")))
+            emit(StreamEvent.Error(GenerationError.LocalModel(formatGenerationError(e, modelConfig))))
             return@flow
         }
 
         emit(StreamEvent.UsageUpdate(totalTokens))
     }.flowOn(Dispatchers.IO)
+
+    private fun formatGenerationError(
+        error: Exception,
+        model: com.newoether.agora.data.LocalChatModelConfig
+    ): String {
+        val message = error.message ?: "Unknown error"
+        if (message.startsWith(CONTEXT_EXCEEDED_PREFIX)) {
+            val parts = message.removePrefix(CONTEXT_EXCEEDED_PREFIX).split(":")
+            val promptTokens = parts.getOrNull(0)?.toIntOrNull() ?: 0
+            val contextTokens = parts.getOrNull(1)?.toIntOrNull() ?: model.nCtx
+            return context.getString(R.string.local_context_exceeded, promptTokens, contextTokens)
+        }
+        return "Generation failed: $message"
+    }
 
     private suspend fun ensureEngineLoaded(model: com.newoether.agora.data.LocalChatModelConfig): LlamaChatEngine? {
         return engineLock.withLock {

@@ -728,6 +728,7 @@
     <string name="no_api_key_configured">未設定 API 金鑰。</string>
     <string name="no_api_key_for_provider">未設定 %s 的憑證，請在設定中新增 API 金鑰或 Base URL。</string>
     <string name="local_model_not_found">本機模型檔案不存在，請重新匯入模型。</string>
+    <string name="local_context_exceeded">這段對話需要 %1$d 個提示詞元，但本機模型上下文只有 %2$d 個詞元。請減少上下文視窗，或調高模型上下文大小。</string>
     <string name="all_messages_cached">已快取全部 %1$d 則訊息。</string>
     <string name="cached_partial_failed">已快取 %1$d / %2$d 則，%3$d 則失敗。</string>
     <string name="retry">重試</string>

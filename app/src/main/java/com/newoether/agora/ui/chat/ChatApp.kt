@@ -79,6 +79,7 @@ import com.newoether.agora.R
 import com.newoether.agora.ui.theme.ChatType
 import com.newoether.agora.util.gradientBlur
 import com.newoether.agora.util.gradientBlurEdges
+import com.newoether.agora.util.verticalEdgeFade
 import com.newoether.agora.data.local.MessageEntity
 import com.newoether.agora.model.Participant
 import com.newoether.agora.ui.components.AnimatedBlobBackground
@@ -415,12 +416,26 @@ fun ChatApp(
             ) {
                 val drawerListState = rememberLazyListState()
                 val atTop = drawerListState.firstVisibleItemIndex == 0 && drawerListState.firstVisibleItemScrollOffset == 0
-                val atBottom = drawerListState.layoutInfo.visibleItemsInfo.lastOrNull()?.index == drawerListState.layoutInfo.totalItemsCount - 1
-                val stw by animateFloatAsState(if (atTop) 0f else 1f, tween(400))
-                val sbw by animateFloatAsState(if (atBottom) 0f else 1f, tween(400))
+                val atBottom by remember {
+                    derivedStateOf {
+                        val layoutInfo = drawerListState.layoutInfo
+                        val totalItems = layoutInfo.totalItemsCount
+                        if (totalItems == 0) {
+                            true
+                        } else {
+                            val lastVisibleItem = layoutInfo.visibleItemsInfo.maxByOrNull { it.index }
+                            lastVisibleItem != null &&
+                                lastVisibleItem.index == totalItems - 1 &&
+                                lastVisibleItem.offset + lastVisibleItem.size <= layoutInfo.viewportEndOffset
+                        }
+                    }
+                }
+                val stw by animateFloatAsState(if (atTop) 0f else 1f, tween(200))
+                val sbw by animateFloatAsState(if (atBottom) 0f else 1f, tween(200))
                 Column(
                     modifier = Modifier
                         .fillMaxHeight()
+                        .imePadding()
                         .padding(horizontal = 16.dp, vertical = 20.dp)
                         .clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) { focusManager.clearFocus() }
                 ) {
@@ -506,7 +521,7 @@ fun ChatApp(
                         }
                     }
 
-                    LazyColumn(state = drawerListState, modifier = Modifier.weight(1f).gradientBlurEdges(maxBlurDp = 4f, edgeFadeDp = 40f, topWeight = stw, bottomWeight = sbw)) {
+                    LazyColumn(state = drawerListState, modifier = Modifier.weight(1f).verticalEdgeFade(edgeFadeDp = 40f, topWeight = stw, bottomWeight = sbw)) {
                         if (isSearchActive) {
                             val grouped = searchResults.groupBy { it.first.conversationId }
                             val titleMap = conversations.associate { it.id to it.title }

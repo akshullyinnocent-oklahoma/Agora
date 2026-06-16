@@ -3,6 +3,7 @@
 #include <vector>
 #include <cstring>
 #include <cstdint>
+#include <cstdio>
 #include <android/log.h>
 #include "llama.h"
 #include "mtmd.h"
@@ -287,10 +288,19 @@ Java_com_newoether_agora_api_LlamaChatEngine_nativeChatGenerate(
     }
     tokens.resize(n_tokens);
 
-    // Limit tokens to context size
-    if (n_tokens >= handle->n_ctx) {
-        n_tokens = handle->n_ctx - 4; // leave room for generation
-        tokens.resize(n_tokens);
+    const int32_t n_ctx = llama_n_ctx(handle->ctx);
+    const int32_t min_generation_room = 4;
+    if (n_tokens + min_generation_room > n_ctx) {
+        LOGE("Prompt too long: prompt=%d + reserved=%d > ctx=%d",
+             n_tokens, min_generation_room, n_ctx);
+        char error_msg[64];
+        std::snprintf(error_msg, sizeof(error_msg),
+                      "LOCAL_CONTEXT_EXCEEDED:%d:%d", n_tokens, n_ctx);
+        jstring jmsg = env->NewStringUTF(error_msg);
+        env->CallVoidMethod(callback, on_error, jmsg);
+        env->DeleteLocalRef(jmsg);
+        env->DeleteLocalRef(cb_class);
+        return -1;
     }
 
     LOGD("Generating: prompt_len=%zu, n_tokens=%d, max_tokens=%d",
@@ -306,8 +316,6 @@ Java_com_newoether_agora_api_LlamaChatEngine_nativeChatGenerate(
     llama_sampler_chain_add(smpl, llama_sampler_init_dist(LLAMA_DEFAULT_SEED));
 
     // Prefill + generation loop (pattern from simple-chat.cpp)
-    int32_t n_ctx = llama_n_ctx(handle->ctx);
-
     // Context space check before prefill
     int32_t n_ctx_used = llama_memory_seq_pos_max(llama_get_memory(handle->ctx), 0) + 1;
     if (n_ctx_used + n_tokens > n_ctx) {

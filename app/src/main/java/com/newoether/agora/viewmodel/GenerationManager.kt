@@ -702,6 +702,7 @@ class GenerationManager(
 
         var totalText = ""
         var totalThoughts = ""
+        val thinkingPlaceholder = context.getString(R.string.thinking_ellipsis)
         var totalThoughtTitle: String? = null
         var totalTokenCount = 0
         var totalThoughtTimeMs: Long? = null
@@ -790,10 +791,10 @@ class GenerationManager(
                         if (currentThoughtStartMs == null) {
                             currentThoughtStartMs = System.currentTimeMillis()
                         }
-                        if (totalThoughts.isEmpty()) totalThoughts = "Thinking..."
+                        if (totalThoughts.isEmpty()) totalThoughts = thinkingPlaceholder
                         if (event.thought.isNotEmpty()) {
                             currentThoughtBuf.append(event.thought)
-                            if (totalThoughts == "Thinking...") totalThoughts = event.thought
+                            if (totalThoughts == thinkingPlaceholder) totalThoughts = event.thought
                             else totalThoughts += event.thought
                         }
                         if (event.title != null) totalThoughtTitle = event.title
@@ -806,7 +807,7 @@ class GenerationManager(
                             if (currentThoughtStartMs == null) {
                                 currentThoughtStartMs = System.currentTimeMillis()
                             }
-                            if (totalThoughts.isEmpty()) totalThoughts = "Thinking..."
+                            if (totalThoughts.isEmpty()) totalThoughts = thinkingPlaceholder
                         }
                     }
                     is StreamEvent.Retrying -> {

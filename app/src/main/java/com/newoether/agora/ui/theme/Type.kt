@@ -176,7 +176,7 @@ object ChatType {
     val userBody = TextStyle(fontFamily = OutfitFamily, fontWeight = FontWeight.Normal, fontSize = 14.sp, lineHeight = 22.sp)
     val thoughtBody = TextStyle(fontFamily = OutfitFamily, fontWeight = FontWeight.Normal, fontSize = 13.sp, lineHeight = 19.sp)
     val thoughtTitle = TextStyle(fontFamily = OutfitFamily, fontWeight = FontWeight.Medium, fontSize = 13.sp, lineHeight = 19.sp)
-    val errorBody = TextStyle(fontFamily = OutfitFamily, fontWeight = FontWeight.Medium, fontSize = 16.sp, lineHeight = 24.sp)
+    val errorBody = TextStyle(fontFamily = OutfitFamily, fontWeight = FontWeight.Medium, fontSize = 13.sp, lineHeight = 18.sp)
 
     // Meta tier
     val meta = TextStyle(fontFamily = OutfitFamily, fontWeight = FontWeight.Medium, fontSize = 12.sp, lineHeight = 17.sp)
@@ -197,7 +197,7 @@ object ChatType {
     // Drawer
     val conversationsTitle = TextStyle(fontFamily = OutfitFamily, fontWeight = FontWeight.Bold, fontSize = 25.sp, lineHeight = 32.sp)
     val drawerButton = TextStyle(fontFamily = OutfitFamily, fontWeight = FontWeight.Medium, fontSize = 14.sp, lineHeight = 20.sp)
-    val drawerSearch = TextStyle(fontFamily = OutfitFamily, fontWeight = FontWeight.Normal, fontSize = 15.sp, lineHeight = 22.sp)
+    val drawerSearch = TextStyle(fontFamily = OutfitFamily, fontWeight = FontWeight.Normal, fontSize = 16.sp, lineHeight = 23.sp)
 
     // Assistant markdown headings — even ~1.15 steps; h1 reined in (22, not 24)
     // so the jump from h2 stays proportional and h1 doesn't shout over 15sp body.

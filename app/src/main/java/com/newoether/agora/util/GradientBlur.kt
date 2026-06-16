@@ -9,13 +9,20 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.asComposeRenderEffect
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 
+private const val MAX_GRADIENT_BLUR_DP = 5f
+
 /**
- * Two-pass Gaussian-ish blur whose radius varies along the Y axis.
+ * Two-pass separable Gaussian-ish blur whose radius varies along the Y axis.
  *
  * The shader samples the input texture N times with increasing offsets controlled
  * by [blurAtTop] (top blur radius in px) and [blurAtBottom] (bottom blur radius in px).
@@ -30,18 +37,30 @@ fun Modifier.gradientBlur(blurAtTopDp: Float, blurAtBottomDp: Float): Modifier =
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return@composed this
 
     val density = LocalDensity.current.density
-    val maxBlurPx = maxOf(blurAtTopDp, blurAtBottomDp) * density
+    val maxBlurPx = maxOf(blurAtTopDp, blurAtBottomDp)
+        .coerceAtMost(MAX_GRADIENT_BLUR_DP) * density
+    if (maxBlurPx <= 0f) return@composed this
+
     val fadeRangePx = 150f * density
 
-    val shader = remember(maxBlurPx, fadeRangePx) {
+    val horizontalShader = remember(maxBlurPx, fadeRangePx) {
         RuntimeShader(VARIABLE_BLUR_SHADER).apply {
             setFloatUniform("uParams", maxBlurPx, fadeRangePx)
+            setFloatUniform("uDirection", 1f, 0f)
+        }
+    }
+    val verticalShader = remember(maxBlurPx, fadeRangePx) {
+        RuntimeShader(VARIABLE_BLUR_SHADER).apply {
+            setFloatUniform("uParams", maxBlurPx, fadeRangePx)
+            setFloatUniform("uDirection", 0f, 1f)
         }
     }
 
-    val renderEffect = remember(shader) {
-        RenderEffect.createRuntimeShaderEffect(shader, "content")
-    }.asComposeRenderEffect()
+    val renderEffect = remember(horizontalShader, verticalShader) {
+        val horizontal = RenderEffect.createRuntimeShaderEffect(horizontalShader, "content")
+        val vertical = RenderEffect.createRuntimeShaderEffect(verticalShader, "content")
+        RenderEffect.createChainEffect(vertical, horizontal).asComposeRenderEffect()
+    }
 
     Modifier.graphicsLayer { this.renderEffect = renderEffect }
 }
@@ -55,22 +74,36 @@ fun Modifier.gradientBlurEdges(maxBlurDp: Float, edgeFadeDp: Float = 20f, topWei
     if (topWeight <= 0f && bottomWeight <= 0f) return@composed this
 
     val density = LocalDensity.current.density
-    val maxBlurPx = maxBlurDp * density
+    val maxBlurPx = maxBlurDp.coerceAtMost(MAX_GRADIENT_BLUR_DP) * density
+    if (maxBlurPx <= 0f) return@composed this
+
     val fadePx = edgeFadeDp * density
     var composableHPx by remember { mutableFloatStateOf(2400f) }
 
-    val shader = remember(maxBlurPx, fadePx, topWeight, bottomWeight, composableHPx) {
+    val horizontalShader = remember(maxBlurPx, fadePx, topWeight, bottomWeight, composableHPx) {
         RuntimeShader(EDGE_BLUR_SHADER).apply {
             setFloatUniform("uMaxBlur", maxBlurPx)
             setFloatUniform("uFade", fadePx)
             setFloatUniform("uH", composableHPx)
             setFloatUniform("uWeights", topWeight, bottomWeight)
+            setFloatUniform("uDirection", 1f, 0f)
+        }
+    }
+    val verticalShader = remember(maxBlurPx, fadePx, topWeight, bottomWeight, composableHPx) {
+        RuntimeShader(EDGE_BLUR_SHADER).apply {
+            setFloatUniform("uMaxBlur", maxBlurPx)
+            setFloatUniform("uFade", fadePx)
+            setFloatUniform("uH", composableHPx)
+            setFloatUniform("uWeights", topWeight, bottomWeight)
+            setFloatUniform("uDirection", 0f, 1f)
         }
     }
 
-    val renderEffect = remember(shader) {
-        RenderEffect.createRuntimeShaderEffect(shader, "content")
-    }.asComposeRenderEffect()
+    val renderEffect = remember(horizontalShader, verticalShader) {
+        val horizontal = RenderEffect.createRuntimeShaderEffect(horizontalShader, "content")
+        val vertical = RenderEffect.createRuntimeShaderEffect(verticalShader, "content")
+        RenderEffect.createChainEffect(vertical, horizontal).asComposeRenderEffect()
+    }
 
     Modifier
         .onSizeChanged { composableHPx = it.height.toFloat() }
@@ -84,52 +117,76 @@ fun Modifier.gradientBlur(radiusDp: Float): Modifier =
     gradientBlur(radiusDp, radiusDp)
 
 /**
- * Gradient blur using a dense sampling grid with bilinear-friendly steps.
+ * Fades content alpha near the top and bottom edges.
  *
- * The key to avoiding speckle artifacts: each sample covers a ~2×2 px area
- * thanks to the GPU's built-in bilinear filtering on texture lookups.
- * By spacing samples at ~1.5 σ apart, we get smooth coverage across the
- * full blur radius without gaps.
+ * Use this for scrollable list edges when the goal is to soften clipping rather
+ * than optically blur the pixels. It avoids the per-pixel sampling cost of blur.
+ */
+fun Modifier.verticalEdgeFade(edgeFadeDp: Float = 20f, topWeight: Float = 1f, bottomWeight: Float = 1f): Modifier = composed {
+    val density = LocalDensity.current.density
+    val fadePx = edgeFadeDp.coerceAtLeast(0f) * density
+    val topAlpha = topWeight.coerceIn(0f, 1f)
+    val bottomAlpha = bottomWeight.coerceIn(0f, 1f)
+
+    if (fadePx <= 0f || (topAlpha <= 0f && bottomAlpha <= 0f)) return@composed this
+
+    Modifier
+        .graphicsLayer {
+            compositingStrategy = CompositingStrategy.Offscreen
+        }
+        .drawWithContent {
+            drawContent()
+
+            val height = size.height.coerceAtLeast(1f)
+            val normalizedFade = (fadePx / height).coerceIn(0f, 0.5f)
+            val topFadeEnd = normalizedFade
+            val bottomFadeStart = 1f - normalizedFade
+            val opaque = Color.Black
+
+            drawRect(
+                brush = Brush.verticalGradient(
+                    colorStops = arrayOf(
+                        0f to opaque.copy(alpha = 1f - topAlpha),
+                        topFadeEnd to opaque,
+                        bottomFadeStart to opaque,
+                        1f to opaque.copy(alpha = 1f - bottomAlpha)
+                    )
+                ),
+                blendMode = BlendMode.DstIn
+            )
+        }
+}
+
+/**
+ * Gradient blur using a fixed 9-tap separable kernel.
  *
- * Grid size adapts to sigma — larger sigma → larger grid → more samples.
- *  - σ <  6 px →  5×5 grid (25 samples)  radius ~ 1.5 σ
- *  - σ < 14 px →  7×7 grid (49 samples)  radius ~ 2.0 σ
- *  - σ ≥ 14 px →  9×9 grid (81 samples)  radius ~ 2.5 σ
+ * The previous shader used a dense 2D grid and evaluated exp() for every tap,
+ * which was much too expensive for a scrolling list. This version chains a
+ * horizontal pass and a vertical pass. Each pass samples 9 texels with constant
+ * Gaussian weights, so the total drops from hundreds of texture reads per pixel
+ * to 18 reads with no dynamic loops.
  */
 private val VARIABLE_BLUR_SHADER = """
     uniform shader content;
     uniform float2 uParams;       // x = maxBlur (px), y = fadeRange (px)
+    uniform float2 uDirection;    // one pass uses (1, 0), the other uses (0, 1)
 
     half4 main(float2 coord) {
         float t = saturate(coord.y / uParams.y);
         float s = uParams.x * (1.0 - t);
         if (s < 0.5) return content.eval(coord);
 
-        // Dense separable Gaussian grid — step = 0.3σ ensures 3+ samples/σ
-        // which with bilinear filtering is enough for smooth blur at any radius.
-        float step = s * 0.30;
-        int N = int(ceil(s * 3.0 / step));
-        if (N > 9) N = 9;   // cap at 19×19 = 361 samples max
-
-        half4 accum = half4(0.0);
-        float totalW = 0.0;
-        float invTwoS2 = -0.5 / (s * s);
-        float r2 = float(N * N);
-
-        for (int dx = -9; dx <= 9; dx++) {
-            float fx = float(dx);
-            if (fx * fx > r2) continue;
-            for (int dy = -9; dy <= 9; dy++) {
-                float fy = float(dy);
-                if (fx * fx + fy * fy > r2) continue;
-                float2 offset = float2(fx * step, fy * step);
-                float w = exp(dot(offset, offset) * invTwoS2);
-                accum += half4(content.eval(coord + offset)) * w;
-                totalW += w;
-            }
-        }
-
-        return accum / half4(totalW);
+        float2 axis = uDirection * s;
+        half4 accum = half4(content.eval(coord)) * 0.24084130;
+        accum += half4(content.eval(coord + axis * 0.6)) * 0.20116756;
+        accum += half4(content.eval(coord - axis * 0.6)) * 0.20116756;
+        accum += half4(content.eval(coord + axis * 1.2)) * 0.11723004;
+        accum += half4(content.eval(coord - axis * 1.2)) * 0.11723004;
+        accum += half4(content.eval(coord + axis * 1.8)) * 0.04766218;
+        accum += half4(content.eval(coord - axis * 1.8)) * 0.04766218;
+        accum += half4(content.eval(coord + axis * 2.4)) * 0.01351957;
+        accum += half4(content.eval(coord - axis * 2.4)) * 0.01351957;
+        return accum;
     }
 """.trimIndent()
 
@@ -143,6 +200,7 @@ private val EDGE_BLUR_SHADER = """
     uniform float uFade;       // fade-in distance (40dp → px)
     uniform float uH;          // composable height in px
     uniform float2 uWeights;   // x = top global multiplier, y = bottom global multiplier
+    uniform float2 uDirection;
 
     half4 main(float2 coord) {
         if (uWeights.x <= 0.0 && uWeights.y <= 0.0) return content.eval(coord);
@@ -151,28 +209,16 @@ private val EDGE_BLUR_SHADER = """
         float s = uMaxBlur * max(t, b);
         if (s < 0.5) return content.eval(coord);
 
-        float step = s * 0.30;
-        int N = int(ceil(s * 3.0 / step));
-        if (N > 9) N = 9;
-
-        half4 accum = half4(0.0);
-        float totalW = 0.0;
-        float invTwoS2 = -0.5 / (s * s);
-        float r2 = float(N * N);
-
-        for (int dx = -9; dx <= 9; dx++) {
-            float fx = float(dx);
-            if (fx * fx > r2) continue;
-            for (int dy = -9; dy <= 9; dy++) {
-                float fy = float(dy);
-                if (fx * fx + fy * fy > r2) continue;
-                float2 offset = float2(fx * step, fy * step);
-                float w = exp(dot(offset, offset) * invTwoS2);
-                accum += half4(content.eval(coord + offset)) * w;
-                totalW += w;
-            }
-        }
-
-        return accum / half4(totalW);
+        float2 axis = uDirection * s;
+        half4 accum = half4(content.eval(coord)) * 0.24084130;
+        accum += half4(content.eval(coord + axis * 0.6)) * 0.20116756;
+        accum += half4(content.eval(coord - axis * 0.6)) * 0.20116756;
+        accum += half4(content.eval(coord + axis * 1.2)) * 0.11723004;
+        accum += half4(content.eval(coord - axis * 1.2)) * 0.11723004;
+        accum += half4(content.eval(coord + axis * 1.8)) * 0.04766218;
+        accum += half4(content.eval(coord - axis * 1.8)) * 0.04766218;
+        accum += half4(content.eval(coord + axis * 2.4)) * 0.01351957;
+        accum += half4(content.eval(coord - axis * 2.4)) * 0.01351957;
+        return accum;
     }
 """.trimIndent()

@@ -40,6 +40,8 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.platform.AccessibilityManager
+import androidx.compose.ui.platform.LocalAccessibilityManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.unit.dp
@@ -230,6 +232,8 @@ fun MainNavigation(viewModel: ChatViewModel, settingsManager: SettingsManager) {
     var savedPdfPages by remember { mutableStateOf<List<String>>(emptyList()) }
     if (pdfPages.isNotEmpty()) { savedPdfPages = pdfPages } else { savedPdfPages = emptyList() }
     val snackbarHostState = remember { SnackbarHostState() }
+    var snackbarVersion by remember { mutableIntStateOf(0) }
+    val accessibilityManager = LocalAccessibilityManager.current
     var chatSnackbarOffset by remember { mutableStateOf(0.dp) }
     val navBarPadding = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
     // Full-screen media viewer (and settings) drop the snackbar to the bottom (nav-bar inset only);
@@ -410,7 +414,13 @@ fun MainNavigation(viewModel: ChatViewModel, settingsManager: SettingsManager) {
                     CrashReporter.clear(crashContext)
                     ratingScope.launch {
                         val ok = withContext(Dispatchers.IO) { CrashReporter.submit(report) }
-                        if (ok) snackbarHostState.showSnackbar(crashSubmittedMsg)
+                        if (ok) {
+                            try {
+                                snackbarHostState.showSnackbar(crashSubmittedMsg)
+                            } finally {
+                                snackbarVersion++
+                            }
+                        }
                     }
                 }) { Text(stringResource(R.string.crash_submit)) }
             },
@@ -485,7 +495,11 @@ fun MainNavigation(viewModel: ChatViewModel, settingsManager: SettingsManager) {
                 snackbarHostState.currentSnackbarData?.dismiss()
                 snackbarJob?.cancel()
                 snackbarJob = launch {
-                    snackbarHostState.showSnackbar(msg)
+                    try {
+                        snackbarHostState.showSnackbar(msg)
+                    } finally {
+                        snackbarVersion++
+                    }
                 }
             }
         }
@@ -497,13 +511,17 @@ fun MainNavigation(viewModel: ChatViewModel, settingsManager: SettingsManager) {
             snackbarHostState.currentSnackbarData?.dismiss()
             snackbarJob?.cancel()
             snackbarJob = launch {
-                val result = snackbarHostState.showSnackbar(
-                    message = event.message,
-                    actionLabel = event.actionLabel,
-                    duration = if (event.actionLabel != null) SnackbarDuration.Long else SnackbarDuration.Short
-                )
-                if (result == SnackbarResult.ActionPerformed) {
-                    event.onAction?.invoke()
+                try {
+                    val result = snackbarHostState.showSnackbar(
+                        message = event.message,
+                        actionLabel = event.actionLabel,
+                        duration = if (event.actionLabel != null) SnackbarDuration.Long else SnackbarDuration.Short
+                    )
+                    if (result == SnackbarResult.ActionPerformed) {
+                        event.onAction?.invoke()
+                    }
+                } finally {
+                    snackbarVersion++
                 }
             }
         }
@@ -637,7 +655,7 @@ fun MainNavigation(viewModel: ChatViewModel, settingsManager: SettingsManager) {
             var showing by remember { mutableStateOf(false) }
             var content by remember { mutableStateOf<SnackbarData?>(null) }
 
-            LaunchedEffect(current) {
+            LaunchedEffect(current, snackbarVersion) {
                 if (current != null) {
                     if (showing) { showing = false; delay(200) }
                     content = current
@@ -646,6 +664,17 @@ fun MainNavigation(viewModel: ChatViewModel, settingsManager: SettingsManager) {
                     showing = false
                     delay(400)
                     content = null
+                }
+            }
+
+            LaunchedEffect(content, accessibilityManager) {
+                val data = content ?: return@LaunchedEffect
+                val timeoutMillis = snackbarTimeoutMillis(data.visuals, accessibilityManager)
+                if (timeoutMillis != Long.MAX_VALUE) {
+                    delay(timeoutMillis)
+                    if (snackbarHostState.currentSnackbarData === data) {
+                        data.dismiss()
+                    }
                 }
             }
 
@@ -679,4 +708,22 @@ fun MainNavigation(viewModel: ChatViewModel, settingsManager: SettingsManager) {
             }
         }
     }
+}
+
+private fun snackbarTimeoutMillis(
+    visuals: SnackbarVisuals,
+    accessibilityManager: AccessibilityManager?
+): Long {
+    val durationMillis = when (visuals.duration) {
+        SnackbarDuration.Short -> 4000L
+        SnackbarDuration.Long -> 10000L
+        SnackbarDuration.Indefinite -> Long.MAX_VALUE
+    }
+    if (durationMillis == Long.MAX_VALUE) return durationMillis
+    return accessibilityManager?.calculateRecommendedTimeoutMillis(
+        originalTimeoutMillis = durationMillis,
+        containsIcons = true,
+        containsText = true,
+        containsControls = visuals.actionLabel != null
+    ) ?: durationMillis
 }
