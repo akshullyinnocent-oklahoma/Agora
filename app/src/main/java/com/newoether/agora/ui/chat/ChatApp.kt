@@ -21,6 +21,8 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
@@ -53,6 +55,7 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
@@ -74,6 +77,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.newoether.agora.R
 import com.newoether.agora.ui.theme.ChatType
+import com.newoether.agora.util.gradientBlur
+import com.newoether.agora.util.gradientBlurEdges
 import com.newoether.agora.data.local.MessageEntity
 import com.newoether.agora.model.Participant
 import com.newoether.agora.ui.components.AnimatedBlobBackground
@@ -408,13 +413,18 @@ fun ChatApp(
                         clip = true
                     }
             ) {
+                val drawerListState = rememberLazyListState()
+                val atTop = drawerListState.firstVisibleItemIndex == 0 && drawerListState.firstVisibleItemScrollOffset == 0
+                val atBottom = drawerListState.layoutInfo.visibleItemsInfo.lastOrNull()?.index == drawerListState.layoutInfo.totalItemsCount - 1
+                val stw by animateFloatAsState(if (atTop) 0f else 1f, tween(400))
+                val sbw by animateFloatAsState(if (atBottom) 0f else 1f, tween(400))
                 Column(
                     modifier = Modifier
                         .fillMaxHeight()
                         .padding(horizontal = 16.dp, vertical = 20.dp)
                         .clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) { focusManager.clearFocus() }
                 ) {
-                    Text(stringResource(R.string.conversations), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                    Text(stringResource(R.string.conversations), style = ChatType.conversationsTitle)
                     Spacer(modifier = Modifier.height(12.dp))
 
                     var searchQuery by remember { mutableStateOf("") }
@@ -439,27 +449,17 @@ fun ChatApp(
                         }
                     }
 
-                    OutlinedTextField(
-                        value = searchQuery,
-                        onValueChange = { searchQuery = it },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                        placeholder = { Text(stringResource(R.string.search_hint)) },
-                        leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant) },
-                        trailingIcon = {
-                            if (searchQuery.isNotEmpty()) {
-                                IconButton(onClick = { searchQuery = "" }) {
-                                    Icon(Icons.Default.Close, contentDescription = stringResource(R.string.clear_search))
-                                }
+                    Surface(modifier = Modifier.fillMaxWidth().height(44.dp), shape = CircleShape, color = MaterialTheme.colorScheme.surfaceColorAtElevation(8.dp), tonalElevation = 8.dp) {
+                        Row(modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.Search, null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
+                            Spacer(Modifier.width(10.dp))
+                            Box(Modifier.weight(1f)) {
+                                if (searchQuery.isEmpty()) Text(stringResource(R.string.search_hint), style = ChatType.drawerSearch, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                BasicTextField(value = searchQuery, onValueChange = { searchQuery = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, cursorBrush = SolidColor(MaterialTheme.colorScheme.primary), textStyle = ChatType.drawerSearch.copy(color = MaterialTheme.colorScheme.onSurface))
                             }
-                        },
-                        shape = CircleShape,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f),
-                            unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
-                        )
-                    )
-
+                            if (searchQuery.isNotEmpty()) IconButton(onClick = { searchQuery = "" }, modifier = Modifier.size(28.dp)) { Icon(Icons.Default.Close, stringResource(R.string.clear_search), modifier = Modifier.size(18.dp)) }
+                        }
+                    }
                     Spacer(modifier = Modifier.height(12.dp))
 
                     if (!isSearchActive) {
@@ -492,9 +492,9 @@ fun ChatApp(
                                 contentColor = newChatContent
                             )
                         ) {
-                            Icon(Icons.Default.Add, contentDescription = null)
+                            Icon(Icons.Default.Add, null, modifier = Modifier.size(20.dp))
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text(stringResource(R.string.new_chat), style = MaterialTheme.typography.titleMedium)
+                            Text(stringResource(R.string.new_chat), style = ChatType.drawerButton)
                         }
 
                         Spacer(modifier = Modifier.height(16.dp))
@@ -506,7 +506,7 @@ fun ChatApp(
                         }
                     }
 
-                    LazyColumn(modifier = Modifier.weight(1f)) {
+                    LazyColumn(state = drawerListState, modifier = Modifier.weight(1f).gradientBlurEdges(maxBlurDp = 4f, edgeFadeDp = 40f, topWeight = stw, bottomWeight = sbw)) {
                         if (isSearchActive) {
                             val grouped = searchResults.groupBy { it.first.conversationId }
                             val titleMap = conversations.associate { it.id to it.title }
@@ -535,7 +535,8 @@ fun ChatApp(
                                     Surface(
                                         modifier = Modifier
                                             .fillMaxWidth()
-                                            .padding(vertical = 2.dp)
+                                            .height(44.dp)
+                                            .padding(vertical = 1.dp)
                                             .clip(CircleShape)
                                             .pointerInput(showMenu) {
                                                 if (!showMenu) {
@@ -566,7 +567,7 @@ fun ChatApp(
                                     ) {
                                         Text(
                                             text = conversation.title,
-                                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 11.dp),
+                                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
                                             maxLines = 1,
                                             style = MaterialTheme.typography.bodyLarge,
                                             color = if (isSelected) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSurface
@@ -633,9 +634,9 @@ fun ChatApp(
                             },
                         shape = CircleShape
                     ) {
-                        Icon(Icons.Default.Settings, contentDescription = null)
+                        Icon(Icons.Default.Settings, null, modifier = Modifier.size(20.dp))
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text(stringResource(R.string.settings), style = MaterialTheme.typography.titleMedium)
+                        Text(stringResource(R.string.settings), style = ChatType.drawerButton)
                     }
                 }
             }
@@ -808,7 +809,7 @@ fun ChatApp(
                             MessageList(
                                 messages = messages,
                                 allMessages = allMessages,
-                                modifier = Modifier.fillMaxSize(),
+                                modifier = Modifier.fillMaxSize().gradientBlur(blurAtTopDp = 8f, blurAtBottomDp = 0f),
                                 state = listState,
                                 isLoading = isLoading && generatingInConversationId == currentConversationId,
                                 isSwitching = isSwitching,
@@ -886,31 +887,13 @@ fun ChatApp(
                         }
                     }
 
-                    val animAlpha by animateFloatAsState(if (showButton) 1f else 0f, tween(400), label = "scrollBtnAlpha")
-                    val animScale by animateFloatAsState(if (showButton) 1f else 0.6f, tween(400), label = "scrollBtnScale")
-
-                    FloatingActionButton(
-                        onClick = {
-                            scope.launch {
-                                scrollToLastUserMessage(animate = true, easing = SCROLL_EASING)
-                            }
-                        },
-                        containerColor = MaterialTheme.colorScheme.surfaceColorAtElevation(4.dp),
-                        contentColor = MaterialTheme.colorScheme.onSurface,
-                        shape = CircleShape,
-                        elevation = FloatingActionButtonDefaults.elevation(4.dp),
-                        modifier = Modifier
-                            .align(Alignment.BottomCenter)
-                            .padding(bottom = bottomBarHeight + 16.dp)
-                            .size(40.dp)
-                            .alpha(animAlpha)
-                            .scale(animScale)
-                    ) {
-                        Icon(
-                            Icons.Default.KeyboardArrowDown,
-                            contentDescription = stringResource(R.string.scroll_to_bottom),
-                            modifier = Modifier.size(24.dp)
-                        )
+                    val animAlpha by animateFloatAsState(if (showButton) 1f else 0f, tween(400), label = "sA")
+                    val animSize by animateDpAsState(if (showButton) 40.dp else 24.dp, tween(400), label = "sS")
+                    val animIconSize by animateDpAsState(if (showButton) 24.dp else 14.dp, tween(400), label = "sIS")
+                    Box(modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = bottomBarHeight + 8.dp).size(48.dp), contentAlignment = Alignment.Center) {
+                        FloatingActionButton(onClick = { scope.launch { scrollToLastUserMessage(animate = true, easing = SCROLL_EASING) } }, containerColor = MaterialTheme.colorScheme.surfaceColorAtElevation(4.dp), contentColor = MaterialTheme.colorScheme.onSurface, shape = CircleShape, elevation = FloatingActionButtonDefaults.elevation(4.dp), modifier = Modifier.size(animSize).alpha(animAlpha)) {
+                            Icon(Icons.Default.KeyboardArrowDown, stringResource(R.string.scroll_to_bottom), modifier = Modifier.size(animIconSize))
+                        }
                     }
 
                     AnimatedVisibility(

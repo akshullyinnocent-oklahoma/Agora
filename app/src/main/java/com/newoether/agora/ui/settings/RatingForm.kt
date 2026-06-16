@@ -22,6 +22,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.newoether.agora.R
+import com.newoether.agora.ui.theme.ChatType
 import com.newoether.agora.api.HttpClient
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -62,8 +63,7 @@ fun RatingForm(
     Column {
         Text(
             text = stringResource(R.string.rating_title),
-            style = MaterialTheme.typography.headlineMedium,
-            fontWeight = FontWeight.Medium,
+            style = ChatType.ratingTitle,
             modifier = Modifier.padding(bottom = 4.dp)
         )
         Spacer(modifier = Modifier.height(6.dp))

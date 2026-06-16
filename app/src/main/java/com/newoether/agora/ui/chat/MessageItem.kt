@@ -278,7 +278,7 @@ private fun parseJsonOrNull(text: String): JsonElement? {
         val style = if (primitive.isString && !inline) {
             ChatType.thoughtBody
         } else {
-            ChatType.thoughtBody.copy(fontFamily = MonoFamily)
+            ChatType.thoughtCodeLarge
         }
         Text(
             text = primitive.content,
@@ -305,7 +305,7 @@ private fun parseJsonOrNull(text: String): JsonElement? {
             SelectionContainer {
                 Text(
                     text = text,
-                    style = ChatType.thoughtBody.copy(fontFamily = MonoFamily),
+                    style = ChatType.thoughtCodeLarge,
                     color = MaterialTheme.colorScheme.onSurface
                 )
             }
@@ -674,6 +674,10 @@ fun MessageItem(
     // a visible but not jarring hierarchy during long-form reading.
     val customTypography = markdownTypography(
         text = ChatType.body,
+        paragraph = ChatType.body,
+        ordered = ChatType.body,
+        bullet = ChatType.body,
+        list = ChatType.body,
         h1 = ChatType.mdH1,
         h2 = ChatType.mdH2,
         h3 = ChatType.mdH3,
@@ -682,8 +686,9 @@ fun MessageItem(
         h6 = ChatType.mdH6,
         code = ChatType.code,
         inlineCode = ChatType.code,
+        table = ChatType.body,
     )
-    
+
     // Compact typography for thought blocks — subordinate to main chat body.
     // One tier below main markdown: body at 13sp (vs 15sp), headings similarly
     // stepped down. Readable for paragraph-level content but clearly secondary.
@@ -910,7 +915,7 @@ fun MessageItem(
                                 SelectionContainer {
                                     Text(
                                         text = message.text,
-                                        style = ChatType.body,
+                                        style = ChatType.userBody,
                                         color = textColor
                                     )
                                 }
@@ -1200,7 +1205,7 @@ fun MessageItem(
                                     }
                                     Spacer(modifier = Modifier.width(8.dp))
                                     Text(
-                                        collapsedTitle, style = ChatType.thoughtBody,
+                                        collapsedTitle, style = ChatType.thoughtTitle,
                                         color = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f),
                                         fontWeight = FontWeight.Bold, maxLines = 1,
                                         overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f)
@@ -1252,7 +1257,7 @@ fun MessageItem(
                                                         } else flat
                                                         Text(
                                                             text = preview,
-                                                            style = ChatType.meta.copy(fontWeight = FontWeight.Normal),
+                                                            style = ChatType.metaNormal,
                                                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
                                                             maxLines = 1,
                                                             overflow = TextOverflow.Ellipsis
@@ -1260,7 +1265,7 @@ fun MessageItem(
                                                     } else {
                                                         Text(
                                                             text = "Image transcription is empty.",
-                                                            style = ChatType.meta.copy(fontWeight = FontWeight.Normal),
+                                                            style = ChatType.metaNormal,
                                                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
                                                         )
                                                     }
@@ -1281,7 +1286,7 @@ fun MessageItem(
                                                     )
                                                     Text(
                                                         text = toolSummary(seg),
-                                                        style = ChatType.meta.copy(fontWeight = FontWeight.Normal),
+                                                        style = ChatType.metaNormal,
                                                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                                                     )
                                                 }
@@ -1322,7 +1327,7 @@ fun MessageItem(
                                         SelectionContainer {
                                             Text(
                                                 debouncedText.ifEmpty { stringResource(R.string.failed_to_generate) },
-                                                style = ChatType.body.copy(fontWeight = FontWeight.Medium),
+                                                style = ChatType.errorBody,
                                                 color = MaterialTheme.colorScheme.error.copy(alpha = 0.8f)
                                             )
                                         }
@@ -1724,7 +1729,7 @@ fun MessageItem(
                                 text = if (seg.type == "tool") toolDisplayName(seg.toolName)
                                     else if (seg.type == "transcription") transcriptionLabel(liveSegs, selectedSegmentIndex)
                                     else stringResource(R.string.tool_thinking),
-                                style = ChatType.sheetTitle,
+                                style = ChatType.detailTitle,
                                 modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp)
                             )
                             HorizontalDivider(

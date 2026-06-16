@@ -172,16 +172,32 @@ object ChatType {
     val input = TextStyle(fontFamily = OutfitFamily, fontWeight = FontWeight.Normal, fontSize = 16.sp, lineHeight = 23.sp, letterSpacing = 0.5.sp)
 
     // Body tier
-    val body = TextStyle(fontFamily = OutfitFamily, fontWeight = FontWeight.Normal, fontSize = 15.sp, lineHeight = 22.sp)
+    val body = TextStyle(fontFamily = OutfitFamily, fontWeight = FontWeight.Normal, fontSize = 16.sp, lineHeight = 24.sp)
+    val userBody = TextStyle(fontFamily = OutfitFamily, fontWeight = FontWeight.Normal, fontSize = 14.sp, lineHeight = 22.sp)
     val thoughtBody = TextStyle(fontFamily = OutfitFamily, fontWeight = FontWeight.Normal, fontSize = 13.sp, lineHeight = 19.sp)
+    val thoughtTitle = TextStyle(fontFamily = OutfitFamily, fontWeight = FontWeight.Medium, fontSize = 13.sp, lineHeight = 19.sp)
+    val errorBody = TextStyle(fontFamily = OutfitFamily, fontWeight = FontWeight.Medium, fontSize = 16.sp, lineHeight = 24.sp)
 
     // Meta tier
     val meta = TextStyle(fontFamily = OutfitFamily, fontWeight = FontWeight.Medium, fontSize = 12.sp, lineHeight = 17.sp)
+    val metaNormal = TextStyle(fontFamily = OutfitFamily, fontWeight = FontWeight.Normal, fontSize = 12.sp, lineHeight = 17.sp)
     val micro = TextStyle(fontFamily = OutfitFamily, fontWeight = FontWeight.Medium, fontSize = 11.sp, lineHeight = 15.sp)
 
     // Code / mono
     val code = TextStyle(fontFamily = MonoFamily, fontWeight = FontWeight.Normal, fontSize = 14.sp, lineHeight = 20.sp)
     val thoughtCode = TextStyle(fontFamily = MonoFamily, fontWeight = FontWeight.Normal, fontSize = 12.sp, lineHeight = 17.sp)
+    val thoughtCodeLarge = TextStyle(fontFamily = MonoFamily, fontWeight = FontWeight.Normal, fontSize = 13.sp, lineHeight = 19.sp)
+
+    // Sheet
+    val detailTitle = TextStyle(fontFamily = OutfitFamily, fontWeight = FontWeight.Bold, fontSize = 22.sp, lineHeight = 28.sp)
+
+    // Rating
+    val ratingTitle = TextStyle(fontFamily = OutfitFamily, fontWeight = FontWeight.Bold, fontSize = 28.sp, lineHeight = 35.sp)
+
+    // Drawer
+    val conversationsTitle = TextStyle(fontFamily = OutfitFamily, fontWeight = FontWeight.Bold, fontSize = 25.sp, lineHeight = 32.sp)
+    val drawerButton = TextStyle(fontFamily = OutfitFamily, fontWeight = FontWeight.Medium, fontSize = 14.sp, lineHeight = 20.sp)
+    val drawerSearch = TextStyle(fontFamily = OutfitFamily, fontWeight = FontWeight.Normal, fontSize = 15.sp, lineHeight = 22.sp)
 
     // Assistant markdown headings — even ~1.15 steps; h1 reined in (22, not 24)
     // so the jump from h2 stays proportional and h1 doesn't shout over 15sp body.
