@@ -441,7 +441,12 @@ fun ChatApp(
     var pendingDrawerConversationHaptic by remember { mutableStateOf<String?>(null) }
     var previousIsSwitching by remember { mutableStateOf(isSwitching) }
     LaunchedEffect(isSwitching, currentConversationId) {
-        if (previousIsSwitching && !isSwitching && pendingDrawerConversationHaptic == currentConversationId) {
+        if (
+            previousIsSwitching &&
+            !isSwitching &&
+            pendingDrawerConversationHaptic != null &&
+            pendingDrawerConversationHaptic == currentConversationId
+        ) {
             haptics.success()
             pendingDrawerConversationHaptic = null
         }
@@ -548,6 +553,7 @@ fun ChatApp(
                         Button(
                             onClick = {
                                 if (!newChatDisabled) {
+                                    haptics.action()
                                     viewModel.createNewChat()
                                     scope.launch {
                                         drawerState.close()
@@ -589,6 +595,7 @@ fun ChatApp(
                                     score = bestScore,
                                     query = searchQuery,
                                     onClick = {
+                                        haptics.selection()
                                         if (convId != currentConversationId || isNewChatMode) {
                                             pendingDrawerConversationHaptic = convId
                                         }
@@ -625,6 +632,7 @@ fun ChatApp(
                                             .combinedClickable(
                                                 enabled = !isSwitching,
                                                 onClick = {
+                                                    haptics.selection()
                                                     if (conversation.id != currentConversationId || isNewChatMode) {
                                                         pendingDrawerConversationHaptic = conversation.id
                                                     }
