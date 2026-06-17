@@ -168,7 +168,7 @@ class SettingsDelegate(
         currentPrompts: List<SystemPromptEntry>
     ) {
         scope.launch {
-            settingsManager.saveSystemPrompts(currentPrompts.map { if (it.id == id) it.copy(title = title, systemItems = systemItems, userPrependItems = userPrependItems, userPostpendItems = userPostpendItems) else it })
+            settingsManager.saveSystemPrompts(currentPrompts.map { if (it.id == id) it.copy(title = title, content = "", systemItems = systemItems, userPrependItems = userPrependItems, userPostpendItems = userPostpendItems) else it })
         }
     }
 
@@ -183,8 +183,10 @@ class SettingsDelegate(
     fun setProviderBaseUrl(provider: String, url: String) = scope.launch { settingsManager.saveProviderBaseUrl(provider, url) }
     fun setTitleGenerationEnabled(enabled: Boolean) = scope.launch { settingsManager.saveTitleGenerationEnabled(enabled) }
     fun setTitleGenerationModel(model: String?) = scope.launch { settingsManager.saveTitleGenerationModel(model) }
+    fun setTitleGenerationPrompt(prompt: String) = scope.launch { settingsManager.saveTitleGenerationPrompt(prompt) }
     fun setImageTranscriptionModel(model: String?) = scope.launch { settingsManager.saveImageTranscriptionModel(model) }
     fun setImageTranscriptionBatchSize(size: Int) = scope.launch { settingsManager.saveImageTranscriptionBatchSize(size) }
+    fun setImageTranscriptionPrompt(prompt: String) = scope.launch { settingsManager.saveImageTranscriptionPrompt(prompt) }
     fun addImageTranscriptionModels(models: Set<String>, current: Set<String>) = scope.launch { settingsManager.saveImageTranscriptionEnabledModels(current + models) }
     fun removeImageTranscriptionModel(model: String, current: Set<String>) = scope.launch { settingsManager.saveImageTranscriptionEnabledModels(current - model) }
     fun setAccessPastConversations(enabled: Boolean) = scope.launch { settingsManager.saveAccessPastConversations(enabled) }

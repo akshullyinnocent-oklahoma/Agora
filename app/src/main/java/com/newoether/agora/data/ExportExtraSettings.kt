@@ -29,6 +29,7 @@ object ExportExtraSettings {
         put("imageTranscriptionEnabledModels", JsonPrimitive(imgTransEnabled.joinToString(",")))
         sm.imageTranscriptionModel.first()?.let { put("imageTranscriptionModel", JsonPrimitive(it)) }
         put("imageTranscriptionBatchSize", JsonPrimitive(sm.imageTranscriptionBatchSize.first()))
+        put("imageTranscriptionPrompt", JsonPrimitive(sm.imageTranscriptionPrompt.first()))
 
         put("webSearchNumResults", JsonPrimitive(sm.webSearchNumResults.first()))
         put("searchContextWindow", JsonPrimitive(sm.searchContextWindow.first()))
@@ -87,6 +88,7 @@ object ExportExtraSettings {
         }
         obj["imageTranscriptionModel"]?.jsonPrimitive?.contentOrNull?.let { sm.saveImageTranscriptionModel(it) }
         obj["imageTranscriptionBatchSize"]?.jsonPrimitive?.int?.let { sm.saveImageTranscriptionBatchSize(it) }
+        obj["imageTranscriptionPrompt"]?.jsonPrimitive?.contentOrNull?.let { sm.saveImageTranscriptionPrompt(it) }
         obj["webSearchNumResults"]?.jsonPrimitive?.int?.let { sm.saveWebSearchNumResults(it) }
         obj["searchContextWindow"]?.jsonPrimitive?.int?.let { sm.saveSearchContextWindow(it) }
         obj["searchMatchLimit"]?.jsonPrimitive?.int?.let { sm.saveSearchMatchLimit(it) }

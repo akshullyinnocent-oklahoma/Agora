@@ -16,6 +16,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import java.util.Locale
 import java.util.UUID
 
 private val Context.dataStore by preferencesDataStore(name = "settings")
@@ -118,9 +119,11 @@ class SettingsManager(private val context: Context) {
         val PROVIDER_BASE_URLS = stringPreferencesKey("provider_base_urls")
         val TITLE_GENERATION_ENABLED = booleanPreferencesKey("title_generation_enabled")
         val TITLE_GENERATION_MODEL = stringPreferencesKey("title_generation_model")
+        val TITLE_GENERATION_PROMPT = stringPreferencesKey("title_generation_prompt")
         val IMAGE_TRANSCRIPTION_ENABLED_MODELS = stringSetPreferencesKey("image_transcription_enabled_models")
         val IMAGE_TRANSCRIPTION_MODEL = stringPreferencesKey("image_transcription_model")
         val IMAGE_TRANSCRIPTION_BATCH_SIZE = intPreferencesKey("image_transcription_batch_size")
+        val IMAGE_TRANSCRIPTION_PROMPT = stringPreferencesKey("image_transcription_prompt")
         val ACCESS_PAST_CONVERSATIONS = booleanPreferencesKey("access_past_conversations")
         val ACCESS_SAVED_MEMORIES = booleanPreferencesKey("access_saved_memories")
         val ACCESS_ACTIVE_MEMORY = booleanPreferencesKey("access_active_memory")
@@ -230,9 +233,15 @@ class SettingsManager(private val context: Context) {
 
     val titleGenerationEnabled: Flow<Boolean> = context.dataStore.data.map { it[TITLE_GENERATION_ENABLED] ?: true }
     val titleGenerationModel: Flow<String?> = context.dataStore.data.map { it[TITLE_GENERATION_MODEL] }
+    val titleGenerationPrompt: Flow<String> = context.dataStore.data.map { pref ->
+        pref[TITLE_GENERATION_PROMPT]?.takeIf { it.isNotBlank() } ?: BuiltInPrompts.TITLE_GENERATION_SYSTEM
+    }
     val imageTranscriptionEnabledModels: Flow<Set<String>> = context.dataStore.data.map { it[IMAGE_TRANSCRIPTION_ENABLED_MODELS] ?: emptySet() }
     val imageTranscriptionModel: Flow<String?> = context.dataStore.data.map { it[IMAGE_TRANSCRIPTION_MODEL] }
     val imageTranscriptionBatchSize: Flow<Int> = context.dataStore.data.map { it[IMAGE_TRANSCRIPTION_BATCH_SIZE] ?: 3 }
+    val imageTranscriptionPrompt: Flow<String> = context.dataStore.data.map { pref ->
+        pref[IMAGE_TRANSCRIPTION_PROMPT]?.takeIf { it.isNotBlank() } ?: BuiltInPrompts.IMAGE_TRANSCRIPTION_USER
+    }
 
     val accessPastConversations: Flow<Boolean> = context.dataStore.data.map { it[ACCESS_PAST_CONVERSATIONS] ?: true }
     val accessSavedMemories: Flow<Boolean> = context.dataStore.data.map { it[ACCESS_SAVED_MEMORIES] ?: true }
@@ -361,6 +370,68 @@ class SettingsManager(private val context: Context) {
     suspend fun saveSystemPrompts(prompts: List<SystemPromptEntry>) {
         context.dataStore.edit { it[SYSTEM_PROMPTS_JSON] = json.encodeToString(prompts) }
     }
+
+    suspend fun initializeFirstInstallDefaults(
+        locale: Locale = Locale.getDefault(),
+        now: Long = System.currentTimeMillis()
+    ) {
+        context.dataStore.edit { prefs ->
+            val firstLaunchMissing = prefs[FIRST_LAUNCH_TIME] == null
+            val looksLikeFreshInstall = firstLaunchMissing && prefs[ONBOARDING_COMPLETED] != true
+            if (firstLaunchMissing) {
+                prefs[FIRST_LAUNCH_TIME] = now
+            }
+            val currentPrompts = try {
+                json.decodeFromString<List<SystemPromptEntry>>(prefs[SYSTEM_PROMPTS_JSON] ?: "[]")
+            } catch (_: Exception) {
+                emptyList()
+            }
+            val migratedPrompts = migrateLegacyDefaultPromptTitle(currentPrompts, locale)
+            if (migratedPrompts != currentPrompts) {
+                prefs[SYSTEM_PROMPTS_JSON] = json.encodeToString(migratedPrompts)
+            }
+            if (looksLikeFreshInstall) {
+                if (migratedPrompts.isEmpty()) {
+                    val defaultPrompt = DefaultSystemPrompt.create(locale)
+                    prefs[SYSTEM_PROMPTS_JSON] = json.encodeToString(listOf(defaultPrompt))
+                    if (prefs[ACTIVE_SYSTEM_PROMPT_ID] == null) {
+                        prefs[ACTIVE_SYSTEM_PROMPT_ID] = defaultPrompt.id
+                    }
+                }
+            }
+        }
+    }
+
+    private fun migrateLegacyDefaultPromptTitle(
+        prompts: List<SystemPromptEntry>,
+        locale: Locale
+    ): List<SystemPromptEntry> {
+        if (prompts.isEmpty()) return prompts
+        val localizedTitle = DefaultSystemPrompt.titleForLocale(locale)
+        val defaultPrompt = DefaultSystemPrompt.create(locale)
+        return prompts.map { entry ->
+            val legacyLowercaseEnglish = entry.title == "default"
+            val legacySimplifiedTitleInTraditionalLocale =
+                entry.title == "\u9ed8\u8ba4" && localizedTitle == "\u9810\u8a2d"
+            if ((legacyLowercaseEnglish || legacySimplifiedTitleInTraditionalLocale) &&
+                entry.sameTemplateAs(defaultPrompt)
+            ) {
+                entry.copy(title = localizedTitle)
+            } else {
+                entry
+            }
+        }
+    }
+
+    private fun SystemPromptEntry.sameTemplateAs(other: SystemPromptEntry): Boolean =
+        resolvedSystemItems.sameTemplateItems(other.resolvedSystemItems) &&
+            userPrependItems.sameTemplateItems(other.userPrependItems) &&
+            userPostpendItems.sameTemplateItems(other.userPostpendItems)
+
+    private fun List<PromptTemplateItem>.sameTemplateItems(other: List<PromptTemplateItem>): Boolean =
+        size == other.size && zip(other).all { (left, right) ->
+            left.type == right.type && left.value == right.value
+        }
 
     suspend fun setActiveSystemPromptId(id: String?) {
         context.dataStore.edit { 
@@ -535,6 +606,13 @@ class SettingsManager(private val context: Context) {
         }
     }
 
+    suspend fun saveTitleGenerationPrompt(prompt: String) {
+        context.dataStore.edit {
+            if (prompt.isBlank()) it.remove(TITLE_GENERATION_PROMPT)
+            else it[TITLE_GENERATION_PROMPT] = prompt
+        }
+    }
+
     suspend fun saveImageTranscriptionEnabledModels(models: Set<String>) {
         context.dataStore.edit { it[IMAGE_TRANSCRIPTION_ENABLED_MODELS] = models }
     }
@@ -548,6 +626,13 @@ class SettingsManager(private val context: Context) {
 
     suspend fun saveImageTranscriptionBatchSize(size: Int) {
         context.dataStore.edit { it[IMAGE_TRANSCRIPTION_BATCH_SIZE] = size.coerceIn(1, 10) }
+    }
+
+    suspend fun saveImageTranscriptionPrompt(prompt: String) {
+        context.dataStore.edit {
+            if (prompt.isBlank()) it.remove(IMAGE_TRANSCRIPTION_PROMPT)
+            else it[IMAGE_TRANSCRIPTION_PROMPT] = prompt
+        }
     }
 
     suspend fun saveShowDocumentationFab(enabled: Boolean) {

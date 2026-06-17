@@ -160,6 +160,14 @@
     <string name="prompts_edit_title">编辑系统指令</string>
     <string name="prompts_add_title">添加系统指令</string>
     <string name="prompts_title_hint">标题（例如：翻译器）</string>
+    <string name="prompts_template_title">选择模板</string>
+    <string name="prompts_template_blank">空白</string>
+    <string name="prompts_template_blank_desc">从空白的可编辑系统指令开始。</string>
+    <string name="prompts_template_default">默认</string>
+    <string name="prompts_template_default_desc">使用 Agora 默认指令，包含运行时上下文、记忆、网页搜索、Shell 和设备文件访问规则。</string>
+    <string name="prompts_duplicate">复制</string>
+    <string name="prompts_duplicate_title">%1$s 副本</string>
+    <string name="prompts_empty_preview">空指令</string>
     <string name="prompts_delete_title">删除系统指令？</string>
     <string name="prompts_delete_text">确定要删除 \'%1$s\' 吗？此操作无法撤销。</string>
     <string name="template_title_required">标题不能为空</string>
@@ -357,6 +365,8 @@
     <string name="title_gen_model">标题模型</string>
     <string name="title_gen_current_model">使用当前模型</string>
     <string name="title_gen_select_model">选择标题模型</string>
+    <string name="title_gen_prompt">标题 Prompt</string>
+    <string name="title_gen_prompt_desc">生成对话标题时使用的系统指令</string>
 
     <!-- Settings - Image Transcription Page -->
     <string name="transcription_model">转述模型</string>
@@ -364,12 +374,15 @@
     <string name="transcription_select_model">选择转述模型</string>
     <string name="transcription_batch_size">批次大小</string>
     <string name="transcription_batch_size_desc">每次 API 调用处理的图片数量（1–10）</string>
+    <string name="transcription_prompt">转述 Prompt</string>
+    <string name="transcription_prompt_desc">每次图像转述请求发送的指令</string>
     <string name="transcription_enabled_models">启用的模型</string>
     <string name="transcription_no_models_enabled">未启用任何模型</string>
     <string name="transcription_no_models_hint">请在上方添加模型以启用图像转述</string>
     <string name="transcription_add_model">添加模型</string>
     <string name="transcription_ellipsis">正在转述图片…</string>
     <string name="transcription_progress">正在转述图片 %1$d/%2$d…</string>
+    <string name="prompt_content">Prompt</string>
 
     <!-- Settings - Memory Page -->
     <string name="memory_title">记忆</string>

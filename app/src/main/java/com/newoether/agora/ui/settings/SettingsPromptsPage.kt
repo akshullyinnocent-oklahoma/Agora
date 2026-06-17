@@ -17,18 +17,24 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Psychology
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.newoether.agora.R
+import com.newoether.agora.data.DefaultSystemPrompt
+import com.newoether.agora.data.PromptTemplateItem
 import com.newoether.agora.data.SystemPromptEntry
 import com.newoether.agora.viewmodel.ChatViewModel
+import java.util.UUID
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -38,6 +44,8 @@ fun SettingsPromptsPage(viewModel: ChatViewModel, onBack: () -> Unit) {
     val showDocFab by viewModel.showDocumentationFab.collectAsState()
     var editingEntry by remember { mutableStateOf<SystemPromptEntry?>(null) }
     var showDeletePromptConfirm by remember { mutableStateOf<SystemPromptEntry?>(null) }
+    var showTemplatePicker by remember { mutableStateOf(false) }
+    val context = LocalContext.current
 
     BackHandler(enabled = editingEntry != null) {
         editingEntry = null
@@ -73,10 +81,53 @@ fun SettingsPromptsPage(viewModel: ChatViewModel, onBack: () -> Unit) {
                 activeSystemPromptId = activeSystemPromptId,
                 onSelectPrompt = { viewModel.setActiveSystemPrompt(it) },
                 onEdit = { editingEntry = it },
-                onAdd = { editingEntry = SystemPromptEntry(title = "") },
+                onDuplicate = { entry ->
+                    val copyTitle = context.getString(R.string.prompts_duplicate_title, entry.title)
+                    editingEntry = entry.duplicateAsDraft(copyTitle)
+                },
+                onAdd = { showTemplatePicker = true },
                 onDeleteRequest = { showDeletePromptConfirm = it },
                 onBack = onBack
             )
+        }
+    }
+
+    if (showTemplatePicker) {
+        ModalBottomSheet(
+            onDismissRequest = { showTemplatePicker = false },
+            shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp),
+            containerColor = MaterialTheme.colorScheme.surfaceContainer
+        ) {
+            Text(
+                text = stringResource(R.string.prompts_template_title),
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            SettingsItem(
+                headlineContent = { Text(stringResource(R.string.prompts_template_blank), fontWeight = FontWeight.Medium) },
+                supportingContent = { Text(stringResource(R.string.prompts_template_blank_desc), color = MaterialTheme.colorScheme.onSurfaceVariant) },
+                leadingContent = {
+                    Icon(Icons.Default.Add, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                },
+                modifier = Modifier.fillMaxWidth().clickable {
+                    showTemplatePicker = false
+                    editingEntry = SystemPromptEntry(title = "")
+                }
+            )
+            SettingsItem(
+                headlineContent = { Text(stringResource(R.string.prompts_template_default), fontWeight = FontWeight.Medium) },
+                supportingContent = { Text(stringResource(R.string.prompts_template_default_desc), color = MaterialTheme.colorScheme.onSurfaceVariant) },
+                leadingContent = {
+                    Icon(Icons.Default.Psychology, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                },
+                modifier = Modifier.fillMaxWidth().clickable {
+                    showTemplatePicker = false
+                    editingEntry = DefaultSystemPrompt.create(java.util.Locale.getDefault())
+                }
+            )
+            Spacer(modifier = Modifier.height(24.dp))
         }
     }
 
@@ -100,6 +151,19 @@ fun SettingsPromptsPage(viewModel: ChatViewModel, onBack: () -> Unit) {
     }
 }
 
+private fun SystemPromptEntry.duplicateAsDraft(title: String): SystemPromptEntry =
+    copy(
+        id = UUID.randomUUID().toString(),
+        title = title,
+        content = "",
+        systemItems = resolvedSystemItems.copyWithNewIds(),
+        userPrependItems = userPrependItems.copyWithNewIds(),
+        userPostpendItems = userPostpendItems.copyWithNewIds()
+    )
+
+private fun List<PromptTemplateItem>.copyWithNewIds(): List<PromptTemplateItem> =
+    map { it.copy(id = UUID.randomUUID().toString()) }
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun PromptList(
@@ -107,6 +171,7 @@ private fun PromptList(
     activeSystemPromptId: String?,
     onSelectPrompt: (String) -> Unit,
     onEdit: (SystemPromptEntry) -> Unit,
+    onDuplicate: (SystemPromptEntry) -> Unit,
     onAdd: () -> Unit,
     onDeleteRequest: (SystemPromptEntry) -> Unit,
     onBack: () -> Unit
@@ -116,24 +181,18 @@ private fun PromptList(
         onBack = onBack
     ) {
             val promptItems: List<@Composable () -> Unit> = buildList {
-                add {
-                    SettingsItem(
-                        headlineContent = { Text(stringResource(R.string.prompts_default)) },
-                        supportingContent = { Text(stringResource(R.string.prompts_default_desc)) },
-                        leadingContent = {
-                            Icon(Icons.Default.Psychology, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                        }
-                    )
-                }
-
                 systemPrompts.forEach { entry ->
                     add {
                         var showMenu by remember { mutableStateOf(false) }
                         SettingsItem(
                             headlineContent = { Text(entry.title, fontWeight = FontWeight.Medium) },
                             supportingContent = {
-                                val preview = entry.resolvedSystemItems.firstOrNull()?.value ?: entry.content
-                                Text(preview, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                val preview = entry.resolvedSystemItems
+                                    .firstOrNull { it.value.isNotBlank() }
+                                    ?.value
+                                    ?: entry.content
+                                val text = preview.ifBlank { stringResource(R.string.prompts_empty_preview) }
+                                Text(text, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             },
                             leadingContent = {
                                 RadioButton(selected = entry.id == activeSystemPromptId, onClick = { onSelectPrompt(entry.id) }, modifier = Modifier.size(24.dp))
@@ -145,6 +204,7 @@ private fun PromptList(
                                     }
                                     DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }, containerColor = MaterialTheme.colorScheme.surfaceContainer, tonalElevation = 16.dp, shape = RoundedCornerShape(12.dp)) {
                                         DropdownMenuItem(text = { Text(stringResource(R.string.provider_edit)) }, leadingIcon = { Icon(Icons.Default.Edit, null) }, onClick = { showMenu = false; onEdit(entry) })
+                                        DropdownMenuItem(text = { Text(stringResource(R.string.prompts_duplicate)) }, leadingIcon = { Icon(Icons.Default.ContentCopy, null, modifier = Modifier.scale(0.9f)) }, onClick = { showMenu = false; onDuplicate(entry) })
                                         DropdownMenuItem(text = { Text(stringResource(R.string.provider_delete), color = MaterialTheme.colorScheme.error) }, leadingIcon = { Icon(Icons.Default.Delete, null, tint = MaterialTheme.colorScheme.error) }, onClick = { showMenu = false; onDeleteRequest(entry) })
                                     }
                                 }

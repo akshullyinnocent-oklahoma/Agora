@@ -377,6 +377,7 @@ class DataImporter(
                         }
                         settingsManager.saveTitleGenerationEnabled(s.titleGenerationEnabled)
                         s.titleGenerationModel?.let { settingsManager.saveTitleGenerationModel(it) }
+                        s.titleGenerationPrompt?.let { settingsManager.saveTitleGenerationPrompt(it) }
                         settingsManager.saveAccessPastConversations(s.accessPastConversations)
                         settingsManager.saveAccessSavedMemories(s.accessSavedMemories)
                         settingsManager.saveAccessActiveMemory(s.accessActiveMemory)
@@ -539,6 +540,7 @@ class DataImporter(
         val providerBaseUrls: Map<String, String> = emptyMap(),
         val titleGenerationEnabled: Boolean = true,
         val titleGenerationModel: String? = null,
+        val titleGenerationPrompt: String? = null,
         val accessPastConversations: Boolean = true,
         val accessSavedMemories: Boolean = true,
         val accessActiveMemory: Boolean = true,

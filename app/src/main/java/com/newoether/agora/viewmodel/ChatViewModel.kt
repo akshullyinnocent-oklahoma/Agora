@@ -16,6 +16,7 @@ import com.newoether.agora.api.openai.*
 import com.newoether.agora.data.ClaudeChatImporter
 import com.newoether.agora.data.GptChatImporter
 import com.newoether.agora.data.ApiKeyEntry
+import com.newoether.agora.data.BuiltInPrompts
 import com.newoether.agora.data.ConversationSettings
 import com.newoether.agora.data.CustomProviderConfig
 import com.newoether.agora.data.DataExporter
@@ -384,12 +385,14 @@ class ChatViewModel(
         val thinkingLevel = settingsManager.thinkingLevel.stateIn(viewModelScope, SharingStarted.Eagerly, "medium")
         val thinkingBudgetEnabled = settingsManager.thinkingBudgetEnabled.stateIn(viewModelScope, SharingStarted.Eagerly, false)
         val thinkingBudgetTokens = settingsManager.thinkingBudgetTokens.stateIn(viewModelScope, SharingStarted.Eagerly, 4096)
-        val providerBaseUrls = settingsManager.providerBaseUrls.stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
+    val providerBaseUrls = settingsManager.providerBaseUrls.stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
     val titleGenerationEnabled = settingsManager.titleGenerationEnabled.stateIn(viewModelScope, SharingStarted.Eagerly, true)
     val titleGenerationModel = settingsManager.titleGenerationModel.stateIn(viewModelScope, SharingStarted.Eagerly, null)
+    val titleGenerationPrompt = settingsManager.titleGenerationPrompt.stateIn(viewModelScope, SharingStarted.Eagerly, BuiltInPrompts.TITLE_GENERATION_SYSTEM)
     val imageTranscriptionEnabledModels = settingsManager.imageTranscriptionEnabledModels.stateIn(viewModelScope, SharingStarted.Eagerly, emptySet())
     val imageTranscriptionModel = settingsManager.imageTranscriptionModel.stateIn(viewModelScope, SharingStarted.Eagerly, null)
     val imageTranscriptionBatchSize = settingsManager.imageTranscriptionBatchSize.stateIn(viewModelScope, SharingStarted.Eagerly, 3)
+    val imageTranscriptionPrompt = settingsManager.imageTranscriptionPrompt.stateIn(viewModelScope, SharingStarted.Eagerly, BuiltInPrompts.IMAGE_TRANSCRIPTION_USER)
     val accessPastConversations = settingsManager.accessPastConversations.stateIn(viewModelScope, SharingStarted.Eagerly, true)
     val accessSavedMemories = settingsManager.accessSavedMemories.stateIn(viewModelScope, SharingStarted.Eagerly, true)
     val accessActiveMemory = settingsManager.accessActiveMemory.stateIn(viewModelScope, SharingStarted.Eagerly, true)
@@ -843,8 +846,10 @@ class ChatViewModel(
     }
     fun setTitleGenerationEnabled(enabled: Boolean) = settingsDelegate.setTitleGenerationEnabled(enabled)
     fun setTitleGenerationModel(model: String?) = settingsDelegate.setTitleGenerationModel(model)
+    fun setTitleGenerationPrompt(prompt: String) = settingsDelegate.setTitleGenerationPrompt(prompt)
     fun setImageTranscriptionModel(model: String?) = settingsDelegate.setImageTranscriptionModel(model)
     fun setImageTranscriptionBatchSize(size: Int) = settingsDelegate.setImageTranscriptionBatchSize(size)
+    fun setImageTranscriptionPrompt(prompt: String) = settingsDelegate.setImageTranscriptionPrompt(prompt)
     fun addImageTranscriptionModels(models: Set<String>) = settingsDelegate.addImageTranscriptionModels(models, imageTranscriptionEnabledModels.value)
     fun removeImageTranscriptionModel(model: String) = settingsDelegate.removeImageTranscriptionModel(model, imageTranscriptionEnabledModels.value)
 
@@ -1452,6 +1457,7 @@ class ChatViewModel(
             imageTranscriptionEnabled = imageTranscriptionEnabledModels.value.contains(currentActiveModel.value),
             imageTranscriptionModel = imageTranscriptionModel.value,
             imageTranscriptionBatchSize = imageTranscriptionBatchSize.value,
+            imageTranscriptionPrompt = imageTranscriptionPrompt.value,
             transcriptionProviderName = resolveTranscriptionProviderName(),
             transcriptionModelId = resolveTranscriptionModelId(),
             transcriptionApiKey = resolveTranscriptionApiKey(),
@@ -1637,7 +1643,7 @@ class ChatViewModel(
             val config = ProviderConfig(
                 apiKey = activeKey,
                 modelId = modelId,
-                systemPrompt = "You are a title generator. Output only a short title in the same language as the conversation.",
+                systemPrompt = titleGenerationPrompt.value.ifBlank { BuiltInPrompts.TITLE_GENERATION_SYSTEM },
                 maxContextWindow = 1,
                 thinkingEnabled = false,
                 baseUrl = getEffectiveBaseUrl(providerName)

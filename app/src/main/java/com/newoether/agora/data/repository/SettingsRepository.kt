@@ -42,9 +42,11 @@ class SettingsRepository(
     val providerBaseUrls: Flow<Map<String, String>> = settingsManager.providerBaseUrls
     val titleGenerationEnabled: Flow<Boolean> = settingsManager.titleGenerationEnabled
     val titleGenerationModel: Flow<String?> = settingsManager.titleGenerationModel
+    val titleGenerationPrompt: Flow<String> = settingsManager.titleGenerationPrompt
     val imageTranscriptionEnabledModels: Flow<Set<String>> = settingsManager.imageTranscriptionEnabledModels
     val imageTranscriptionModel: Flow<String?> = settingsManager.imageTranscriptionModel
     val imageTranscriptionBatchSize: Flow<Int> = settingsManager.imageTranscriptionBatchSize
+    val imageTranscriptionPrompt: Flow<String> = settingsManager.imageTranscriptionPrompt
     val accessPastConversations: Flow<Boolean> = settingsManager.accessPastConversations
     val accessSavedMemories: Flow<Boolean> = settingsManager.accessSavedMemories
     val accessActiveMemory: Flow<Boolean> = settingsManager.accessActiveMemory
@@ -106,8 +108,10 @@ class SettingsRepository(
     suspend fun saveCustomProviders(providers: List<CustomProviderConfig>) = settingsManager.saveCustomProviders(providers)
     suspend fun saveTitleGenerationEnabled(enabled: Boolean) = settingsManager.saveTitleGenerationEnabled(enabled)
     suspend fun saveTitleGenerationModel(model: String?) = settingsManager.saveTitleGenerationModel(model)
+    suspend fun saveTitleGenerationPrompt(prompt: String) = settingsManager.saveTitleGenerationPrompt(prompt)
     suspend fun saveImageTranscriptionModel(model: String?) = settingsManager.saveImageTranscriptionModel(model)
     suspend fun saveImageTranscriptionBatchSize(size: Int) = settingsManager.saveImageTranscriptionBatchSize(size)
+    suspend fun saveImageTranscriptionPrompt(prompt: String) = settingsManager.saveImageTranscriptionPrompt(prompt)
     suspend fun saveImageTranscriptionEnabledModels(models: Set<String>) = settingsManager.saveImageTranscriptionEnabledModels(models)
     suspend fun saveAccessPastConversations(enabled: Boolean) = settingsManager.saveAccessPastConversations(enabled)
     suspend fun saveAccessSavedMemories(enabled: Boolean) = settingsManager.saveAccessSavedMemories(enabled)

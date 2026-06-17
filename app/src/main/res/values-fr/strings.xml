@@ -195,6 +195,14 @@
     <string name="prompts_edit_title">Modifier l\'instruction système</string>
     <string name="prompts_add_title">Ajouter une instruction système</string>
     <string name="prompts_title_hint">Titre (p. ex. Traducteur)</string>
+    <string name="prompts_template_title">Choisir un modèle</string>
+    <string name="prompts_template_blank">Vide</string>
+    <string name="prompts_template_blank_desc">Commencer avec une instruction système modifiable vide.</string>
+    <string name="prompts_template_default">Par défaut</string>
+    <string name="prompts_template_default_desc">Utiliser le prompt par défaut d’Agora avec le contexte d’exécution, la mémoire, la recherche web, le shell et les règles d’accès aux fichiers de l’appareil.</string>
+    <string name="prompts_duplicate">Dupliquer</string>
+    <string name="prompts_duplicate_title">Copie de %1$s</string>
+    <string name="prompts_empty_preview">Prompt vide</string>
     <string name="prompts_delete_title">Supprimer l\'instruction système ?</string>
     <string name="prompts_delete_text">Voulez-vous vraiment supprimer \'%1$s\' ? Cette action est irréversible.</string>
     <string name="template_title_required">Le titre est obligatoire</string>
@@ -392,6 +400,8 @@
     <string name="title_gen_model">Modèle de titres</string>
     <string name="title_gen_current_model">Utiliser le modèle actuel</string>
     <string name="title_gen_select_model">Sélectionner le modèle de titres</string>
+    <string name="title_gen_prompt">Prompt de titre</string>
+    <string name="title_gen_prompt_desc">Instruction système utilisée pour générer les titres des conversations</string>
 
     <!-- Settings - Image Transcription Page -->
     <string name="transcription_model">Modèle de transcription</string>
@@ -399,12 +409,15 @@
     <string name="transcription_select_model">Sélectionner le modèle de transcription</string>
     <string name="transcription_batch_size">Taille du lot</string>
     <string name="transcription_batch_size_desc">Nombre d\'images par appel d\'API (1–10)</string>
+    <string name="transcription_prompt">Prompt de transcription</string>
+    <string name="transcription_prompt_desc">Instruction envoyée avec chaque demande de transcription d’image</string>
     <string name="transcription_enabled_models">Modèles activés</string>
     <string name="transcription_no_models_enabled">Aucun modèle activé</string>
     <string name="transcription_no_models_hint">Ajoutez des modèles ci-dessus pour activer la transcription d\'images</string>
     <string name="transcription_add_model">Ajouter un modèle</string>
     <string name="transcription_ellipsis">Transcription des images…</string>
     <string name="transcription_progress">Transcription des images %1$d/%2$d…</string>
+    <string name="prompt_content">Prompt</string>
 
     <!-- Settings - Memory Page -->
     <string name="memory_title">Mémoire</string>

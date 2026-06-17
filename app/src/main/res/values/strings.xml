@@ -195,6 +195,14 @@
     <string name="prompts_edit_title">Edit System Prompt</string>
     <string name="prompts_add_title">Add System Prompt</string>
     <string name="prompts_title_hint">Title (e.g. Translator)</string>
+    <string name="prompts_template_title">Choose a template</string>
+    <string name="prompts_template_blank">Blank</string>
+    <string name="prompts_template_blank_desc">Start with an empty editable system prompt.</string>
+    <string name="prompts_template_default">Default</string>
+    <string name="prompts_template_default_desc">Use Agora\'s default prompt with runtime context, memory, web search, shell, and device-file guidance.</string>
+    <string name="prompts_duplicate">Duplicate</string>
+    <string name="prompts_duplicate_title">%1$s Copy</string>
+    <string name="prompts_empty_preview">Empty prompt</string>
     <string name="prompts_delete_title">Delete System Instruction?</string>
     <string name="prompts_delete_text">Are you sure you want to delete \'%1$s\'? This action cannot be undone.</string>
     <string name="template_title_required">Title is required</string>
@@ -392,6 +400,8 @@
     <string name="title_gen_model">Title Model</string>
     <string name="title_gen_current_model">Use Current Model</string>
     <string name="title_gen_select_model">Select Title Model</string>
+    <string name="title_gen_prompt">Title Prompt</string>
+    <string name="title_gen_prompt_desc">System instruction used when generating conversation titles</string>
 
     <!-- Settings - Image Transcription Page -->
     <string name="transcription_model">Transcription Model</string>
@@ -399,12 +409,15 @@
     <string name="transcription_select_model">Select Transcription Model</string>
     <string name="transcription_batch_size">Batch Size</string>
     <string name="transcription_batch_size_desc">Number of images per API call (1–10)</string>
+    <string name="transcription_prompt">Transcription Prompt</string>
+    <string name="transcription_prompt_desc">Instruction sent with each image transcription request</string>
     <string name="transcription_enabled_models">Enabled Models</string>
     <string name="transcription_no_models_enabled">No models enabled</string>
     <string name="transcription_no_models_hint">Add models above to enable image transcription</string>
     <string name="transcription_add_model">Add Model</string>
     <string name="transcription_ellipsis">Transcribing images…</string>
     <string name="transcription_progress">Transcribing images %1$d/%2$d…</string>
+    <string name="prompt_content">Prompt</string>
 
     <!-- Settings - Memory Page -->
     <string name="memory_title">Memory</string>

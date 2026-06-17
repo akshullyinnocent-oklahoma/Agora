@@ -195,6 +195,14 @@
     <string name="prompts_edit_title">システムプロンプトを編集</string>
     <string name="prompts_add_title">システムプロンプトを追加</string>
     <string name="prompts_title_hint">タイトル（例: 翻訳者）</string>
+    <string name="prompts_template_title">テンプレートを選択</string>
+    <string name="prompts_template_blank">空白</string>
+    <string name="prompts_template_blank_desc">空の編集可能なシステムプロンプトから始めます。</string>
+    <string name="prompts_template_default">デフォルト</string>
+    <string name="prompts_template_default_desc">ランタイムコンテキスト、メモリ、Web 検索、シェル、デバイスファイルアクセスのルールを含む Agora のデフォルトプロンプトを使用します。</string>
+    <string name="prompts_duplicate">複製</string>
+    <string name="prompts_duplicate_title">%1$s のコピー</string>
+    <string name="prompts_empty_preview">空のプロンプト</string>
     <string name="prompts_delete_title">システム指示を削除しますか?</string>
     <string name="prompts_delete_text">\'%1$s\' を削除してもよろしいですか? この操作は取り消せません。</string>
     <string name="template_title_required">タイトルは必須です</string>
@@ -392,6 +400,8 @@
     <string name="title_gen_model">タイトルモデル</string>
     <string name="title_gen_current_model">現在のモデルを使用</string>
     <string name="title_gen_select_model">タイトルモデルを選択</string>
+    <string name="title_gen_prompt">タイトルプロンプト</string>
+    <string name="title_gen_prompt_desc">会話タイトルの生成に使用するシステム指示</string>
 
     <!-- Settings - Image Transcription Page -->
     <string name="transcription_model">文字起こしモデル</string>
@@ -399,12 +409,15 @@
     <string name="transcription_select_model">文字起こしモデルを選択</string>
     <string name="transcription_batch_size">バッチサイズ</string>
     <string name="transcription_batch_size_desc">API 呼び出しごとの画像数（1〜10）</string>
+    <string name="transcription_prompt">文字起こしプロンプト</string>
+    <string name="transcription_prompt_desc">各画像文字起こしリクエストで送信する指示</string>
     <string name="transcription_enabled_models">有効なモデル</string>
     <string name="transcription_no_models_enabled">有効なモデルがありません</string>
     <string name="transcription_no_models_hint">画像の文字起こしを有効にするには上でモデルを追加してください</string>
     <string name="transcription_add_model">モデルを追加</string>
     <string name="transcription_ellipsis">画像を文字起こし中…</string>
     <string name="transcription_progress">画像を文字起こし中 %1$d/%2$d…</string>
+    <string name="prompt_content">プロンプト</string>
 
     <!-- Settings - Memory Page -->
     <string name="memory_title">メモリ</string>

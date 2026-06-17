@@ -195,6 +195,14 @@
     <string name="prompts_edit_title">Изменить системный промпт</string>
     <string name="prompts_add_title">Добавить системный промпт</string>
     <string name="prompts_title_hint">Заголовок (напр. Переводчик)</string>
+    <string name="prompts_template_title">Выбрать шаблон</string>
+    <string name="prompts_template_blank">Пустой</string>
+    <string name="prompts_template_blank_desc">Начать с пустого редактируемого системного промпта.</string>
+    <string name="prompts_template_default">По умолчанию</string>
+    <string name="prompts_template_default_desc">Использовать промпт Agora по умолчанию с контекстом выполнения, памятью, веб-поиском, shell и правилами доступа к файлам устройства.</string>
+    <string name="prompts_duplicate">Дублировать</string>
+    <string name="prompts_duplicate_title">Копия %1$s</string>
+    <string name="prompts_empty_preview">Пустой промпт</string>
     <string name="prompts_delete_title">Удалить системную инструкцию?</string>
     <string name="prompts_delete_text">Вы уверены, что хотите удалить \'%1$s\'? Это действие нельзя отменить.</string>
     <string name="template_title_required">Требуется заголовок</string>
@@ -392,6 +400,8 @@
     <string name="title_gen_model">Модель заголовков</string>
     <string name="title_gen_current_model">Использовать текущую модель</string>
     <string name="title_gen_select_model">Выбрать модель заголовков</string>
+    <string name="title_gen_prompt">Промпт заголовка</string>
+    <string name="title_gen_prompt_desc">Системная инструкция для генерации заголовков бесед</string>
 
     <!-- Settings - Image Transcription Page -->
     <string name="transcription_model">Модель транскрипции</string>
@@ -399,12 +409,15 @@
     <string name="transcription_select_model">Выбрать модель транскрипции</string>
     <string name="transcription_batch_size">Размер пакета</string>
     <string name="transcription_batch_size_desc">Количество изображений на вызов API (1–10)</string>
+    <string name="transcription_prompt">Промпт транскрипции</string>
+    <string name="transcription_prompt_desc">Инструкция, отправляемая с каждым запросом транскрипции изображения</string>
     <string name="transcription_enabled_models">Включённые модели</string>
     <string name="transcription_no_models_enabled">Нет включённых моделей</string>
     <string name="transcription_no_models_hint">Добавьте модели выше, чтобы включить транскрипцию изображений</string>
     <string name="transcription_add_model">Добавить модель</string>
     <string name="transcription_ellipsis">Транскрипция изображений…</string>
     <string name="transcription_progress">Транскрипция изображений %1$d/%2$d…</string>
+    <string name="prompt_content">Промпт</string>
 
     <!-- Settings - Memory Page -->
     <string name="memory_title">Память</string>

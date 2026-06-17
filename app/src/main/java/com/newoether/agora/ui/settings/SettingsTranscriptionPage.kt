@@ -33,10 +33,12 @@ fun SettingsTranscriptionPage(viewModel: ChatViewModel, onBack: () -> Unit) {
     val transcriptionEnabledModels by viewModel.imageTranscriptionEnabledModels.collectAsState()
     val transcriptionModel by viewModel.imageTranscriptionModel.collectAsState()
     val batchSize by viewModel.imageTranscriptionBatchSize.collectAsState()
+    val transcriptionPrompt by viewModel.imageTranscriptionPrompt.collectAsState()
     val modelAliases by viewModel.modelAliases.collectAsState()
     val enabledModels by viewModel.enabledModels.collectAsState()
     var showModelDialog by remember { mutableStateOf(false) }
     var showAddDialog by remember { mutableStateOf(false) }
+    var showPromptDialog by remember { mutableStateOf(false) }
     var showMenuForModel by remember { mutableStateOf<String?>(null) }
     val showDocFab by viewModel.showDocumentationFab.collectAsState()
 
@@ -162,56 +164,66 @@ fun SettingsTranscriptionPage(viewModel: ChatViewModel, onBack: () -> Unit) {
 
             SettingsGroup(
                 title = stringResource(R.string.advanced_title),
-                items = listOf({
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 16.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.Top
+                items = buildList {
+                    add {
+                        PromptSettingItem(
+                            title = stringResource(R.string.transcription_prompt),
+                            description = stringResource(R.string.transcription_prompt_desc),
+                            prompt = transcriptionPrompt,
+                            onClick = { showPromptDialog = true }
+                        )
+                    }
+                    add {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 16.dp)
                         ) {
-                            Icon(
-                                Icons.Default.Image,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.padding(top = 2.dp)
-                            )
-                            Spacer(modifier = Modifier.width(16.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.Top
+                            ) {
+                                Icon(
+                                    Icons.Default.Image,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.padding(top = 2.dp)
+                                )
+                                Spacer(modifier = Modifier.width(16.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text(
+                                            text = stringResource(R.string.transcription_batch_size),
+                                            style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Medium),
+                                            color = MaterialTheme.colorScheme.onSurface,
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                        Text(
+                                            text = batchSize.toString(),
+                                            style = MaterialTheme.typography.labelLarge,
+                                            color = MaterialTheme.colorScheme.primary,
+                                            fontWeight = FontWeight.Bold,
+                                            modifier = Modifier.padding(end = 8.dp)
+                                        )
+                                    }
                                     Text(
-                                        text = stringResource(R.string.transcription_batch_size),
-                                        style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Medium),
-                                        color = MaterialTheme.colorScheme.onSurface,
-                                        modifier = Modifier.weight(1f)
+                                        text = stringResource(R.string.transcription_batch_size_desc),
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.padding(top = 4.dp)
                                     )
-                                    Text(
-                                        text = batchSize.toString(),
-                                        style = MaterialTheme.typography.labelLarge,
-                                        color = MaterialTheme.colorScheme.primary,
-                                        fontWeight = FontWeight.Bold,
-                                        modifier = Modifier.padding(end = 8.dp)
+                                    Slider(
+                                        value = batchSize.toFloat(),
+                                        onValueChange = { viewModel.setImageTranscriptionBatchSize(it.toInt()) },
+                                        valueRange = 1f..10f,
+                                        steps = 8,
+                                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
                                     )
                                 }
-                                Text(
-                                    text = stringResource(R.string.transcription_batch_size_desc),
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.padding(top = 4.dp)
-                                )
-                                Slider(
-                                    value = batchSize.toFloat(),
-                                    onValueChange = { viewModel.setImageTranscriptionBatchSize(it.toInt()) },
-                                    valueRange = 1f..10f,
-                                    steps = 8,
-                                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
-                                )
                             }
                         }
                     }
-                })
+                }
             )
             if (showDocFab) { Spacer(modifier = Modifier.height(80.dp)) }
     }
@@ -287,6 +299,15 @@ fun SettingsTranscriptionPage(viewModel: ChatViewModel, onBack: () -> Unit) {
             dismissButton = {
                 TextButton(onClick = { showAddDialog = false }) { Text(stringResource(R.string.provider_cancel)) }
             }
+        )
+    }
+
+    if (showPromptDialog) {
+        PromptEditDialog(
+            title = stringResource(R.string.transcription_prompt),
+            initialPrompt = transcriptionPrompt,
+            onDismiss = { showPromptDialog = false },
+            onSave = { viewModel.setImageTranscriptionPrompt(it) }
         )
     }
 }

@@ -195,6 +195,14 @@
     <string name="prompts_edit_title">Editar prompt do sistema</string>
     <string name="prompts_add_title">Adicionar prompt do sistema</string>
     <string name="prompts_title_hint">Título (ex.: Tradutor)</string>
+    <string name="prompts_template_title">Escolher um modelo</string>
+    <string name="prompts_template_blank">Em branco</string>
+    <string name="prompts_template_blank_desc">Começar com um prompt de sistema editável vazio.</string>
+    <string name="prompts_template_default">Padrão</string>
+    <string name="prompts_template_default_desc">Usar o prompt padrão do Agora com contexto de execução, memória, busca na web, shell e regras de acesso a arquivos do dispositivo.</string>
+    <string name="prompts_duplicate">Duplicar</string>
+    <string name="prompts_duplicate_title">Cópia de %1$s</string>
+    <string name="prompts_empty_preview">Prompt vazio</string>
     <string name="prompts_delete_title">Excluir instrução do sistema?</string>
     <string name="prompts_delete_text">Tem certeza de que deseja excluir \'%1$s\'? Esta ação não pode ser desfeita.</string>
     <string name="template_title_required">O título é obrigatório</string>
@@ -392,6 +400,8 @@
     <string name="title_gen_model">Modelo de títulos</string>
     <string name="title_gen_current_model">Usar o modelo atual</string>
     <string name="title_gen_select_model">Selecionar modelo de títulos</string>
+    <string name="title_gen_prompt">Prompt de títulos</string>
+    <string name="title_gen_prompt_desc">Instrução do sistema usada ao gerar títulos de conversa</string>
 
     <!-- Settings - Image Transcription Page -->
     <string name="transcription_model">Modelo de transcrição</string>
@@ -399,12 +409,15 @@
     <string name="transcription_select_model">Selecionar modelo de transcrição</string>
     <string name="transcription_batch_size">Tamanho do lote</string>
     <string name="transcription_batch_size_desc">Número de imagens por chamada de API (1–10)</string>
+    <string name="transcription_prompt">Prompt de transcrição</string>
+    <string name="transcription_prompt_desc">Instrução enviada com cada solicitação de transcrição de imagem</string>
     <string name="transcription_enabled_models">Modelos ativados</string>
     <string name="transcription_no_models_enabled">Nenhum modelo ativado</string>
     <string name="transcription_no_models_hint">Adicione modelos acima para ativar a transcrição de imagens</string>
     <string name="transcription_add_model">Adicionar modelo</string>
     <string name="transcription_ellipsis">Transcrevendo imagens…</string>
     <string name="transcription_progress">Transcrevendo imagens %1$d/%2$d…</string>
+    <string name="prompt_content">Prompt</string>
 
     <!-- Settings - Memory Page -->
     <string name="memory_title">Memória</string>

@@ -5,6 +5,7 @@ import com.newoether.agora.R
 import com.newoether.agora.api.LlmProvider
 import com.newoether.agora.api.ProviderConfig
 import com.newoether.agora.api.StreamEvent
+import com.newoether.agora.data.BuiltInPrompts
 import com.newoether.agora.data.local.ChatDao
 import com.newoether.agora.data.local.MessageEntity
 import com.newoether.agora.model.AttachmentMeta
@@ -103,6 +104,7 @@ class TranscriptionManager(
         modelId: String,
         apiKey: String,
         baseUrl: String?,
+        prompt: String,
         generationJob: Job?,
         modelMessageId: String,
         startTime: Long,
@@ -112,7 +114,7 @@ class TranscriptionManager(
         val transcriptionConfig = ProviderConfig(
             apiKey = apiKey,
             modelId = modelId,
-            systemPrompt = "You are an image describer. Describe the given image in detail.",
+            systemPrompt = BuiltInPrompts.IMAGE_TRANSCRIPTION_SYSTEM,
             thinkingEnabled = false,
             baseUrl = baseUrl
         )
@@ -142,7 +144,7 @@ class TranscriptionManager(
             ))
 
             val promptMessages = listOf(ChatMessage(
-                text = "Please describe this image in detail. Include all visible text, data, charts, layout, and visual elements. Preserve the original language of any text shown.",
+                text = prompt.ifBlank { BuiltInPrompts.IMAGE_TRANSCRIPTION_USER },
                 images = listOf(target.imagePath),
                 participant = Participant.USER,
                 status = MessageStatus.SUCCESS

@@ -113,6 +113,9 @@ class MainActivity : ComponentActivity() {
 
         val memoryManager = MemoryManager(applicationContext)
         val settingsManager = SettingsManager(applicationContext)
+        runBlocking(Dispatchers.IO) {
+            settingsManager.initializeFirstInstallDefaults(locale = java.util.Locale.getDefault())
+        }
 
         enableEdgeToEdge()
         // Remove navigation bar scrim so it blends with app content

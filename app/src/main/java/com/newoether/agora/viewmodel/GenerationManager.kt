@@ -98,11 +98,33 @@ data class GenerationContext(
     val imageTranscriptionEnabled: Boolean = false,
     val imageTranscriptionModel: String? = null,
     val imageTranscriptionBatchSize: Int = 3,
+    val imageTranscriptionPrompt: String = com.newoether.agora.data.BuiltInPrompts.IMAGE_TRANSCRIPTION_USER,
     val transcriptionProviderName: String = "",
     val transcriptionModelId: String = "",
     val transcriptionApiKey: String = "",
     val transcriptionBaseUrl: String? = null
 )
+
+internal fun applyUserTemplateToMessages(
+    messages: List<ChatMessage>,
+    prepend: String?,
+    postpend: String?
+): List<ChatMessage> {
+    if (prepend == null && postpend == null) return messages
+    val timeSdf = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.US)
+    val dateSdf = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US)
+    return messages.map { msg ->
+        val isToolMessage = msg.id.startsWith(Constants.TOOL_MSG_PREFIX) ||
+            msg.id.startsWith(Constants.RESULT_MSG_PREFIX)
+        if (!isToolMessage && msg.participant == Participant.USER && msg.text.isNotEmpty()) {
+            val ts = java.util.Date(msg.timestamp)
+            val rp = prepend?.replace("{sent_time}", timeSdf.format(ts))?.replace("{sent_date}", dateSdf.format(ts)) ?: ""
+            val ra = postpend?.replace("{sent_time}", timeSdf.format(ts))?.replace("{sent_date}", dateSdf.format(ts)) ?: ""
+            if (rp.isEmpty() && ra.isEmpty()) msg
+            else msg.copy(text = rp + msg.text + ra)
+        } else msg
+    }
+}
 
 class GenerationManager(
     private val app: Application,
@@ -536,18 +558,7 @@ class GenerationManager(
     }
 
     private fun applyUserTemplate(messages: List<ChatMessage>, prepend: String?, postpend: String?): List<ChatMessage> {
-        if (prepend == null && postpend == null) return messages
-        val timeSdf = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.US)
-        val dateSdf = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US)
-        return messages.map { msg ->
-            if (msg.participant == Participant.USER && msg.text.isNotEmpty()) {
-                val ts = java.util.Date(msg.timestamp)
-                val rp = prepend?.replace("{sent_time}", timeSdf.format(ts))?.replace("{sent_date}", dateSdf.format(ts)) ?: ""
-                val ra = postpend?.replace("{sent_time}", timeSdf.format(ts))?.replace("{sent_date}", dateSdf.format(ts)) ?: ""
-                if (rp.isEmpty() && ra.isEmpty()) msg
-                else msg.copy(text = rp + msg.text + ra)
-            } else msg
-        }
+        return applyUserTemplateToMessages(messages, prepend, postpend)
     }
 
     private fun buildLiveSegments(flushed: List<MessageSegment>, buf: StringBuilder, signature: String? = null): List<MessageSegment>? {
@@ -733,6 +744,7 @@ class GenerationManager(
                         targets, conversationId,
                         ctx.transcriptionProviderName, ctx.transcriptionModelId,
                         ctx.transcriptionApiKey, ctx.transcriptionBaseUrl,
+                        ctx.imageTranscriptionPrompt,
                         generationJob, modelMessageId, startTime, onStreamUpdate
                     )
                     if (transcriptionError != null) {

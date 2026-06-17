@@ -25,9 +25,11 @@ import com.newoether.agora.viewmodel.ChatViewModel
 fun SettingsTitleGenPage(viewModel: ChatViewModel, onBack: () -> Unit) {
     val titleGenEnabled by viewModel.titleGenerationEnabled.collectAsState()
     val titleGenModel by viewModel.titleGenerationModel.collectAsState()
+    val titleGenPrompt by viewModel.titleGenerationPrompt.collectAsState()
     val modelAliases by viewModel.modelAliases.collectAsState()
     val enabledModels by viewModel.enabledModels.collectAsState()
     var showTitleModelDialog by remember { mutableStateOf(false) }
+    var showPromptDialog by remember { mutableStateOf(false) }
     val showDocFab by viewModel.showDocumentationFab.collectAsState()
 
     CollapsingSettingsScaffold(
@@ -66,6 +68,17 @@ fun SettingsTitleGenPage(viewModel: ChatViewModel, onBack: () -> Unit) {
                         }
                     }
                 }
+            )
+            SettingsGroup(
+                title = stringResource(R.string.advanced_title),
+                items = listOf({
+                    PromptSettingItem(
+                        title = stringResource(R.string.title_gen_prompt),
+                        description = stringResource(R.string.title_gen_prompt_desc),
+                        prompt = titleGenPrompt,
+                        onClick = { showPromptDialog = true }
+                    )
+                })
             )
             if (showDocFab) { Spacer(modifier = Modifier.height(80.dp)) }
     }
@@ -115,6 +128,15 @@ fun SettingsTitleGenPage(viewModel: ChatViewModel, onBack: () -> Unit) {
                 }
             },
             confirmButton = { TextButton(onClick = { showTitleModelDialog = false }) { Text(stringResource(R.string.provider_cancel)) } }
+        )
+    }
+
+    if (showPromptDialog) {
+        PromptEditDialog(
+            title = stringResource(R.string.title_gen_prompt),
+            initialPrompt = titleGenPrompt,
+            onDismiss = { showPromptDialog = false },
+            onSave = { viewModel.setTitleGenerationPrompt(it) }
         )
     }
 }

@@ -195,6 +195,14 @@
     <string name="prompts_edit_title">تعديل موجّه النظام</string>
     <string name="prompts_add_title">إضافة موجّه النظام</string>
     <string name="prompts_title_hint">العنوان (مثل: مترجم)</string>
+    <string name="prompts_template_title">اختيار قالب</string>
+    <string name="prompts_template_blank">فارغ</string>
+    <string name="prompts_template_blank_desc">ابدأ بموجّه نظام فارغ قابل للتحرير.</string>
+    <string name="prompts_template_default">افتراضي</string>
+    <string name="prompts_template_default_desc">استخدم الموجّه الافتراضي في Agora مع سياق التشغيل والذاكرة وبحث الويب والصدفة وقواعد الوصول إلى ملفات الجهاز.</string>
+    <string name="prompts_duplicate">تكرار</string>
+    <string name="prompts_duplicate_title">نسخة من %1$s</string>
+    <string name="prompts_empty_preview">موجّه فارغ</string>
     <string name="prompts_delete_title">حذف تعليمات النظام؟</string>
     <string name="prompts_delete_text">هل أنت متأكد أنك تريد حذف \'%1$s\'؟ لا يمكن التراجع عن هذا الإجراء.</string>
     <string name="template_title_required">العنوان مطلوب</string>
@@ -392,6 +400,8 @@
     <string name="title_gen_model">نموذج العناوين</string>
     <string name="title_gen_current_model">استخدام النموذج الحالي</string>
     <string name="title_gen_select_model">اختيار نموذج العناوين</string>
+    <string name="title_gen_prompt">موجّه العنوان</string>
+    <string name="title_gen_prompt_desc">تعليمة النظام المستخدمة عند توليد عناوين المحادثات</string>
 
     <!-- Settings - Image Transcription Page -->
     <string name="transcription_model">نموذج النسخ</string>
@@ -399,12 +409,15 @@
     <string name="transcription_select_model">اختيار نموذج النسخ</string>
     <string name="transcription_batch_size">حجم الدُفعة</string>
     <string name="transcription_batch_size_desc">عدد الصور لكل استدعاء API (1–10)</string>
+    <string name="transcription_prompt">موجّه النسخ</string>
+    <string name="transcription_prompt_desc">التعليمة المرسلة مع كل طلب نسخ للصور</string>
     <string name="transcription_enabled_models">النماذج المفعّلة</string>
     <string name="transcription_no_models_enabled">لا توجد نماذج مفعّلة</string>
     <string name="transcription_no_models_hint">أضف نماذج أعلاه لتفعيل نسخ الصور</string>
     <string name="transcription_add_model">إضافة نموذج</string>
     <string name="transcription_ellipsis">جارٍ نسخ الصور…</string>
     <string name="transcription_progress">جارٍ نسخ الصور %1$d/%2$d…</string>
+    <string name="prompt_content">الموجّه</string>
 
     <!-- Settings - Memory Page -->
     <string name="memory_title">الذاكرة</string>
