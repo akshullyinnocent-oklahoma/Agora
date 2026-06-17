@@ -106,4 +106,53 @@ class LatexRendererTest {
         assertEquals(expected, actual)
     }
 
+    @Test
+    fun testInvalidDisplayCandidateDoesNotConsumeLaterDisplayMath() {
+        val text = "标题 \$\$ 误触发\n\n\$\$\nD\n\$\$\n后续 \$x\$"
+        val latexSpans = parseLatexSpans(text).filter { it.isLatex }
+
+        assertEquals(listOf("D", "x"), latexSpans.map { it.content })
+        assertEquals(listOf(true, false), latexSpans.map { it.display })
+    }
+
+    @Test
+    fun testDisplayLatexMarkdownCarriesDisplayMode() {
+        val display = latexToMarkdown("199", display = true)
+        val inline = latexToMarkdown("x", display = false)
+
+        assertTrue(display.startsWith("\n\n![latex](latex://display/"))
+        assertTrue(display.endsWith(")\n\n"))
+        assertTrue(inline.startsWith("![latex](latex://inline/"))
+    }
+
+    @Test
+    fun testCodeFenceProtectsDollarMath() {
+        val text = "```kotlin\nval price = \"\$5$\"\n```\noutside \$x\$"
+        val spans = parseLatexSpans(text)
+        val textContent = spans.filter { !it.isLatex }.joinToString("") { it.content }
+
+        assertEquals(listOf("x"), spans.filter { it.isLatex }.map { it.content })
+        assertTrue(textContent.contains("val price = \"\$5$\""))
+    }
+
+    @Test
+    fun testUnclosedCodeFenceProtectsToEndOfText() {
+        val text = "```kotlin\nval price = \"\$5$\"\noutside \$x\$"
+        val spans = parseLatexSpans(text)
+        val textContent = spans.joinToString("") { it.content }
+
+        assertEquals(0, spans.count { it.isLatex })
+        assertTrue(textContent.contains("outside \$x\$"))
+    }
+
+    @Test
+    fun testUnclosedInlineCodeProtectsCurrentLine() {
+        val text = "`echo \$HOME and \$x\$\noutside \$y\$"
+        val spans = parseLatexSpans(text)
+        val textContent = spans.filter { !it.isLatex }.joinToString("") { it.content }
+
+        assertEquals(listOf("y"), spans.filter { it.isLatex }.map { it.content })
+        assertTrue(textContent.contains("`echo \$HOME and \$x\$"))
+    }
+
 }

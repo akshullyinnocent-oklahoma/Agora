@@ -1359,7 +1359,7 @@ fun MessageItem(
                                                 // can render tables, lists, etc. with formulas as inline images.
                                                 val reassembled = remember(spans) {
                                                     spans.joinToString("") { span ->
-                                                        if (span.isLatex) inlineLatexToMarkdown(span.content)
+                                                        if (span.isLatex) latexToMarkdown(span.content, span.display)
                                                         else span.content
                                                     }
                                                 }
@@ -1869,4 +1869,3 @@ fun MessageItem(
  */
 private fun String.escapeForMarkdown(): String =
     replace("<think>", "<​think>").replace("</think>", "</​think>").escapeDollarForMarkdown()
-

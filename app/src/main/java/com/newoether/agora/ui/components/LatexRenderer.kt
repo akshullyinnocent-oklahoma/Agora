@@ -2,7 +2,6 @@ package com.newoether.agora.ui.components
 
 import android.graphics.Bitmap
 import android.graphics.Canvas
-import android.util.Base64
 
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -19,6 +18,7 @@ import com.mikepenz.markdown.model.ImageWidth
 import com.mikepenz.markdown.model.PlaceholderConfig
 import androidx.compose.ui.text.PlaceholderVerticalAlign
 import ru.noties.jlatexmath.JLatexMathDrawable
+import kotlin.io.encoding.Base64
 
 data class LatexSpan(
     val isLatex: Boolean,
@@ -27,9 +27,6 @@ data class LatexSpan(
 )
 
 // ── Patterns ──────────────────────────────────────────────────────────
-
-/** $ followed by digits, not followed by $ or word char — bare dollar amounts. */
-private val dollarAmountPattern = Regex("""\$\d+(?!\$)(?!\w)""")
 
 /** Greek letters (U+0370–U+03FF) and math symbols (U+2200–U+2AFF). */
 private val MATH_UNICODE = Regex("""[Ͱ-Ͽ∀-⫿]""")
@@ -60,6 +57,48 @@ private val PROSE_WORD = Regex(
 
 /** Sentence-ending punctuation followed by space — strong prose signal. */
 private val SENTENCE_PUNCT = Regex("""[.!?;:]["») \t]""")
+
+private const val LATEX_URL_PREFIX = "latex://"
+private const val LATEX_URL_INLINE = "inline/"
+private const val LATEX_URL_DISPLAY = "display/"
+private val LATEX_BASE64 = Base64.UrlSafe
+
+private data class LatexImageRequest(
+    val latex: String,
+    val display: Boolean,
+)
+
+private data class ProtectedRange(
+    val start: Int,
+    val endExclusive: Int,
+)
+
+private fun findMarkdownProtectedRanges(src: String): List<ProtectedRange> {
+    val ranges = mutableListOf<ProtectedRange>()
+    var i = 0
+    while (i < src.length) {
+        if (src.startsWith("```", i)) {
+            val end = src.indexOf("```", startIndex = i + 3)
+            val endExclusive = if (end >= 0) end + 3 else src.length
+            ranges.add(ProtectedRange(i, endExclusive))
+            i = endExclusive
+            continue
+        }
+
+        if (src[i] == '`') {
+            val lineEnd = src.indexOf('\n', startIndex = i + 1)
+                .let { if (it >= 0) it else src.length }
+            val end = src.indexOf('`', startIndex = i + 1)
+            val endExclusive = if (end >= 0 && end < lineEnd) end + 1 else lineEnd
+            ranges.add(ProtectedRange(i, endExclusive))
+            i = endExclusive
+            continue
+        }
+
+        i++
+    }
+    return ranges
+}
 
 // ── Unicode gate ──────────────────────────────────────────────────────
 
@@ -130,8 +169,21 @@ private fun isLikelyLatex(content: String): Boolean {
 
 fun String.escapeDollarForMarkdown(): String = buildString {
     val src = this@escapeDollarForMarkdown
+    val protectedRanges = findMarkdownProtectedRanges(src)
+    var protectedIndex = 0
     var i = 0
     while (i < src.length) {
+        while (protectedIndex < protectedRanges.size && protectedRanges[protectedIndex].endExclusive <= i) {
+            protectedIndex++
+        }
+        val protected = protectedRanges.getOrNull(protectedIndex)
+        if (protected != null && i >= protected.start) {
+            append(src.substring(i, protected.endExclusive))
+            i = protected.endExclusive
+            protectedIndex++
+            continue
+        }
+
         val ch = src[i]
         val remaining = src.substring(i)
 
@@ -165,8 +217,21 @@ fun String.escapeDollarForMarkdown(): String = buildString {
 fun parseLatexSpans(text: String): List<LatexSpan> {
     val spans = mutableListOf<LatexSpan>()
     val buf = StringBuilder()
+    val protectedRanges = findMarkdownProtectedRanges(text)
+    var protectedIndex = 0
     var i = 0
     while (i < text.length) {
+        while (protectedIndex < protectedRanges.size && protectedRanges[protectedIndex].endExclusive <= i) {
+            protectedIndex++
+        }
+        val protected = protectedRanges.getOrNull(protectedIndex)
+        if (protected != null && i >= protected.start) {
+            buf.append(text.substring(i, protected.endExclusive))
+            i = protected.endExclusive
+            protectedIndex++
+            continue
+        }
+
         val remaining = text.substring(i)
 
         // ``` fenced code block — skip until closing ```
@@ -198,10 +263,17 @@ fun parseLatexSpans(text: String): List<LatexSpan> {
                 if (latex.isNotBlank() && nonAsciiInsideBraces(latex)) {
                     if (buf.isNotEmpty()) { spans.add(LatexSpan(false, buf.toString())); buf.clear() }
                     spans.add(LatexSpan(true, latex, true))
+                    i += end + 2
+                    continue
                 } else if (latex.isNotBlank()) {
-                    buf.append(remaining.substring(0, end + 2))
+                    // Invalid display candidate. Keep recovery local so a stray
+                    // "$$" cannot consume a later valid display opener/closer.
+                    buf.append("$$")
+                    i += 2
+                    continue
                 }
-                i += end + 2
+                buf.append("$$")
+                i += 2
                 continue
             }
         }
@@ -214,10 +286,15 @@ fun parseLatexSpans(text: String): List<LatexSpan> {
                 if (latex.isNotBlank() && nonAsciiInsideBraces(latex)) {
                     if (buf.isNotEmpty()) { spans.add(LatexSpan(false, buf.toString())); buf.clear() }
                     spans.add(LatexSpan(true, latex, true))
+                    i += end + 2
+                    continue
                 } else if (latex.isNotBlank()) {
-                    buf.append(remaining.substring(0, end + 2))
+                    buf.append("\\[")
+                    i += 2
+                    continue
                 }
-                i += end + 2
+                buf.append("\\[")
+                i += 2
                 continue
             }
         }
@@ -230,10 +307,15 @@ fun parseLatexSpans(text: String): List<LatexSpan> {
                 if (latex.isNotBlank() && nonAsciiInsideBraces(latex)) {
                     if (buf.isNotEmpty()) { spans.add(LatexSpan(false, buf.toString())); buf.clear() }
                     spans.add(LatexSpan(true, latex, false))
+                    i += end + 2
+                    continue
                 } else if (latex.isNotBlank()) {
-                    buf.append(remaining.substring(0, end + 2))
+                    buf.append("\\(")
+                    i += 2
+                    continue
                 }
-                i += end + 2
+                buf.append("\\(")
+                i += 2
                 continue
             }
         }
@@ -343,16 +425,38 @@ fun canRenderLatex(latex: String): Boolean {
     } catch (_: Exception) { false }
 }
 
-private fun encodeLatexUrl(latex: String): String {
-    return Base64.encodeToString(latex.toByteArray(Charsets.UTF_8), Base64.URL_SAFE or Base64.NO_WRAP)
+private fun encodeLatexUrl(latex: String, display: Boolean = false): String {
+    val mode = if (display) LATEX_URL_DISPLAY else LATEX_URL_INLINE
+    val encoded = LATEX_BASE64.encode(latex.toByteArray(Charsets.UTF_8))
+    return "$mode$encoded"
 }
 
 private fun decodeLatexUrl(encoded: String): String {
-    return Base64.decode(encoded, Base64.URL_SAFE).decodeToString()
+    return LATEX_BASE64.decode(encoded).decodeToString()
+}
+
+private fun decodeLatexLink(link: String): LatexImageRequest? {
+    if (!link.startsWith(LATEX_URL_PREFIX)) return null
+    val payload = link.removePrefix(LATEX_URL_PREFIX)
+    val (display, encoded) = when {
+        payload.startsWith(LATEX_URL_DISPLAY) -> true to payload.removePrefix(LATEX_URL_DISPLAY)
+        payload.startsWith(LATEX_URL_INLINE) -> false to payload.removePrefix(LATEX_URL_INLINE)
+        else -> false to payload
+    }
+    return try {
+        LatexImageRequest(decodeLatexUrl(encoded), display)
+    } catch (_: Exception) {
+        null
+    }
 }
 
 fun inlineLatexToMarkdown(latexContent: String): String {
-    return "![latex](latex://${encodeLatexUrl(latexContent)})"
+    return latexToMarkdown(latexContent, display = false)
+}
+
+fun latexToMarkdown(latexContent: String, display: Boolean): String {
+    val image = "![latex]($LATEX_URL_PREFIX${encodeLatexUrl(latexContent, display)})"
+    return if (display) "\n\n$image\n\n" else image
 }
 
 private fun renderTextToBitmap(text: String, textSize: Float, color: Int): Bitmap {
@@ -381,16 +485,8 @@ class LatexImageTransformer(
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Bitmap>?): Boolean = size > 64
     }
 
-    @Composable
-    override fun transform(link: String): ImageData? {
-        if (!link.startsWith("latex://")) return null
-        val latex = try {
-            decodeLatexUrl(link.removePrefix("latex://"))
-        } catch (_: Exception) {
-            return null
-        }
-
-        val bmp: Bitmap = synchronized(cache) {
+    private fun getOrRenderBitmap(latex: String): Bitmap {
+        return synchronized(cache) {
             cache.getOrPut("$latex|$textSize|$color") {
                 val fw = (textSize * 10).toInt()
                 val fh = (textSize * 2).toInt()
@@ -398,14 +494,20 @@ class LatexImageTransformer(
                 if (rendered != null) {
                     rendered
                 } else {
-                    // Show original LaTeX source instead of a generic placeholder
+                    // Show original LaTeX source instead of a generic placeholder.
                     renderTextToBitmap("$${latex}$", textSize, color)
                 }
             }
         }
+    }
+
+    @Composable
+    override fun transform(link: String): ImageData? {
+        val request = decodeLatexLink(link) ?: return null
+        val bmp: Bitmap = getOrRenderBitmap(request.latex)
         return ImageData(
             painter = BitmapPainter(bmp.asImageBitmap()),
-            contentDescription = latex,
+            contentDescription = request.latex,
             modifier = Modifier,
             alignment = Alignment.CenterStart,
             contentScale = ContentScale.Fit,
@@ -420,17 +522,21 @@ class LatexImageTransformer(
         imageSize: Size,
         imageSizeChanged: ((link: String, Size) -> Unit)?,
     ): PlaceholderConfig {
-        if (!link.startsWith("latex://")) return super.placeholderConfig(
+        val request = decodeLatexLink(link) ?: return super.placeholderConfig(
             link, density, containerSize, imageWidth, imageSize, imageSizeChanged
         )
-        val w = with(density) {
-            if (imageSize.isUnspecified) (textSize * 2f).toDp().value
-            else imageSize.width.toDp().value
+        val resolvedSize = if (imageSize.isUnspecified) {
+            val bmp = getOrRenderBitmap(request.latex)
+            Size(bmp.width.toFloat(), bmp.height.toFloat())
+        } else {
+            imageSize
         }
-        val h = with(density) {
-            if (imageSize.isUnspecified) (textSize * 1.2f).toDp().value
-            else imageSize.height.toDp().value
+        val sizeDp = with(density) {
+            Size(
+                width = resolvedSize.width.toDp().value,
+                height = resolvedSize.height.toDp().value,
+            )
         }
-        return PlaceholderConfig(size = Size(w, h), verticalAlign = PlaceholderVerticalAlign.Center)
+        return PlaceholderConfig(size = sizeDp, verticalAlign = PlaceholderVerticalAlign.TextCenter)
     }
 }
