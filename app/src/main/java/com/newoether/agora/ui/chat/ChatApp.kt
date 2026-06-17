@@ -555,7 +555,7 @@ fun ChatApp(
                                         modifier = Modifier
                                             .fillMaxWidth()
                                             .height(44.dp)
-                                            .padding(vertical = 1.dp)
+                                            .padding(vertical = 2.dp)
                                             .clip(CircleShape)
                                             .pointerInput(showMenu) {
                                                 if (!showMenu) {
@@ -1038,7 +1038,7 @@ fun ChatApp(
                         isExpandAnimating = isExpandAnimating,
                         onCollapse = { isExpanded = false },
                         onExpand = { isExpanded = true },
-                        showWebSearch = webSearchApiKeys.isNotEmpty() && globalWebSearch,
+                        showWebSearch = globalWebSearch,
                         showShell = shellDevices.isNotEmpty() && globalShell,
                         onPdfPagesClick = onPdfPagesClick,
                         onPdfPreviewSelect = onPdfPreviewSelect,

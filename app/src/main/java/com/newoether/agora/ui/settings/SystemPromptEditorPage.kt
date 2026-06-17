@@ -6,13 +6,15 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.background
-import androidx.compose.ui.draw.clip
 
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -31,14 +33,15 @@ import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.TextFields
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.newoether.agora.R
 import com.newoether.agora.data.PredefinedVariables
@@ -153,46 +156,93 @@ fun SystemPromptEditorPage(
                 stringResource(R.string.template_tab_prepend),
                 stringResource(R.string.template_tab_postpend),
             )
-            Surface(
-                shape = RoundedCornerShape(24.dp),
-                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
-                modifier = Modifier.fillMaxWidth()
+            val tabDescriptions = listOf(
+                stringResource(R.string.template_tab_system_desc),
+                stringResource(R.string.template_tab_prepend_desc),
+                stringResource(R.string.template_tab_postpend_desc),
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                Row(
-                    modifier = Modifier.padding(4.dp),
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    tabLabels.forEachIndexed { index, label ->
-                        val isSelected = selectedTab == index
-                        val bgColor by animateColorAsState(
-                            targetValue = if (isSelected) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent,
-                            animationSpec = tween(250)
-                        )
-                        val textColor by animateColorAsState(
-                            targetValue = if (isSelected) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
-                            animationSpec = tween(250)
-                        )
+                tabLabels.forEachIndexed { index, label ->
+                    val isSelected = selectedTab == index
+                    val tabHeight = 44.dp
+                    val outerCorner = tabHeight / 2f
+                    val innerCorner = 8.dp
+                    val targetTopStart = if (isSelected || index == 0) outerCorner else innerCorner
+                    val targetBottomStart = if (isSelected || index == 0) outerCorner else innerCorner
+                    val targetTopEnd = if (isSelected || index == tabLabels.lastIndex) outerCorner else innerCorner
+                    val targetBottomEnd = if (isSelected || index == tabLabels.lastIndex) outerCorner else innerCorner
+                    val cornerSpec = spring<Dp>(
+                        dampingRatio = Spring.DampingRatioHighBouncy,
+                        stiffness = Spring.StiffnessMediumLow
+                    )
+                    val topStart by animateDpAsState(targetTopStart, cornerSpec, label = "promptTabTopStart")
+                    val topEnd by animateDpAsState(targetTopEnd, cornerSpec, label = "promptTabTopEnd")
+                    val bottomStart by animateDpAsState(targetBottomStart, cornerSpec, label = "promptTabBottomStart")
+                    val bottomEnd by animateDpAsState(targetBottomEnd, cornerSpec, label = "promptTabBottomEnd")
+                    val safeTopStart = topStart.coerceIn(innerCorner, outerCorner)
+                    val safeTopEnd = topEnd.coerceIn(innerCorner, outerCorner)
+                    val safeBottomStart = bottomStart.coerceIn(innerCorner, outerCorner)
+                    val safeBottomEnd = bottomEnd.coerceIn(innerCorner, outerCorner)
+                    val containerColor by animateColorAsState(
+                        targetValue = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceContainerHigh,
+                        animationSpec = tween(220),
+                        label = "promptTabContainerColor"
+                    )
+                    val contentColor by animateColorAsState(
+                        targetValue = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                        animationSpec = tween(220),
+                        label = "promptTabContentColor"
+                    )
+                    val widthWeight by animateFloatAsState(
+                        targetValue = if (isSelected) 1.13f else 1f,
+                        animationSpec = spring(
+                            dampingRatio = Spring.DampingRatioHighBouncy,
+                            stiffness = Spring.StiffnessMediumLow
+                        ),
+                        label = "promptTabWeight"
+                    )
+                    Surface(
+                        onClick = { selectedTab = index },
+                        modifier = Modifier.weight(widthWeight).height(tabHeight),
+                        shape = RoundedCornerShape(
+                            topStart = safeTopStart,
+                            topEnd = safeTopEnd,
+                            bottomStart = safeBottomStart,
+                            bottomEnd = safeBottomEnd
+                        ),
+                        color = containerColor,
+                        contentColor = contentColor
+                    ) {
                         Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .background(bgColor, RoundedCornerShape(20.dp))
-                                .clip(RoundedCornerShape(20.dp))
-                                .clickable { selectedTab = index }
-                                .padding(horizontal = 12.dp, vertical = 10.dp),
+                            modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp),
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
                                 text = label,
                                 maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
                                 softWrap = false,
-                                style = MaterialTheme.typography.labelMedium,
-                                fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
-                                color = textColor
+                                textAlign = TextAlign.Center,
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal
                             )
                         }
                     }
                 }
             }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Text(
+                text = tabDescriptions[selectedTab],
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center
+            )
 
             Spacer(modifier = Modifier.height(12.dp))
 

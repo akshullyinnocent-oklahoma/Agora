@@ -198,9 +198,12 @@
     <string name="prompts_delete_title">Excluir instrução do sistema?</string>
     <string name="prompts_delete_text">Tem certeza de que deseja excluir \'%1$s\'? Esta ação não pode ser desfeita.</string>
     <string name="template_title_required">O título é obrigatório</string>
-    <string name="template_tab_system">Prompt do sistema</string>
-    <string name="template_tab_prepend">Prefixo do usuário</string>
-    <string name="template_tab_postpend">Sufixo do usuário</string>
+    <string name="template_tab_system">Sistema</string>
+    <string name="template_tab_prepend">Prefixo</string>
+    <string name="template_tab_postpend">Sufixo</string>
+    <string name="template_tab_system_desc">Enviado como instrução do sistema.</string>
+    <string name="template_tab_prepend_desc">Inserido antes de cada mensagem do usuário.</string>
+    <string name="template_tab_postpend_desc">Inserido após cada mensagem do usuário.</string>
     <string name="template_empty_hint">Nenhum item. Adicione texto ou variáveis abaixo.</string>
     <string name="template_add_text">Adicionar texto</string>
     <string name="template_add_variable">Adicionar variável</string>

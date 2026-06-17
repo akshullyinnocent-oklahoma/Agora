@@ -78,7 +78,7 @@ fun SettingsTranscriptionPage(viewModel: ChatViewModel, onBack: () -> Unit) {
                                 else -> Icon(Icons.Default.Cloud, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp))
                             }
                         },
-                        modifier = Modifier.heightIn(min = 64.dp).clickable(enabled = transcriptionModel != null) { showModelDialog = true }
+                        modifier = Modifier.heightIn(min = 64.dp).clickable(enabled = enabledModels.isNotEmpty()) { showModelDialog = true }
                     )
                 })
             )
@@ -137,7 +137,8 @@ fun SettingsTranscriptionPage(viewModel: ChatViewModel, onBack: () -> Unit) {
                                                 )
                                             }
                                         }
-                                    }
+                                    },
+                                    modifier = Modifier.clickable { showMenuForModel = model }
                                 )
                             }
                         }
