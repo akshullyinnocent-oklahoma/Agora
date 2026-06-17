@@ -127,6 +127,7 @@ import com.newoether.agora.ui.components.*
 import com.mikepenz.markdown.m3.Markdown
 import com.mikepenz.markdown.m3.markdownColor
 import com.mikepenz.markdown.m3.markdownTypography
+import com.mikepenz.markdown.model.markdownAnimations
 import com.mikepenz.markdown.model.markdownPadding
 import com.mikepenz.markdown.compose.components.markdownComponents
 import com.mikepenz.markdown.compose.elements.MarkdownTable
@@ -1086,13 +1087,14 @@ fun MessageItem(
                         }
                     }
 
-                    var debouncedText by remember { mutableStateOf(message.text) }
+                    var debouncedText by remember(isStreaming) { mutableStateOf(if (isStreaming) "" else message.text) }
                     if (!isStreaming) {
                         debouncedText = message.text
                     } else {
-                        var lastUpdateMs by remember { mutableLongStateOf(0L) }
+                        var lastUpdateMs by remember { mutableLongStateOf(System.currentTimeMillis()) }
                         var flushJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
                         LaunchedEffect(message.text) {
+                            if (message.text.isEmpty()) return@LaunchedEffect
                             val now = System.currentTimeMillis()
                             val elapsed = now - lastUpdateMs
                             if (elapsed >= 500) {
@@ -1349,7 +1351,8 @@ fun MessageItem(
                                                     typography = customTypography,
                                                     padding = customMarkdownPadding,
                                                     components = customMarkdownComponents,
-                                                    imageTransformer = latexImageTransformer
+                                                    imageTransformer = latexImageTransformer,
+                                                    animations = markdownAnimations { this }
                                                 )
                                             } else {
                                                 // Convert LaTeX spans to image markdown so Markdown composable
@@ -1367,7 +1370,8 @@ fun MessageItem(
                                                     typography = customTypography,
                                                     padding = customMarkdownPadding,
                                                     components = customMarkdownComponents,
-                                                    imageTransformer = latexImageTransformer
+                                                    imageTransformer = latexImageTransformer,
+                                                    animations = markdownAnimations { this }
                                                 )
                                             }
                                         }
@@ -1789,10 +1793,33 @@ fun MessageItem(
                                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
                                 )
                             } else {
+                                var debouncedThoughtContent by remember { mutableStateOf(seg.content) }
+                                if (!isStreaming) {
+                                    debouncedThoughtContent = seg.content
+                                } else {
+                                    var lastUpdateMs by remember { mutableLongStateOf(0L) }
+                                    var flushJob by remember { mutableStateOf<Job?>(null) }
+                                    LaunchedEffect(seg.content) {
+                                        val now = System.currentTimeMillis()
+                                        val elapsed = now - lastUpdateMs
+                                        if (elapsed >= 500) {
+                                            flushJob?.cancel()
+                                            debouncedThoughtContent = seg.content
+                                            lastUpdateMs = now
+                                        } else {
+                                            flushJob?.cancel()
+                                            flushJob = launch {
+                                                delay(500 - elapsed)
+                                                debouncedThoughtContent = seg.content
+                                                lastUpdateMs = System.currentTimeMillis()
+                                            }
+                                        }
+                                    }
+                                }
                                 if (!isStreaming) {
                                     SelectionContainer {
                                         RecomposeSafeMarkdown(
-                                            content = seg.content,
+                                            content = debouncedThoughtContent,
                                             isStreaming = isStreaming
                                         ) { text ->
                                             Markdown(
@@ -1801,13 +1828,14 @@ fun MessageItem(
                                                 colors = customMarkdownColors,
                                                 typography = thoughtTypography,
                                                 padding = thoughtMarkdownPadding,
-                                                components = customMarkdownComponents
+                                                components = customMarkdownComponents,
+                                                animations = markdownAnimations { this }
                                             )
                                         }
                                     }
                                 } else {
                                     RecomposeSafeMarkdown(
-                                        content = seg.content,
+                                        content = debouncedThoughtContent,
                                         isStreaming = isStreaming
                                     ) { text ->
                                         Markdown(
@@ -1816,7 +1844,8 @@ fun MessageItem(
                                             colors = customMarkdownColors,
                                             typography = thoughtTypography,
                                             padding = thoughtMarkdownPadding,
-                                            components = customMarkdownComponents
+                                            components = customMarkdownComponents,
+                                            animations = markdownAnimations { this }
                                         )
                                     }
                                 }

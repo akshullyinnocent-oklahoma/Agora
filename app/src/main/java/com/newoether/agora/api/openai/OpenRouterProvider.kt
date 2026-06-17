@@ -1,6 +1,7 @@
 package com.newoether.agora.api.openai
 
 import com.newoether.agora.api.*
+import com.newoether.agora.model.ThinkingLevels
 
 import com.newoether.agora.api.util.StreamingThinkTagParser
 
@@ -9,8 +10,14 @@ class OpenRouterProvider : BaseOpenAiProvider() {
     override val defaultBaseUrl: String = "https://openrouter.ai/api/v1"
 
     override fun customizeRequest(request: OpenAiChatRequest, config: ProviderConfig): OpenAiChatRequest {
+        val reasoning = if (config.thinkingEnabled) {
+            OpenAiReasoning(
+                effort = if (!config.thinkingBudgetEnabled) ThinkingLevels.openRouterEffort(config.thinkingLevel) else null,
+                maxTokens = config.thinkingBudgetTokens.takeIf { config.thinkingBudgetEnabled }
+            )
+        } else null
         return request.copy(
-            reasoning = if (config.thinkingEnabled) OpenAiReasoning(effort = config.thinkingLevel) else null,
+            reasoning = reasoning,
             plugins = if (config.googleSearchEnabled) listOf(OpenAiPlugin(id = "web")) else null
         )
     }

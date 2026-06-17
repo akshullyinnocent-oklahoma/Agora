@@ -20,7 +20,7 @@ internal fun RecomposeSafeMarkdown(
     modifier: Modifier = Modifier,
     render: @Composable (text: String) -> Unit
 ) {
-    var buf0 by remember { mutableStateOf(content) }
+    var buf0 by remember { mutableStateOf("") }
     var buf1 by remember { mutableStateOf("") }
     var front by remember { mutableStateOf(0) }
     var fading by remember { mutableStateOf(false) }

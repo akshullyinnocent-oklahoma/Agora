@@ -5,6 +5,7 @@ import com.newoether.agora.api.*
 import com.newoether.agora.util.DebugLog
 import com.newoether.agora.model.ChatMessage
 import com.newoether.agora.model.Participant
+import com.newoether.agora.model.ThinkingLevels
 import com.newoether.agora.api.util.buildToolCallId
 import com.newoether.agora.api.util.prepareMessages
 import com.newoether.agora.util.Constants
@@ -33,6 +34,7 @@ internal data class AnthropicRequest(
     @SerialName("max_tokens") val maxTokens: Int = 4096,
     val stream: Boolean = true,
     val thinking: AnthropicThinking? = null,
+    @SerialName("output_config") val outputConfig: AnthropicOutputConfig? = null,
     val tools: List<AnthropicTool>? = null,
     val temperature: Float? = null,
     @SerialName("top_p") val topP: Float? = null
@@ -48,7 +50,13 @@ internal data class AnthropicTool(
 @Serializable
 internal data class AnthropicThinking(
     val type: String = "enabled",
-    @SerialName("budget_tokens") val budgetTokens: Int
+    @SerialName("budget_tokens") val budgetTokens: Int? = null,
+    val display: String? = null
+)
+
+@Serializable
+internal data class AnthropicOutputConfig(
+    val effort: String
 )
 
 @Serializable
@@ -170,13 +178,26 @@ class AnthropicProvider : LlmProvider {
         val isLegacyClaude = modelName == "claude-3-opus-20240229" ||
             modelName == "claude-3-sonnet-20240229" ||
             modelName == "claude-3-haiku-20240307"
+        val supportsAdaptiveThinking = modelName.contains("4-6") ||
+            modelName.contains("4.6") ||
+            modelName.contains("4-7") ||
+            modelName.contains("4.7") ||
+            modelName.contains("4-8") ||
+            modelName.contains("4.8") ||
+            modelName.contains("fable", ignoreCase = true) ||
+            modelName.contains("mythos", ignoreCase = true)
+        val thinkingBudget = (
+            if (config.thinkingBudgetEnabled) config.thinkingBudgetTokens else ThinkingLevels.DefaultBudgetTokens
+        ).coerceIn(1024, 128000)
         val thinking = if (config.thinkingEnabled && modelName.startsWith("claude") && !isLegacyClaude) {
-            val budget = when (config.thinkingLevel) {
-                "low" -> 1024
-                "high" -> 8192
-                else -> 4096
+            if (supportsAdaptiveThinking && !config.thinkingBudgetEnabled) {
+                AnthropicThinking(type = "adaptive", display = "summarized")
+            } else {
+                AnthropicThinking(type = "enabled", budgetTokens = thinkingBudget, display = "summarized")
             }
-            AnthropicThinking(budgetTokens = budget)
+        } else null
+        val outputConfig = if (config.thinkingEnabled && !config.thinkingBudgetEnabled && modelName.startsWith("claude") && !isLegacyClaude && supportsAdaptiveThinking) {
+            AnthropicOutputConfig(effort = ThinkingLevels.anthropicEffort(config.thinkingLevel))
         } else null
 
         // Convert ToolDefinition to Anthropic format
@@ -217,7 +238,8 @@ class AnthropicProvider : LlmProvider {
             messages = apiMessages,
             system = config.systemPrompt,
             thinking = thinking,
-            maxTokens = config.maxTokens ?: if (thinking != null) maxOf(thinking.budgetTokens + 1024, 4096) else 4096,
+            outputConfig = outputConfig,
+            maxTokens = config.maxTokens ?: if (thinking?.budgetTokens != null) maxOf(thinking.budgetTokens + 1024, 4096) else 4096,
             tools = anthropicTools,
             temperature = config.temperature,
             topP = config.topP
