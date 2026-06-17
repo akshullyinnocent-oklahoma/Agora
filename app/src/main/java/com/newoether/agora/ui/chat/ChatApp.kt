@@ -84,6 +84,9 @@ import com.newoether.agora.data.local.MessageEntity
 import com.newoether.agora.model.Participant
 import com.newoether.agora.ui.components.AnimatedBlobBackground
 import com.newoether.agora.ui.components.TypewriterText
+import com.newoether.agora.ui.common.LocalAgoraHaptics
+import com.newoether.agora.ui.common.rememberAgoraHaptics
+import com.newoether.agora.model.MessageStatus
 import com.newoether.agora.viewmodel.ChatViewModel
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
@@ -171,6 +174,8 @@ fun ChatApp(
     val defaultFrequencyPenalty by viewModel.defaultFrequencyPenalty.collectAsState()
     val defaultPresencePenalty by viewModel.defaultPresencePenalty.collectAsState()
     val blurEffectsEnabled by viewModel.blurEffectsEnabled.collectAsState()
+    val hapticsEnabled by viewModel.hapticsEnabled.collectAsState()
+    val haptics = rememberAgoraHaptics(hapticsEnabled)
 
     val systemPrompts by viewModel.systemPrompts.collectAsState()
     val activeSystemPromptId by viewModel.activeSystemPromptId.collectAsState()
@@ -398,6 +403,52 @@ fun ChatApp(
         }
     }
 
+    var observedGeneration by remember { mutableStateOf(isLoading) }
+    var previousIsLoading by remember { mutableStateOf(isLoading) }
+    LaunchedEffect(isLoading) {
+        when {
+            isLoading && !previousIsLoading -> {
+                observedGeneration = true
+                haptics.generationStart()
+            }
+            !isLoading && previousIsLoading && observedGeneration -> {
+                val terminalStatus = messages.lastOrNull { it.participant == Participant.MODEL }?.status
+                when (terminalStatus) {
+                    MessageStatus.ERROR -> haptics.reject()
+                    MessageStatus.STOPPED -> haptics.generationStopped()
+                    else -> haptics.generationEnd()
+                }
+                observedGeneration = false
+            }
+        }
+        previousIsLoading = isLoading
+    }
+
+    val answeringHapticActive = isLoading &&
+        generatingInConversationId == currentConversationId &&
+        messages.lastOrNull { it.participant == Participant.MODEL }?.let { message ->
+            message.status == MessageStatus.SENDING && message.text.isNotEmpty()
+        } == true
+    DisposableEffect(answeringHapticActive, hapticsEnabled) {
+        if (answeringHapticActive && hapticsEnabled) {
+            haptics.startAnsweringTexture()
+        }
+        onDispose {
+            haptics.stopAnsweringTexture()
+        }
+    }
+
+    var pendingDrawerConversationHaptic by remember { mutableStateOf<String?>(null) }
+    var previousIsSwitching by remember { mutableStateOf(isSwitching) }
+    LaunchedEffect(isSwitching, currentConversationId) {
+        if (previousIsSwitching && !isSwitching && pendingDrawerConversationHaptic == currentConversationId) {
+            haptics.success()
+            pendingDrawerConversationHaptic = null
+        }
+        previousIsSwitching = isSwitching
+    }
+
+    CompositionLocalProvider(LocalAgoraHaptics provides haptics) {
     ModalNavigationDrawer(
         drawerState = drawerState,
         gesturesEnabled = true,
@@ -538,6 +589,9 @@ fun ChatApp(
                                     score = bestScore,
                                     query = searchQuery,
                                     onClick = {
+                                        if (convId != currentConversationId || isNewChatMode) {
+                                            pendingDrawerConversationHaptic = convId
+                                        }
                                         viewModel.selectConversation(convId)
                                         scope.launch { drawerState.close() }
                                     }
@@ -571,10 +625,14 @@ fun ChatApp(
                                             .combinedClickable(
                                                 enabled = !isSwitching,
                                                 onClick = {
+                                                    if (conversation.id != currentConversationId || isNewChatMode) {
+                                                        pendingDrawerConversationHaptic = conversation.id
+                                                    }
                                                     viewModel.selectConversation(conversation.id)
                                                     scope.launch { drawerState.close() }
                                                 },
                                                 onLongClick = {
+                                                    haptics.longPress()
                                                     pressOffset = with(density) {
                                                         val x = lastPosition.x.toDp().coerceIn(16.dp, 200.dp)
                                                         DpOffset(x, lastPosition.y.toDp() - 28.dp)
@@ -607,6 +665,7 @@ fun ChatApp(
                                             leadingIcon = { Icon(Icons.Default.Refresh, contentDescription = null) },
                                             enabled = !isSwitching && !isLoading,
                                             onClick = {
+                                                haptics.action()
                                                 showMenu = false
                                                 viewModel.generateTitle(conversation.id)
                                         }
@@ -616,6 +675,7 @@ fun ChatApp(
                                         leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) },
                                         enabled = !isSwitching && !isLoading,
                                         onClick = {
+                                            haptics.action()
                                             showMenu = false
                                             showRenameDialog = conversation.id
                                             conversationToRename = conversation.title
@@ -640,6 +700,7 @@ fun ChatApp(
 
                     FilledTonalButton(
                         onClick = {
+                            haptics.action()
                             focusManager.clearFocus()
                             onOpenSettings()
                             scope.launch { drawerState.close() }
@@ -726,7 +787,7 @@ fun ChatApp(
                                     ) {
                                         Spacer(modifier = Modifier.width(5.dp))
                                         IconButton(
-                                            onClick = { focusManager.clearFocus(); scope.launch { drawerState.open() } },
+                                            onClick = { haptics.action(); focusManager.clearFocus(); scope.launch { drawerState.open() } },
                                             modifier = Modifier.size(44.dp)
                                         ) {
                                             Icon(Icons.Default.Menu, contentDescription = stringResource(R.string.menu), modifier = Modifier.size(26.dp))
@@ -779,10 +840,11 @@ fun ChatApp(
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
                                         Spacer(modifier = Modifier.width(5.dp))
-                                        IconButton(onClick = { showPromptDialog = true }, modifier = Modifier.size(44.dp)) {
+                                        IconButton(onClick = { haptics.action(); showPromptDialog = true }, modifier = Modifier.size(44.dp)) {
                                             Icon(Icons.Default.Psychology, contentDescription = stringResource(R.string.system_prompt), modifier = Modifier.size(26.dp))
                                         }
                                         IconButton(onClick = {
+                                            haptics.action()
                                             isExpanded = false
                                             viewModel.createNewChat()
                                             inputFocusRequester.requestFocus()
@@ -854,8 +916,12 @@ fun ChatApp(
                                         }
                                     }
                                 },
-                                onSwitchBranch = { parentId, direction -> viewModel.switchBranch(parentId, direction) },
+                                onSwitchBranch = { parentId, direction ->
+                                    haptics.selection()
+                                    viewModel.switchBranch(parentId, direction)
+                                },
                                 onRegenerate = { id ->
+                                    haptics.action()
                                     viewModel.regenerate(id)
                                     scope.launch {
                                         delay(50)
@@ -865,7 +931,7 @@ fun ChatApp(
                                 onDelete = { id -> viewModel.deleteMessage(id) },
                                 onMediaClick = onMediaClick,
                                 onFileContentClick = onFileContentClick,
-                                onPdfPagesClick = onPdfPagesClick,
+                                onPdfPagesClick = { pages, idx -> haptics.action(); onPdfPagesClick?.invoke(pages, idx) },
                                 thoughtExpandedStates = thoughtExpandedStates,
                                 contentPadding = PaddingValues(
                                     start = 8.dp,
@@ -1004,6 +1070,7 @@ fun ChatApp(
                         onSendMessage = { text, attachments ->
                             viewModel.sendMessage(text, attachments = attachments).also { sent ->
                                 if (sent) {
+                                    haptics.action()
                                     scope.launch {
                                         delay(200)
                                         scrollToLastUserMessage(animate = true)
@@ -1011,7 +1078,10 @@ fun ChatApp(
                                 }
                             }
                         },
-                        onStopGeneration = { viewModel.stopGeneration() },
+                        onStopGeneration = {
+                            haptics.generationStopped()
+                            viewModel.stopGeneration()
+                        },
                         isLoading = isLoading,
                         isSwitching = isSwitching,
                         enabledModels = enabledModels,
@@ -1023,31 +1093,31 @@ fun ChatApp(
                         thinkingLevel = thinkingLevel,
                         thinkingBudgetEnabled = thinkingBudgetEnabled,
                         thinkingBudgetTokens = thinkingBudgetTokens,
-                        onCodeExecutionToggle = { enabled -> viewModel.updateConversationSetting(currentConversationId) { it.copy(codeExecutionEnabled = enabled) } },
-                        onGoogleSearchToggle = { enabled -> viewModel.updateConversationSetting(currentConversationId) { it.copy(googleSearchEnabled = enabled) } },
-                        onThinkingToggle = { enabled -> viewModel.updateConversationSetting(currentConversationId) { it.copy(thinkingEnabled = enabled) } },
+                        onCodeExecutionToggle = { enabled -> haptics.selection(); viewModel.updateConversationSetting(currentConversationId) { it.copy(codeExecutionEnabled = enabled) } },
+                        onGoogleSearchToggle = { enabled -> haptics.selection(); viewModel.updateConversationSetting(currentConversationId) { it.copy(googleSearchEnabled = enabled) } },
+                        onThinkingToggle = { enabled -> haptics.selection(); viewModel.updateConversationSetting(currentConversationId) { it.copy(thinkingEnabled = enabled) } },
                         onThinkingLevelChange = { level -> viewModel.updateConversationSetting(currentConversationId) { it.copy(thinkingLevel = level) } },
                         onThinkingBudgetEnabledChange = { enabled -> viewModel.updateConversationSetting(currentConversationId) { it.copy(thinkingBudgetEnabled = enabled) } },
                         onThinkingBudgetTokensChange = { tokens -> viewModel.updateConversationSetting(currentConversationId) { it.copy(thinkingBudgetTokens = tokens) } },
                         webSearchEnabled = webSearchEnabled,
-                        onWebSearchToggle = { enabled -> viewModel.updateConversationSetting(currentConversationId) { it.copy(webSearchEnabled = enabled) } },
+                        onWebSearchToggle = { enabled -> haptics.selection(); viewModel.updateConversationSetting(currentConversationId) { it.copy(webSearchEnabled = enabled) } },
                         shellEnabled = shellEnabled,
-                        onShellToggle = { enabled -> viewModel.updateConversationSetting(currentConversationId) { it.copy(shellEnabled = enabled) } },
-                        onModelSelect = { viewModel.setActiveModel(it) },
-                        onImageClick = { url -> onMediaClick(listOf(url), 0) },
-                        onAllMediaClick = { urls, idx -> onMediaClick(urls, idx) },
-                        onFileContentClick = { name, content -> viewModel.showFilePreview(name, content) },
+                        onShellToggle = { enabled -> haptics.selection(); viewModel.updateConversationSetting(currentConversationId) { it.copy(shellEnabled = enabled) } },
+                        onModelSelect = { haptics.selection(); viewModel.setActiveModel(it) },
+                        onImageClick = { url -> haptics.action(); onMediaClick(listOf(url), 0) },
+                        onAllMediaClick = { urls, idx -> haptics.action(); onMediaClick(urls, idx) },
+                        onFileContentClick = { name, content -> haptics.action(); viewModel.showFilePreview(name, content) },
                         modifier = Modifier,
                         textFieldState = textFieldState,
                         focusRequester = inputFocusRequester,
                         isExpanded = isExpanded,
                         isExpandAnimating = isExpandAnimating,
-                        onCollapse = { isExpanded = false },
-                        onExpand = { isExpanded = true },
+                        onCollapse = { haptics.action(); isExpanded = false },
+                        onExpand = { haptics.action(); isExpanded = true },
                         showWebSearch = globalWebSearch,
                         showShell = shellDevices.isNotEmpty() && globalShell,
-                        onPdfPagesClick = onPdfPagesClick,
-                        onPdfPreviewSelect = onPdfPreviewSelect,
+                        onPdfPagesClick = { pages, idx -> haptics.action(); onPdfPagesClick?.invoke(pages, idx) },
+                        onPdfPreviewSelect = { pages, idx -> haptics.action(); onPdfPreviewSelect?.invoke(pages, idx) },
                         pdfViewerSelection = pdfViewerSelection,
                         onTogglePdfSelection = onTogglePdfSelection,
                         onInitPdfSelection = onInitPdfSelection,
@@ -1059,6 +1129,7 @@ fun ChatApp(
             }
         }
         }
+    }
     }
 
     if (showRenameDialog != null) {
@@ -1103,6 +1174,7 @@ fun ChatApp(
             confirmButton = {
                 TextButton(
                     onClick = {
+                        haptics.reject()
                         viewModel.deleteConversation(showDeleteConfirmDialog!!)
                         showDeleteConfirmDialog = null
                     },

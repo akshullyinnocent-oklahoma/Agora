@@ -4,6 +4,8 @@ import android.content.Context
 import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.size
@@ -28,6 +30,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.newoether.agora.model.AttachmentItem
 import com.newoether.agora.model.AttachmentMeta
+import com.newoether.agora.ui.common.LocalAgoraHaptics
 
 fun resolveAttachmentType(
     path: String,
@@ -99,6 +102,7 @@ data class ThumbnailClickHandlers(
 )
 
 @Composable
+@OptIn(ExperimentalFoundationApi::class)
 fun AttachmentThumbnailItem(
     type: String,
     imagePath: String,
@@ -112,6 +116,7 @@ fun AttachmentThumbnailItem(
     handlers: ThumbnailClickHandlers = ThumbnailClickHandlers(),
     modifier: Modifier = Modifier
 ) {
+    val haptics = LocalAgoraHaptics.current
     val thumbModifier = modifier
         .size(120.dp, 90.dp)
         .clip(RoundedCornerShape(8.dp))
@@ -162,7 +167,14 @@ fun AttachmentThumbnailItem(
         }
         else -> { // image
             if (imagePath.isNotEmpty()) {
-                Box(modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { handlers.onMediaClick?.invoke(allMediaUrls, mediaIndex) }) {
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .combinedClickable(
+                            onClick = { handlers.onMediaClick?.invoke(allMediaUrls, mediaIndex) },
+                            onLongClick = { haptics.longPress() }
+                        )
+                ) {
                     coil.compose.AsyncImage(
                         model = imagePath,
                         contentDescription = null,
@@ -192,4 +204,3 @@ fun AttachmentThumbnailItem(
         }
     }
 }
-

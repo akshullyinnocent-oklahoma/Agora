@@ -37,6 +37,7 @@ fun SettingsAppearancePage(viewModel: ChatViewModel, onBack: () -> Unit) {
     val schemeStyleName by viewModel.schemeStyle.collectAsState()
     val dynamicColor by viewModel.dynamicColor.collectAsState()
     val blurEffectsEnabled by viewModel.blurEffectsEnabled.collectAsState()
+    val hapticsEnabled by viewModel.hapticsEnabled.collectAsState()
     val showDocFab by viewModel.showDocumentationFab.collectAsState()
 
     val isDynamicAvailable = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
@@ -124,6 +125,23 @@ fun SettingsAppearancePage(viewModel: ChatViewModel, onBack: () -> Unit) {
                             )
                         },
                         modifier = Modifier.clickable { viewModel.setBlurEffectsEnabled(!blurEffectsEnabled) }
+                    )
+                })
+            )
+
+            SettingsGroup(
+                title = stringResource(R.string.interaction_feedback),
+                items = listOf({
+                    SettingsItem(
+                        headlineContent = { Text(stringResource(R.string.haptic_feedback)) },
+                        supportingContent = { Text(stringResource(R.string.haptic_feedback_desc)) },
+                        trailingContent = {
+                            Switch(
+                                checked = hapticsEnabled,
+                                onCheckedChange = { viewModel.setHapticsEnabled(it) }
+                            )
+                        },
+                        modifier = Modifier.clickable { viewModel.setHapticsEnabled(!hapticsEnabled) }
                     )
                 })
             )

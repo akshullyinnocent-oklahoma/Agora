@@ -121,6 +121,7 @@ import com.newoether.agora.model.ChatMessage
 import com.newoether.agora.model.MessageSegment
 import com.newoether.agora.model.MessageStatus
 import com.newoether.agora.model.Participant
+import com.newoether.agora.ui.common.LocalAgoraHaptics
 import com.newoether.agora.ui.theme.MonoFamily
 import com.newoether.agora.ui.theme.ChatType
 import com.newoether.agora.ui.components.*
@@ -522,7 +523,7 @@ private fun toolResultSummary(toolName: String, toolArgs: String, result: String
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun MessageItem(
     message: ChatMessage, 
@@ -572,6 +573,7 @@ fun MessageItem(
     var showDeleteConfirm by remember { mutableStateOf(false) }
     @Suppress("DEPRECATION")
     val clipboardManager = LocalClipboardManager.current
+    val haptics = LocalAgoraHaptics.current
 
     if (showInfoDialog) {
         val sdf = remember { SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()) }
@@ -612,6 +614,7 @@ fun MessageItem(
                 TextButton(
                     onClick = {
                         showDeleteConfirm = false
+                        haptics.reject()
                         onDelete(message.id)
                     },
                     colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
@@ -950,7 +953,7 @@ fun MessageItem(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier.then(contextAlpha)
                     ) {
-                        IconButton(onClick = { clipboardManager.setText(AnnotatedString(message.text)) }, modifier = Modifier.size(32.dp)) {
+                        IconButton(onClick = { clipboardManager.setText(AnnotatedString(message.text)); haptics.success() }, modifier = Modifier.size(32.dp)) {
                             Icon(Icons.Default.ContentCopy, contentDescription = stringResource(R.string.copy), modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f))
                         }
                         IconButton(onClick = { onStartEdit() }, enabled = isEditingAllowed, modifier = Modifier.size(32.dp)) {
@@ -1406,7 +1409,10 @@ fun MessageItem(
                                             .fillMaxWidth()
                                             .aspectRatio(1f)
                                             .clip(RoundedCornerShape(12.dp))
-                                            .clickable { onMediaClick(genImages, idx) }
+                                            .combinedClickable(
+                                                onClick = { onMediaClick(genImages, idx) },
+                                                onLongClick = { haptics.longPress() }
+                                            )
                                     )
                                 }
                             }
@@ -1432,7 +1438,7 @@ fun MessageItem(
                                     horizontalArrangement = Arrangement.spacedBy(2.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    IconButton(onClick = { clipboardManager.setText(AnnotatedString(message.text)) }, modifier = Modifier.size(32.dp)) {
+                                    IconButton(onClick = { clipboardManager.setText(AnnotatedString(message.text)); haptics.success() }, modifier = Modifier.size(32.dp)) {
                                         Icon(Icons.Default.ContentCopy, null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f))
                                     }
                                     IconButton(onClick = { onRegenerate(message.id) }, enabled = !isLoading, modifier = Modifier.size(32.dp)) {

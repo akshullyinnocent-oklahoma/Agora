@@ -6,6 +6,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
@@ -77,6 +78,7 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import com.newoether.agora.R
+import com.newoether.agora.ui.common.LocalAgoraHaptics
 import com.newoether.agora.ui.common.ThinkingControlPanel
 import com.newoether.agora.ui.common.thinkingControlShortLabel
 import com.newoether.agora.ui.theme.ChatType
@@ -124,7 +126,7 @@ fun Modifier.verticalScrollbar(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun ChatBottomBar(
     onSendMessage: (String, List<com.newoether.agora.model.SelectedAttachment>) -> Boolean,
@@ -208,6 +210,7 @@ fun ChatBottomBar(
     var pendingVideoQueue by remember { mutableStateOf<List<String>>(emptyList()) }
 
     val context = LocalContext.current
+    val haptics = LocalAgoraHaptics.current
     var showThinkingSheet by rememberSaveable { mutableStateOf(false) }
 
     /** Clear the attachment list after a successful send. The extracted-frame / rendered-page
@@ -283,6 +286,7 @@ fun ChatBottomBar(
     val photoLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.PickMultipleVisualMedia()
     ) { uris ->
+        if (uris.isNotEmpty()) haptics.selection()
         selectedAttachments = selectedAttachments + uris.map {
             com.newoether.agora.model.SelectedAttachment(
                 uri = it.toString(), type = "image",
@@ -293,6 +297,7 @@ fun ChatBottomBar(
     val videoLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.PickMultipleVisualMedia()
     ) { uris ->
+        if (uris.isNotEmpty()) haptics.selection()
         val urisToQueue = uris.map { it.toString() }
         pendingVideoQueue = pendingVideoQueue + urisToQueue
         if (!showVideoSliceDialog) processNextVideo()
@@ -359,8 +364,10 @@ fun ChatBottomBar(
             ))
         }
         if (rejectedMessages.isNotEmpty()) {
+            haptics.reject()
             rejectedMessage = rejectedMessages.joinToString("\n")
         }
+        if (validAttachments.isNotEmpty()) haptics.selection()
         selectedAttachments = selectedAttachments + validAttachments
     }
 
@@ -429,11 +436,17 @@ fun ChatBottomBar(
                                 }
                                 isVideo -> {
                                     val mediaIndex = allMediaUrls.indexOf(uriStr).coerceAtLeast(0)
-                                    Modifier.clickable { onAllMediaClick?.invoke(allMediaUrls, mediaIndex) }
+                                    Modifier.combinedClickable(
+                                        onClick = { onAllMediaClick?.invoke(allMediaUrls, mediaIndex) },
+                                        onLongClick = { haptics.longPress() }
+                                    )
                                 }
                                 else -> {
                                     val mediaIndex = allMediaUrls.indexOf(uriStr).coerceAtLeast(0)
-                                    Modifier.clickable { onAllMediaClick?.invoke(allMediaUrls, mediaIndex) }
+                                    Modifier.combinedClickable(
+                                        onClick = { onAllMediaClick?.invoke(allMediaUrls, mediaIndex) },
+                                        onLongClick = { haptics.longPress() }
+                                    )
                                 }
                             }
                             val thumbModifier = Modifier
@@ -516,6 +529,7 @@ fun ChatBottomBar(
                                 .background(Color.Black.copy(alpha = 0.8f), CircleShape)
                                 .clip(RoundedCornerShape(18.dp))
                                 .clickable {
+                                    haptics.selection()
                                     val removed = selectedAttachments.getOrNull(index)
                                     // Cancel in-flight video extraction + delete partial frames
                                     if (removed != null && videoExtractionJobs.containsKey(removed.uri)) {
@@ -614,6 +628,7 @@ fun ChatBottomBar(
                 ) {
                     IconButton(
                         onClick = {
+                            haptics.action()
                             val now = System.currentTimeMillis()
                             if (showAddMenu) {
                                 showAddMenu = false
@@ -647,6 +662,7 @@ fun ChatBottomBar(
                                 }
                             },
                             onClick = {
+                                haptics.selection()
                                 showAddMenu = false
                                 lastAddDismissTime = 0L
                                 photoLauncher.launch(androidx.activity.result.PickVisualMediaRequest(androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia.ImageOnly))
@@ -661,6 +677,7 @@ fun ChatBottomBar(
                                 }
                             },
                             onClick = {
+                                haptics.selection()
                                 showAddMenu = false
                                 lastAddDismissTime = 0L
                                 videoLauncher.launch(androidx.activity.result.PickVisualMediaRequest(androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia.VideoOnly))
@@ -675,6 +692,7 @@ fun ChatBottomBar(
                                 }
                             },
                             onClick = {
+                                haptics.selection()
                                 showAddMenu = false
                                 lastAddDismissTime = 0L
                                 fileLauncher.launch("*/*")
@@ -702,6 +720,7 @@ fun ChatBottomBar(
                 ) {
                     TextButton(
                         onClick = {
+                            haptics.action()
                             val now = System.currentTimeMillis()
                             if (activeMenu == "model") {
                                 activeMenu = null
@@ -752,6 +771,7 @@ fun ChatBottomBar(
                                         Text(modelAliases[model] ?: ("$modelId ($provider)"))
                                     },
                                     onClick = {
+                                        haptics.selection()
                                         onModelSelect(model)
                                         activeMenu = null
                                         lastModelDismissTime = 0L
@@ -768,6 +788,7 @@ fun ChatBottomBar(
                 ) {
                     IconButton(
                         onClick = { 
+                            haptics.action()
                             val now = System.currentTimeMillis()
                             if (activeMenu == "tools") {
                                 activeMenu = null
@@ -861,6 +882,7 @@ fun ChatBottomBar(
                                 )
                             },
                             onClick = {
+                                haptics.action()
                                 activeMenu = null
                                 showThinkingSheet = true
                             }
@@ -912,7 +934,7 @@ fun ChatBottomBar(
                                 }
                             },
                             // Unlike the toggle rows, this opens a dialog — collapse the menu first.
-                            onClick = { activeMenu = null; onAdvancedClick() }
+                            onClick = { haptics.action(); activeMenu = null; onAdvancedClick() }
                         )
                     }
                 }
@@ -936,10 +958,12 @@ fun ChatBottomBar(
                     if (isSwitching) return@FloatingActionButton
                     if (isLoading) onStopGeneration()
                     else if (pendingSend) {
+                        haptics.selection()
                         pendingSend = false
                     }
                     else if (canSend) {
                         if (anyProcessing) {
+                            haptics.action()
                             pendingSend = true
                         } else {
                             if (onSendMessage(textFieldState.text.toString(), selectedAttachments)) {

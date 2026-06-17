@@ -479,6 +479,9 @@
     <string name="visual_effects">Visual Effects</string>
     <string name="blur_effects">Blur Effects</string>
     <string name="blur_effects_desc">Blur the top of the chat list under the toolbar. Turn off to save performance.</string>
+    <string name="interaction_feedback">Interaction Feedback</string>
+    <string name="haptic_feedback">Haptic Feedback</string>
+    <string name="haptic_feedback_desc">Use subtle vibration for generation status and key actions.</string>
 
     <!-- Language -->
     <string name="language_title">Language</string>
