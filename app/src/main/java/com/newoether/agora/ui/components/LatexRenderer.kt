@@ -26,7 +26,107 @@ data class LatexSpan(
     val display: Boolean = false,
 )
 
+// ── Patterns ──────────────────────────────────────────────────────────
+
+/** $ followed by digits, not followed by $ or word char — bare dollar amounts. */
 private val dollarAmountPattern = Regex("""\$\d+(?!\$)(?!\w)""")
+
+/** Greek letters (U+0370–U+03FF) and math symbols (U+2200–U+2AFF). */
+private val MATH_UNICODE = Regex("""[Ͱ-Ͽ∀-⫿]""")
+
+/** LaTeX command — backslash + letters, e.g. \frac \alpha \text \sum. */
+private val LATEX_COMMAND = Regex("""\\[a-zA-Z]+""")
+
+/** Escaped dollar sign — strong LaTeX signal (not used in prose). */
+private val ESCAPED_DOLLAR = Regex("""\\\$""")
+
+/** Math structural markers — sub/superscript braces, begin/end. */
+private val MATH_STRUCTURE = Regex("""[\^_]\{|\\begin|\\end""")
+
+/** Pure number or percentage explicitly wrapped in $...$ */
+private val PURE_NUM = Regex("""^-?\d+(\.\d+)?\\?%?$""")
+
+/** Math operators — presence strongly suggests LaTeX, not prose. */
+private val MATH_OPS = Regex("""[+\-*/=<>|^_]""")
+
+/** English prose stop-words — signals natural language, not math. */
+private val PROSE_WORD = Regex(
+    """\b(and|or|the|a|an|in|on|to|for|of|is|are|was|were|be|it|we|you|he|she|they|""" +
+    """costs?|price|dollar|another|other|this|that|each|per|total|only|about|""" +
+    """more|less|than|with|from|by|can|will|would|should|could|may|not|but|""" +
+    """one|two|three|four|five|ten|new|old|some|all|any|just|also|has|have|had|what)\b""",
+    RegexOption.IGNORE_CASE
+)
+
+/** Sentence-ending punctuation followed by space — strong prose signal. */
+private val SENTENCE_PUNCT = Regex("""[.!?;:]["») \t]""")
+
+// ── Unicode gate ──────────────────────────────────────────────────────
+
+/**
+ * Returns true if every non-ASCII character in [s] is safely inside `{…}`,
+ * OR is a Greek / math-symbol Unicode codepoint.
+ * This lets `x_{中文}` and `\alpha` through while rejecting bare prose.
+ */
+private fun nonAsciiInsideBraces(s: String): Boolean {
+    var depth = 0
+    var esc = false
+    for (ch in s) {
+        if (esc) { esc = false; continue }
+        if (ch == '\\') { esc = true; continue }
+        if (ch == '{') { depth++; continue }
+        if (ch == '}' && depth > 0) { depth--; continue }
+        if (ch.code > 127 && depth == 0 && !MATH_UNICODE.matches(ch.toString()) && ch.isLetter()) {
+            return false
+        }
+    }
+    return true
+}
+
+// ── Content discriminator for $...$ ────────────────────────────────────
+
+/**
+ * Heuristic: given the trimmed content between a pair of `$` delimiters,
+ * decide whether it is more likely LaTeX or natural-language prose.
+ */
+private fun isLikelyLatex(content: String): Boolean {
+    val t = content.trim()
+    if (t.isEmpty()) return false
+
+    // Non-ASCII outside braces → prose (check BEFORE positive signals —
+    // a rogue Chinese char must veto even if \mathrm or = is present)
+    if (!nonAsciiInsideBraces(t)) return false
+
+    // Strong positive signals — these are almost certainly LaTeX
+    if (LATEX_COMMAND.containsMatchIn(t)) return true
+    if (ESCAPED_DOLLAR.containsMatchIn(t)) return true
+    if (MATH_STRUCTURE.containsMatchIn(t)) return true
+    if (PURE_NUM.matches(t)) return true
+    // Single character — math variable (not the article "a" / "A")
+    if (t.length == 1 && t[0].isLetterOrDigit()) return true
+    val hasMathOps = MATH_OPS.containsMatchIn(t)
+
+    // Strong negative signals — these are almost certainly prose
+    if (SENTENCE_PUNCT.containsMatchIn(t)) return false
+
+    // Prose stop-words: fatal unless math operators are also present.
+    // Single-letter matches are excluded — they are math variables.
+    val words = t.split(Regex("""\s+"""))
+    val hasProseWord = words.any { w -> w.length > 1 && PROSE_WORD.matches(w) }
+    if (hasProseWord && !hasMathOps) return false
+
+    // Many whitespace-delimited tokens → prose (unless math ops dominate)
+    if (words.size > 5 && !hasMathOps) return false
+
+    // No letters at all, no math ops, not pure number → not LaTeX
+    // (catches "800–" where – is non-ASCII punctuation)
+    if (t.none { it.isLetter() } && !hasMathOps) return false
+
+    // Short, no prose signals — default to LaTeX
+    return true
+}
+
+// ── Markdown escape ────────────────────────────────────────────────────
 
 fun String.escapeDollarForMarkdown(): String = buildString {
     val src = this@escapeDollarForMarkdown
@@ -59,6 +159,8 @@ fun String.escapeDollarForMarkdown(): String = buildString {
         i++
     }
 }
+
+// ── Span parser ────────────────────────────────────────────────────────
 
 fun parseLatexSpans(text: String): List<LatexSpan> {
     val spans = mutableListOf<LatexSpan>()
@@ -93,7 +195,7 @@ fun parseLatexSpans(text: String): List<LatexSpan> {
             val end = remaining.indexOf("$$", 2)
             if (end >= 0) {
                 val latex = remaining.substring(2, end).trim()
-                if (latex.isNotBlank() && latex.none { it.code > 127 }) {
+                if (latex.isNotBlank() && nonAsciiInsideBraces(latex)) {
                     if (buf.isNotEmpty()) { spans.add(LatexSpan(false, buf.toString())); buf.clear() }
                     spans.add(LatexSpan(true, latex, true))
                 } else if (latex.isNotBlank()) {
@@ -109,7 +211,7 @@ fun parseLatexSpans(text: String): List<LatexSpan> {
             val end = remaining.indexOf("\\]", 2)
             if (end >= 0) {
                 val latex = remaining.substring(2, end).trim()
-                if (latex.isNotBlank() && latex.none { it.code > 127 }) {
+                if (latex.isNotBlank() && nonAsciiInsideBraces(latex)) {
                     if (buf.isNotEmpty()) { spans.add(LatexSpan(false, buf.toString())); buf.clear() }
                     spans.add(LatexSpan(true, latex, true))
                 } else if (latex.isNotBlank()) {
@@ -125,7 +227,7 @@ fun parseLatexSpans(text: String): List<LatexSpan> {
             val end = remaining.indexOf("\\)", 2)
             if (end >= 0) {
                 val latex = remaining.substring(2, end).trim()
-                if (latex.isNotBlank() && latex.none { it.code > 127 }) {
+                if (latex.isNotBlank() && nonAsciiInsideBraces(latex)) {
                     if (buf.isNotEmpty()) { spans.add(LatexSpan(false, buf.toString())); buf.clear() }
                     spans.add(LatexSpan(true, latex, false))
                 } else if (latex.isNotBlank()) {
@@ -138,28 +240,32 @@ fun parseLatexSpans(text: String): List<LatexSpan> {
 
         // $ inline math — skip if preceded by \ (escaped)
         if (remaining[0] == '$' && !remaining.startsWith("$$")) {
-            val nextChar = if (remaining.length > 1) remaining[1] else ' '
             val prevChar = if (i > 0) text[i - 1] else ' '
             if (prevChar != '\\') {
-                // $<digits> followed by non-$ non-word → dollar amount, not math
-                if (dollarAmountPattern.find(remaining)?.range?.first == 0) {
+                // Find real closing $ on the same line (skip escaped \$)
+                val lineEnd = remaining.indexOf('\n').let { if (it < 0) remaining.length else it }
+                var end = remaining.indexOf('$', 1)
+                while (end in 1..<lineEnd && remaining[end - 1] == '\\') {
+                    end = remaining.indexOf('$', end + 1)
+                }
+                if (end in 1..<lineEnd) {
+                    val latex = remaining.substring(1, end).trim()
+                    if (latex.isNotEmpty() && isLikelyLatex(latex)) {
+                        if (buf.isNotEmpty()) { spans.add(LatexSpan(false, buf.toString())); buf.clear() }
+                        spans.add(LatexSpan(true, latex, false))
+                        i += end + 1; continue
+                    }
+                    // Content looks like prose → only treat the opening $ as literal.
+                    // Don't consume the closing $ — it may belong to a valid LaTeX pair later.
                     buf.append('$')
                     i++
                     continue
                 }
-                val end = remaining.indexOf('$', 1)
-                val closingOk = end >= 0 && (end == remaining.length - 1 || remaining[end - 1] != '\\')
-                if (closingOk) {
-                    val latex = remaining.substring(1, end).trim()
-                    if (latex.isNotBlank() && latex.none { it.code > 127 }) {
-                        if (buf.isNotEmpty()) { spans.add(LatexSpan(false, buf.toString())); buf.clear() }
-                        spans.add(LatexSpan(true, latex, false))
-                    } else if (latex.isNotBlank()) {
-                        buf.append(remaining.substring(0, end + 1))
-                    }
-                    i += end + 1
-                    continue
-                }
+
+                // No real same-line closing $ → treat $ as literal (could be a dollar amount)
+                buf.append('$')
+                i++
+                continue
             }
         }
 
@@ -200,7 +306,17 @@ fun parseLatexSpans(text: String): List<LatexSpan> {
 
     return spans
 }
-fun renderLatexToBitmap(latex: String, textSize: Float = 48f, color: Int = 0xFF000000.toInt(), fallbackW: Int = 800, fallbackH: Int = 200, minW: Int = 0): Bitmap? {
+
+// ── Rendering ──────────────────────────────────────────────────────────
+
+fun renderLatexToBitmap(
+    latex: String,
+    textSize: Float = 48f,
+    color: Int = 0xFF000000.toInt(),
+    fallbackW: Int = 800,
+    fallbackH: Int = 200,
+    minW: Int = 0,
+): Bitmap? {
     return try {
         val drawable = JLatexMathDrawable.builder(latex)
             .textSize(textSize)
@@ -210,8 +326,6 @@ fun renderLatexToBitmap(latex: String, textSize: Float = 48f, color: Int = 0xFF0
         val ih = drawable.intrinsicHeight
         val w = maxOf(iw.takeIf { it > 0 } ?: fallbackW, minW)
         val h = ih.takeIf { it > 0 } ?: fallbackH
-        val usedFallbackW = iw <= 0 || iw < minW
-        val usedFallbackH = ih <= 0
         val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bmp)
         drawable.setBounds(0, 0, w, h)
@@ -257,6 +371,8 @@ private fun renderTextToBitmap(text: String, textSize: Float, color: Int): Bitma
     return bmp
 }
 
+// ── Image transformer ──────────────────────────────────────────────────
+
 class LatexImageTransformer(
     private val textSize: Float = 40f,
     private val color: Int = 0xFF000000.toInt(),
@@ -282,8 +398,8 @@ class LatexImageTransformer(
                 if (rendered != null) {
                     rendered
                 } else {
-                    val fallback = renderTextToBitmap("$$latex$", textSize, color)
-                    fallback
+                    // Show original LaTeX source instead of a generic placeholder
+                    renderTextToBitmap("$${latex}$", textSize, color)
                 }
             }
         }
@@ -302,7 +418,7 @@ class LatexImageTransformer(
         containerSize: Size,
         imageWidth: ImageWidth,
         imageSize: Size,
-        imageSizeChanged: ((link: String, Size) -> Unit)?
+        imageSizeChanged: ((link: String, Size) -> Unit)?,
     ): PlaceholderConfig {
         if (!link.startsWith("latex://")) return super.placeholderConfig(
             link, density, containerSize, imageWidth, imageSize, imageSizeChanged
