@@ -111,7 +111,12 @@ class ChatViewModel(
     // Settings delegate — handles all settings CRUD (~700 lines extracted)
     private val settingsDelegate = SettingsDelegate(settingsManager, chatDao, viewModelScope)
 
-    init {
+    /**
+     * Startup jobs deferred until all StateFlow/property backing fields are
+     * initialized — avoids the constructor this-escape where a Dispatchers.IO
+     * coroutine accesses a field whose JVM backing field is still null.
+     */
+    private fun startInitJobs() {
         // Auto-check for updates on launch (at most once per day)
         viewModelScope.launch(Dispatchers.IO) {
             if (settingsManager.autoUpdateCheck.first()) {
@@ -173,15 +178,9 @@ class ChatViewModel(
             var lastAliases: Map<String, String>? = null
             settingsManager.localChatModels.collect { models ->
                 val localIds = models.map { "Local:${it.modelId}" }
-                // Read directly from DataStore, NOT from modelAliases StateFlow.
-                // StateFlow may be stale when import writes to DataStore on a different
-                // dispatcher — using .first() guarantees we see the latest committed value.
                 val currentAliases = settingsManager.modelAliases.first()
                 val aliases = currentAliases.toMutableMap()
                 models.forEach { aliases["Local:${it.modelId}"] = it.alias }
-                // Guard against DataStore feedback loop: only write if values actually changed.
-                // (saveAvailableModels/saveModelAliases write to DataStore, which re-emits
-                //  all preference flows, which would re-enter this collect indefinitely.)
                 if (localIds != lastLocalIds) {
                     settingsManager.saveAvailableModels("Local", localIds)
                     lastLocalIds = localIds
@@ -203,9 +202,6 @@ class ChatViewModel(
             }
         }
         // Auto-clear available models when a provider loses its credentials.
-        // Watches all three configuration sources (API keys, active key IDs,
-        // and base URLs) and uses the shared isProviderConfigured() to decide
-        // whether a provider just became unconfigured.
         viewModelScope.launch {
             var prevConfigured = emptyMap<String, Boolean>()
 
@@ -214,11 +210,8 @@ class ChatViewModel(
                 settingsManager.activeApiKeyIds,
                 settingsManager.providerBaseUrls
             ) { keys, activeIds, baseUrls ->
-                // Read current values; the parameters are here so combine
-                // re-emits when any of the three sources changes.
                 Triple(keys, activeIds, baseUrls)
             }.collect { (keys, activeIds, _) ->
-                // Skip the initial empty-state emission.
                 if (keys.isEmpty() && activeIds.isEmpty()) return@collect
 
                 val current = mutableMapOf<String, Boolean>()
@@ -700,6 +693,8 @@ class ChatViewModel(
 
     private val _systemPromptCount = MutableStateFlow(0)
     val systemPromptCount: StateFlow<Int> = _systemPromptCount.asStateFlow()
+
+    init { startInitJobs() }
 
     init {
         viewModelScope.launch {
