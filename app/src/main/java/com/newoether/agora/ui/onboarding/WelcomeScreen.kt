@@ -331,9 +331,8 @@ fun WelcomeScreen(
     AnimatedVisibility(visible = !exiting, exit = fadeOut(tween(300))) {
         val fm = LocalFocusManager.current
         Box(modifier = Modifier.fillMaxSize().clickable(indication = null, interactionSource = defocusInteractionSource) { fm.clearFocus() }) {
-            // No imePadding here: with adjustNothing we let the keyboard overlay the
-            // content instead of compressing the column (which would squeeze the
-            // centered card and push the lower field out of view).
+            // No imePadding here: onboarding keeps a stable centered layout while
+            // the keyboard is open; chat and settings surfaces handle IME insets.
             Column(modifier = Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
 
                 // Skip button
