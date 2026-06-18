@@ -70,6 +70,7 @@ fun SettingsWebSearchPage(viewModel: ChatViewModel, onBack: () -> Unit) {
                                         "searxng" -> stringResource(R.string.web_search_searxng)
                                         "serper" -> stringResource(R.string.web_search_serper)
                                         "tavily" -> stringResource(R.string.web_search_tavily)
+                                        "duckduckgo" -> stringResource(R.string.web_search_duckduckgo)
                                         else -> stringResource(R.string.web_search_brave)
                                     }
                                 )
@@ -79,7 +80,7 @@ fun SettingsWebSearchPage(viewModel: ChatViewModel, onBack: () -> Unit) {
                         )
                     }
 
-                    if (webSearchProvider != "searxng") {
+                    if (webSearchProvider != "searxng" && webSearchProvider != "duckduckgo") {
                         add {
                             Column(
                                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 16.dp)
@@ -126,7 +127,7 @@ fun SettingsWebSearchPage(viewModel: ChatViewModel, onBack: () -> Unit) {
                                 }
                             }
                         }
-                    } else {
+                    } else if (webSearchProvider == "searxng") {
                         add {
                             Column(
                                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 16.dp)
@@ -231,7 +232,8 @@ fun SettingsWebSearchPage(viewModel: ChatViewModel, onBack: () -> Unit) {
                         "brave" to R.string.web_search_brave,
                         "serper" to R.string.web_search_serper,
                         "tavily" to R.string.web_search_tavily,
-                        "searxng" to R.string.web_search_searxng
+                        "searxng" to R.string.web_search_searxng,
+                        "duckduckgo" to R.string.web_search_duckduckgo
                     )
                     providers.forEach { (key, labelRes) ->
                         SettingsItem(
@@ -244,6 +246,7 @@ fun SettingsWebSearchPage(viewModel: ChatViewModel, onBack: () -> Unit) {
                                             "serper" -> R.string.web_search_serper_desc
                                             "tavily" -> R.string.web_search_tavily_desc
                                             "searxng" -> R.string.web_search_searxng_desc
+                                            "duckduckgo" -> R.string.web_search_duckduckgo_desc
                                             else -> R.string.web_search_brave_desc
                                         }
                                     )

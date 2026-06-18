@@ -262,10 +262,12 @@
     <string name="web_search_serper">Serper</string>
     <string name="web_search_tavily">Tavily</string>
     <string name="web_search_searxng">SearXNG</string>
+    <string name="web_search_duckduckgo">DuckDuckGo</string>
     <string name="web_search_brave_desc">注重隱私的搜尋 API。提供免費方案。</string>
     <string name="web_search_serper_desc">快速 Google 搜尋 API。每月 2,500 次免費查詢。</string>
     <string name="web_search_tavily_desc">面向 AI 優化的搜尋 API。專為 LLM 代理建置。</string>
     <string name="web_search_searxng_desc">自行託管元搜尋引擎。建議使用自己的執行個體。</string>
+    <string name="web_search_duckduckgo_desc">免費，無需 API Key。抓取 lite.duckduckgo.com。可能不穩定並觸發反爬保護。</string>
     <string name="web_search_select_provider">選擇搜尋服務商</string>
     <string name="web_search_brave_key">Brave 搜尋 API 金鑰</string>
     <string name="web_search_brave_key_hint">來自 brave.com/search/api/ 的 API 金鑰</string>

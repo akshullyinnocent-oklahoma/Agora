@@ -298,10 +298,12 @@
     <string name="web_search_serper">Serper</string>
     <string name="web_search_tavily">Tavily</string>
     <string name="web_search_searxng">SearXNG</string>
+    <string name="web_search_duckduckgo">DuckDuckGo</string>
     <string name="web_search_brave_desc">API de recherche axée sur la confidentialité. Offre gratuite disponible.</string>
     <string name="web_search_serper_desc">API Google Search rapide. 2 500 requêtes gratuites par mois.</string>
     <string name="web_search_tavily_desc">API de recherche optimisée pour l\'IA. Conçue pour les agents LLM.</string>
     <string name="web_search_searxng_desc">Moteur de métarecherche auto-hébergé. À utiliser de préférence avec votre propre instance.</string>
+    <string name="web_search_duckduckgo_desc">Gratuit, sans clé API. Scraping de lite.duckduckgo.com. Peut être instable et déclencher une protection anti-bot.</string>
     <string name="web_search_select_provider">Sélectionner un fournisseur de recherche</string>
     <string name="web_search_brave_key">Clé d\'API Brave Search</string>
     <string name="web_search_brave_key_hint">Clé d\'API depuis brave.com/search/api/</string>

@@ -298,10 +298,12 @@
     <string name="web_search_serper">Serper</string>
     <string name="web_search_tavily">Tavily</string>
     <string name="web_search_searxng">SearXNG</string>
+    <string name="web_search_duckduckgo">DuckDuckGo</string>
     <string name="web_search_brave_desc">API поиска с упором на конфиденциальность. Доступен бесплатный тариф.</string>
     <string name="web_search_serper_desc">Быстрый API Google Search. 2 500 бесплатных запросов в месяц.</string>
     <string name="web_search_tavily_desc">API поиска, оптимизированный для ИИ. Создан для LLM-агентов.</string>
     <string name="web_search_searxng_desc">Самостоятельно размещаемый метапоисковик. Лучше использовать со своим экземпляром.</string>
+    <string name="web_search_duckduckgo_desc">Бесплатно, без API-ключа. Веб-скрапинг lite.duckduckgo.com. Может быть нестабильным и вызывать защиту от ботов.</string>
     <string name="web_search_select_provider">Выбрать провайдера поиска</string>
     <string name="web_search_brave_key">API-ключ Brave Search</string>
     <string name="web_search_brave_key_hint">API-ключ с brave.com/search/api/</string>

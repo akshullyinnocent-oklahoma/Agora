@@ -429,7 +429,7 @@ class ChatViewModel(
     }
     val appLanguage = settingsManager.appLanguage.stateIn(viewModelScope, SharingStarted.Eagerly, "system")
     val webSearchEnabled = settingsManager.webSearchEnabled.stateIn(viewModelScope, SharingStarted.Eagerly, false)
-    val webSearchProvider = settingsManager.webSearchProvider.stateIn(viewModelScope, SharingStarted.Eagerly, "brave")
+    val webSearchProvider = settingsManager.webSearchProvider.stateIn(viewModelScope, SharingStarted.Eagerly, "duckduckgo")
     val webSearchApiKeys = settingsManager.webSearchApiKeys.stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
     val webSearchNumResults = settingsManager.webSearchNumResults.stateIn(viewModelScope, SharingStarted.Eagerly, 5)
     val webSearchBaseUrl = settingsManager.webSearchBaseUrl.stateIn(viewModelScope, SharingStarted.Eagerly, "")

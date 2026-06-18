@@ -84,7 +84,7 @@ data class GenerationContext(
     val searchContextWindow: Int = 8,
     val webSearchEnabled: Boolean = false,
     val webSearchApiKeys: Map<String, String> = emptyMap(),
-    val webSearchProvider: String = "brave",
+    val webSearchProvider: String = "duckduckgo",
     val webSearchNumResults: Int = 5,
     val webSearchBaseUrl: String = "",
     val imageGenEnabled: Boolean = false,

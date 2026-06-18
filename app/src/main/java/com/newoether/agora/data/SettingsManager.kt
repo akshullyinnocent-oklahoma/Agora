@@ -259,7 +259,7 @@ class SettingsManager(private val context: Context) {
 
     val appLanguage: Flow<String> = context.dataStore.data.map { it[APP_LANGUAGE] ?: "system" }
     val webSearchEnabled: Flow<Boolean> = context.dataStore.data.map { it[WEB_SEARCH_ENABLED] ?: true }
-    val webSearchProvider: Flow<String> = context.dataStore.data.map { it[WEB_SEARCH_PROVIDER] ?: "brave" }
+    val webSearchProvider: Flow<String> = context.dataStore.data.map { it[WEB_SEARCH_PROVIDER] ?: "duckduckgo" }
     val webSearchApiKeys: Flow<Map<String, String>> = context.dataStore.data.map { pref ->
         val jsonStr = com.newoether.agora.util.SecretCrypto.decrypt(pref[WEB_SEARCH_API_KEYS_JSON] ?: "{}")
         try { json.decodeFromString<Map<String, String>>(jsonStr) } catch (e: Exception) { DebugLog.e("SettingsManager", "Failed to decode webSearchApiKeys", e); emptyMap() }

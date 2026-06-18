@@ -298,10 +298,12 @@
     <string name="web_search_serper">Serper</string>
     <string name="web_search_tavily">Tavily</string>
     <string name="web_search_searxng">SearXNG</string>
+    <string name="web_search_duckduckgo">DuckDuckGo</string>
     <string name="web_search_brave_desc">개인정보 보호 중심 검색 API. 무료 등급 제공.</string>
     <string name="web_search_serper_desc">빠른 Google 검색 API. 월 2,500회 무료 쿼리.</string>
     <string name="web_search_tavily_desc">AI에 최적화된 검색 API. LLM 에이전트용으로 제작.</string>
     <string name="web_search_searxng_desc">자체 호스팅 메타 검색 엔진. 자체 인스턴스에서 사용하는 것이 가장 좋습니다.</string>
+    <string name="web_search_duckduckgo_desc">무료, API 키 불필요. lite.duckduckgo.com 스크래핑. 불안정할 수 있으며 봇 보호가 작동할 수 있습니다.</string>
     <string name="web_search_select_provider">검색 제공자 선택</string>
     <string name="web_search_brave_key">Brave Search API 키</string>
     <string name="web_search_brave_key_hint">brave.com/search/api/의 API 키</string>

@@ -1,5 +1,6 @@
 package com.newoether.agora.tool
 
+import com.newoether.agora.api.DuckDuckGoScraper
 import com.newoether.agora.api.HttpClient
 import com.newoether.agora.api.ToolDefinition
 import com.newoether.agora.api.ToolFunction
@@ -64,6 +65,37 @@ class WebSearchToolProvider : ToolProvider {
         val numResults = ((args["num_results"] as? JsonPrimitive)?.content?.toIntOrNull() ?: ctx.webSearchNumResults).coerceIn(1, 10)
 
         return try {
+            // DuckDuckGo is a scraper, not an API — handle it separately.
+            if (ctx.webSearchProvider == "duckduckgo") {
+                val scraper = DuckDuckGoScraper()
+                return when (val r = scraper.search(query, numResults)) {
+                    is DuckDuckGoScraper.SearchResponse.Success -> {
+                        val rawResults = buildJsonArray {
+                            r.results.forEach { result ->
+                                add(buildJsonObject {
+                                    put("title", result.title)
+                                    put("url", result.url)
+                                    put("description", result.snippet)
+                                })
+                            }
+                        }
+                        buildJsonObject {
+                            put("type", "web_search")
+                            put("query", query)
+                            put("results", rawResults)
+                        }.toString()
+                    }
+                    is DuckDuckGoScraper.SearchResponse.Error -> {
+                        buildJsonObject {
+                            put("type", "web_search")
+                            put("query", query)
+                            put("error", r.type.name.lowercase())
+                            put("message", r.message)
+                        }.toString()
+                    }
+                }
+            }
+
             val apiKey = ctx.webSearchApiKeys[ctx.webSearchProvider].orEmpty()
             if (ctx.webSearchProvider != "searxng" && apiKey.isBlank()) {
                 return buildJsonObject { put("type", "web_search"); put("query", query); put("error", "no_api_key") }.toString()
