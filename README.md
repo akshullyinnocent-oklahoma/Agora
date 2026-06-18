@@ -24,7 +24,6 @@
 - **F-Droid (Recommended)** — Install via [F-Droid](https://f-droid.org/), search for **Agora**.
 - **Google Play** — Install from [Google Play Store](https://play.google.com/store/apps/details?id=com.newoether.agora).
 - **GitHub Releases** — Download the latest `.apk` from the [Releases page](https://github.com/newo-ether/Agora/releases).
-- **GitHub Releases** — Download the latest `.apk` from the [Releases page](https://github.com/newo-ether/Agora/releases).
 - **Build from Source** — Clone and build with Android Studio (see [Getting Started](#getting-started)).
 
 ---
@@ -58,8 +57,9 @@
 - Per-provider base URL override for proxies and self-hosted endpoints
 
 ### Agentic Tools
-- **Web Search** — Brave, Serper, Tavily, and SearXNG integration
-- **Code Execution** — Gemini code execution for running and testing code inline
+- **Web Search** — DuckDuckGo Lite (anonymous, no key), Brave, Serper, Tavily, and SearXNG integration
+- **Code Execution** — Gemini code execution for running and testing code inline; Alpine Linux sandbox via PRoot with SAF file access
+- **Image Generation** — BYOK text-to-image via OpenAI-compatible `/v1/images/generations`, rendered inline in chat
 - **Remote Shell & File I/O** — Execute commands, read/write/edit/glob/grep files on remote servers via [Conch](https://github.com/newo-ether/conch)
 - **Memory** — Persistent active memory and saved memory files across conversations
 - **Conversation Search** — RAG-powered semantic search over chat history
@@ -90,6 +90,7 @@
 ### Data Portability
 - **.agora Export/Import:** Conversations, memories, prompts, settings, and API keys in one portable file
 - **Merge, Replace, and Skip** import strategies
+- **Auto Backup** — periodic WorkManager-based backup with configurable period, categories, and retention
 - **Third-Party Import:** Claude and ChatGPT export formats (.zip / .json)
 - API key safety warnings for both export and import workflows
 
@@ -106,10 +107,13 @@
 - Light / Dark / System theme modes with configurable color schemes
 - **Non-linear branching:** Edit any past message and branch into alternative conversation paths
 - Real-time streaming with message anchoring and animated auto-scrolling
+- Haptic feedback throughout the UI (long-press, selection, success/error)
 - Immersive gesture-driven image and media viewer
 - Markdown rendering with syntax highlighting, LaTeX math, and code blocks
 - Image, video, PDF, and file attachment support with thumbnails
-- English and Chinese language support
+- iOS-style collapsing large-title in settings with shared page transition animations
+- Blur effects with configurable performance toggle
+- English, Chinese, and Traditional Chinese language support
 
 ## Documentation
 

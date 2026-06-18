@@ -8,20 +8,20 @@
 │  ChatApp → MessageList → MessageItem (+ RecomposeSafeMd)     │
 │          → ChatBottomBar (+ AdvancedSettingsDialog)           │
 │          → FullScreenMediaViewer / ZoomableImageItem          │
-│          → SettingsScreen (tabs → 16 sub-pages)               │
+│          → SettingsScreen (tabs → 22 sub-pages)               │
+│          → SettingsScaffold (collapsing large-title pattern)  │
 ├──────────────────────────────────────────────────────────────┤
 │  ViewModel Layer                                              │
-│  ChatViewModel (central orchestrator, ~2266 lines)            │
+│  ChatViewModel (central orchestrator, ~2300 lines)            │
 │  ├─ ConversationManager (tree traversal, branch switching)    │
-│  ├─ GenerationManager (LLM calls, tool loop, ~1027 lines)     │
+│  ├─ GenerationManager (LLM calls, tool loop, ~1050 lines)     │
 │  ├─ TranscriptionManager (image→text for blind providers)     │
 │  ├─ RagManager (semantic/keyword search over messages)        │
-│  ├─ ModelSyncManager (provider model list fetching)           │
-│  ├─ ImageProcessor (image decode, resize, compress)           │
+│  ├─ ImageProcessor (image decode, resize, compress, PDF)      │
 │  └─ delegate/SettingsDelegate (settings writes, ~700 lines)   │
 ├──────────────────────────────────────────────────────────────┤
 │  Tool Layer (pluggable tool providers)                        │
-│  ToolProvider interface → Memory / WebSearch / RAG / Shell   │
+│  ToolProvider → Memory / WebSearch / RAG / Shell / ImageGen  │
 ├──────────────────────────────────────────────────────────────┤
 │  Repository Layer                                             │
 │  ConversationRepository / SettingsRepository / MemoryRepository│
@@ -41,17 +41,24 @@
 │  Data Layer                                                   │
 │  Room DB v12 (conversations + messages + embeddings)          │
 │  DataStore (settings, API keys, model lists, theming)          │
-│  Filesystem (memory .md files, GGUF models)                   │
+│  Filesystem (memory .md files, GGUF models, sandbox rootfs)   │
 │  Export/Import (.agora, Claude, ChatGPT formats)               │
+│  AutoBackup (WorkManager periodic backup to .agora)           │
+├──────────────────────────────────────────────────────────────┤
+│  Sandbox Layer (SAF + proot)                                  │
+│  SandboxDocumentsProvider (Android Storage Access Framework)  │
+│  SandboxManager (proot lifecycle, Alpine rootfs)              │
+│  proot_jni.cpp (JNI bridge to PRoot chroot)                   │
 ├──────────────────────────────────────────────────────────────┤
 │  Shell Layer (Conch Protocol)                                 │
 │  ShellCrypto (ECDH + AES-256-GCM + HMAC-SHA256)              │
 │  ShellClient (remote command + file I/O, glob, grep)          │
 ├──────────────────────────────────────────────────────────────┤
 │  Native Layer (JNI via CMake)                                 │
-│  llama_chat_jni.cpp (chat generation)                         │
+│  llama_chat_jni.cpp (chat generation + modified-UTF-8 fix)    │
 │  llama_jni.cpp (embeddings)                                   │
-│  llama.cpp (git submodule under thirdparty/)                  │
+│  proot_jni.cpp (PRoot chroot sandbox)                         │
+│  llama.cpp + proot (git submodules under thirdparty/)         │
 └──────────────────────────────────────────────────────────────┘
 ```
 
@@ -61,7 +68,7 @@
 
 ## 2. DI Layer
 
-### AppContainer (`di/AppContainer.kt`, 44 lines)
+### AppContainer (`di/AppContainer.kt`, ~50 lines)
 
 Manual DI container created in `MainActivity`. Creates all shared dependencies once:
 
@@ -69,10 +76,13 @@ Manual DI container created in `MainActivity`. Creates all shared dependencies o
 AppContainer
 ├── settingsManager: SettingsManager
 ├── memoryManager: MemoryManager
+├── secretCrypto: SecretCrypto
 ├── database: ChatDatabase → chatDao: ChatDao
 ├── conversationRepository: ConversationRepository
 ├── settingsRepository: SettingsRepository
 ├── memoryRepository: MemoryRepository
+├── autoBackupManager: AutoBackupManager
+├── sandboxManagerFactory: SandboxManagerFactory
 └── chatViewModelFactory(): ChatViewModelFactory
 ```
 
@@ -206,11 +216,29 @@ Thread-safe via `@Synchronized`. Path traversal protected by canonical path chec
 
 **DataImporter** (530 lines) — imports `.agora` with three strategies: Merge, Replace, Skip.
 
+**ImportStreams** (data/ImportStreams.kt) — streaming chat import to avoid OOM on large files. Reads JSON incrementally rather than loading entire file into memory.
+
 **ExportExtraSettings** (117 lines) — extra metadata bundled with exports.
 
 **Third-party importers:**
 - `ClaudeChatImporter` (302 lines) — Claude `.zip` with conversations.json
 - `GptChatImporter` (423 lines) — ChatGPT `.zip` with conversations.json
+
+### 3f. Auto Backup (`data/AutoBackupManager.kt`)
+
+Manages periodic auto-backup of user data to `.agora` ZIP files:
+- **Mutex-guarded** — companion object Mutex ensures only one backup runs at a time across the process
+- **Selective categories** — conversations, memories, prompts, settings, API keys (user-configurable)
+- **Auto-delete policy** — configurable retention (keep last N backups)
+- **Custom directory** — user-specified backup directory
+- **Scheduling** — via `AutoBackupWorker` (WorkManager `CoroutineWorker`), configurable period (daily/weekly/monthly)
+- **Settings** — 7 preference keys in `SettingsManager` for backup configuration
+
+### 3g. System Prompt System
+
+**BuiltInPrompts** (`data/BuiltInPrompts.kt`) — built-in prompt templates shipped with the app. 4 categories (General, Coding, Creative, Analysis) with editable defaults.
+
+**DefaultSystemPrompt** (`data/DefaultSystemPrompt.kt`) — the app's default system prompt. Uses variable substitution (`{sent_time}`, `{sent_date}`, `{current_date}`).
 
 ---
 
@@ -331,9 +359,10 @@ interface ToolProvider {
 | Provider | Lines | Tools |
 |---|---|---|
 | `MemoryToolProvider` | 221 | `list_memory_files`, `read_memory_file`, `create_memory_file`, `edit_memory_file`, `delete_memory_file`, `update_active_memory` |
-| `WebSearchToolProvider` | 193 | `web_search`, `web_fetch` (Brave, Serper, Tavily, SearXNG) |
+| `WebSearchToolProvider` | 193 | `web_search`, `web_fetch` (Brave, Serper, Tavily, SearXNG, DuckDuckGo Lite) |
 | `RagToolProvider` | 61 | `search_conversations` (semantic + keyword search) |
 | `ShellToolProvider` | 431 | `execute_shell_command`, `list_shells`, plus remote file I/O (read/write/edit/glob/grep) |
+| `ImageGenToolProvider` | 121 | `generate_image` (prompt, size) → OpenAI-compatible `/v1/images/generations` BYOK, renders inline |
 
 `GenerationManager` collects tool providers in `buildToolProviders()`, calls `definitions(ctx)` on each to build the full tool list, and dispatches tool execution to the matching provider via `handles()` + `execute()`.
 
@@ -426,8 +455,9 @@ Structured error type for generation failures with provider attribution.
 | Service | Lines | Purpose |
 |---|---|---|
 | `AgoraForegroundService` | 120 | Foreground notification keeps process alive during LLM generation |
-| `AppForegroundTracker` | 5 | App lifecycle monitoring stub |
+| `AutoBackupWorker` | 89 | WorkManager `CoroutineWorker` — periodic auto-backup of conversations/memories/prompts/settings to `.agora` ZIP. Configurable period, categories, and auto-delete policy. Uses `AutoBackupManager` mutex for cross-instance safety |
 | `EmbeddingCacheWorker` | 154 | WorkManager worker — survives process death during embedding cache operations. Reports progress via `setProgress` |
+| `AppForegroundTracker` | 5 | App lifecycle monitoring stub |
 
 ---
 
@@ -453,16 +483,53 @@ HTTP client for Conch servers:
 
 ---
 
-## 10. The Native Layer (JNI)
+## 10. The Sandbox Layer (SAF + proot)
 
-### 10a. Build System (`app/src/main/cpp/CMakeLists.txt`)
+### 10a. SandboxManager (`sandbox/SandboxManager.kt`, ~200 lines)
+
+Manages a PRoot-based Alpine Linux sandbox for code execution:
+
+- **Rootfs lifecycle** — extracts Alpine Linux rootfs tarball (downloaded at build time via `build:`) into app-private storage on first use
+- **proot invocation** — launches `proot` binary via JNI, chroot into Alpine rootfs
+- **Package management** — `apk add/remove` via the Alpine package manager
+- **VPN warning** — detects VPN/tun interfaces that conflict with proot's networking (the rootfs bind-mount gets blocked), shows warning dialog
+- **Dashboard** — web-based sandbox status and package management UI
+- **Reset** — wipe and re-extract the rootfs
+
+### 10b. SandboxManagerFactory (`sandbox/SandboxManagerFactory.kt`)
+
+Creates `SandboxManager` instances scoped to a filesDir root. Injected via `AppContainer`.
+
+### 10c. SandboxDocumentsProvider (`sandbox/SandboxDocumentsProvider.kt`)
+
+Android **Storage Access Framework (SAF) DocumentsProvider** that exposes the sandbox rootfs filesystem to other apps. Declared in the manifest with a custom authority. Supports:
+- **Root home** — SAF root defaults to `/root` inside the sandbox for intuitive navigation
+- **File operations** — open, create, delete, rename, query child documents
+- **MIME type detection** — based on file extension
+
+### 10d. Proot JNI (`cpp/proot_jni.cpp`, ~65 lines)
+
+JNI bridge to the PRoot binary (built from `thirdparty/proot` git submodule via GNUmakefile):
+
+| JNI Function | Purpose |
+|---|---|
+| `nativeProotExec` | Executes a command inside the PRoot chroot environment |
+| `nativeProotVersion` | Returns PRoot version string |
+
+PRoot is compiled as a static binary (no external dependencies besides libc). The build produces `libagora_proot.so` which bundles the proot code.
+
+---
+
+## 11. The Native Layer (JNI — llama.cpp)
+
+### 11a. Build System (`app/src/main/cpp/CMakeLists.txt`)
 
 - llama.cpp built as static library from `thirdparty/llama.cpp` (git submodule)
 - JNI wrapper built as shared library `agora_llama`
 - C++17, arm64-v8a only, links `llama` + `log`
 - GGML_OPENMP forced OFF for Android compatibility
 
-### 10b. Chat JNI (`llama_chat_jni.cpp`, ~370 lines)
+### 11b. Chat JNI (`llama_chat_jni.cpp`, ~370 lines)
 
 Wraps llama.cpp chat generation:
 
@@ -478,7 +545,7 @@ Wraps llama.cpp chat generation:
 
 Sampler chain: `min_p(0.05) → top_p(configurable) → temp(configurable) → dist(seed)`
 
-### 10c. Embedding JNI (`llama_jni.cpp`, ~175 lines)
+### 11c. Embedding JNI (`llama_jni.cpp`, ~175 lines)
 
 | JNI Function | Purpose |
 |---|---|
@@ -487,7 +554,7 @@ Sampler chain: `min_p(0.05) → top_p(configurable) → temp(configurable) → d
 | `nativeComputeEmbedding` | Tokenizes, creates batch manually, calls `llama_encode`/`llama_decode`, returns pooled embedding |
 | `nativeGetEmbeddingDim` | Returns `llama_model_n_embd_out()` |
 
-### 10d. Kotlin JNI Wrappers
+### 11d. Kotlin JNI Wrappers
 
 **LlamaEngine** (`api/LlamaEngine.kt`, 57 lines) — embedding singleton. Single and batch embedding methods. Batch loads once, computes all embeddings, frees once.
 
@@ -495,9 +562,9 @@ Sampler chain: `min_p(0.05) → top_p(configurable) → temp(configurable) → d
 
 ---
 
-## 11. The UI Layer
+## 12. The UI Layer
 
-### 11a. MainActivity (`MainActivity.kt`, 456 lines)
+### 12a. MainActivity (`MainActivity.kt`, 456 lines)
 
 Entry point. Handles:
 - Splash screen setup
@@ -505,7 +572,7 @@ Entry point. Handles:
 - Database version check (error dialog if stored version > current version)
 - Creates `AppContainer` (all DI), sets up Compose tree: `AgoraTheme` → `MainNavigation`
 
-### 11b. ChatApp (`ui/chat/ChatApp.kt`, 1194 lines)
+### 12b. ChatApp (`ui/chat/ChatApp.kt`, 1194 lines)
 
 Main screen:
 - **ModalNavigationDrawer** — chat history sidebar with new chat, conversation list (long-press rename/delete/generate title), settings button
@@ -515,11 +582,11 @@ Main screen:
 - **ChatBottomBar** — text input, image picker, model selector, tool toggles, send/stop
 - **FullScreenMediaViewer** — gesture-driven (pinch-zoom, pan, double-tap, fling, rubber-band)
 
-### 11c. MessageList (`ui/chat/MessageList.kt`, 119 lines)
+### 12c. MessageList (`ui/chat/MessageList.kt`, 119 lines)
 
 `LazyColumn` rendering each visible message as `MessageItem`. Computes context window boundaries for rollout visualization.
 
-### 11d. MessageItem (`ui/chat/MessageItem.kt`, 1717 lines)
+### 12d. MessageItem (`ui/chat/MessageItem.kt`, 1717 lines)
 
 Three visual modes:
 - **USER**: Right-aligned bubble with text, images/attachments, copy/edit/info, branch switcher
@@ -528,7 +595,7 @@ Three visual modes:
 
 Supports inline editing (triggers `editMessage()`), branch switching, streaming content with debounced re-rendering (~500ms).
 
-### 11e. ChatBottomBar (`ui/chat/ChatBottomBar.kt`, 1044 lines)
+### 12e. ChatBottomBar (`ui/chat/ChatBottomBar.kt`, 1044 lines)
 
 Input area with:
 - Expandable text field with custom scrollbar
@@ -539,12 +606,12 @@ Input area with:
 - Advanced settings dialog (per-conversation generation overrides)
 - Send FAB / Stop button
 
-### 11f. Media & Attachment Viewers
+### 12f. Media & Attachment Viewers
 
 | File | Lines | Purpose |
 |---|---|---|
 | `FullScreenMediaViewer` | 325 | Gesture media viewer (pinch-zoom, pan, double-tap, fling) |
-| `ZoomableImageItem` | 277 | Inline zoomable image |
+| `ZoomableImageItem` | 277 | Inline zoomable image with `ImageActions` (long-press save/share) |
 | `AttachmentThumbnail` | 186 | Thumbnail for non-image file attachments |
 | `VideoPlayer` | 228 | Embedded video playback |
 | `VideoSliceDialog` | 211 | Video frame selection |
@@ -552,42 +619,54 @@ Input area with:
 | `TextFileViewer` | 163 | Plain text file viewer |
 | `PdfPageRenderer` (`util/`) | 75 | PDF page to bitmap renderer |
 
-### 11g. Settings Screen (`ui/settings/SettingsScreen.kt`, 305 lines)
+### 12g. Settings Screen
 
-Main settings with tabs and sub-page navigation. Sub-pages:
+**SettingsScaffold** (`ui/settings/SettingsScaffold.kt`) — unified collapsing large-title scaffold used by all ~22 settings sub-pages. Two variants:
+- `CollapsingSettingsScaffold` — for `Column`-based pages
+- `CollapsingSettingsLazyScaffold` — for `LazyColumn`-based pages
+
+Both implement an iOS-style collapsing large-title pattern: the title shrinks and docks beside the back button as content scrolls, using a derived scroll fraction with eased scale/translation. Animation spec shared via `SettingsAnimations.kt` (spring + scale + fade page transitions).
+
+**SettingsScreen** (`ui/settings/SettingsScreen.kt`, 305 lines) — main settings with tabs and sub-page navigation. Sub-pages:
 
 | Page | Lines | Purpose |
 |---|---|---|
 | `SettingsProviderPage` | 187 | Provider list overview |
 | `SettingsProviderDetailPage` | 482 | API key CRUD, base URL per provider, custom providers, local GGUF management |
 | `SettingsModelsPage` | 351 | Default model selector, sync, expandable per-provider model lists |
-| `SettingsPromptsPage` | 190 | System prompt CRUD |
+| `SettingsPromptsPage` | 190 | System prompt CRUD with `PromptSettingControls` |
 | `SystemPromptEditorPage` | 478 | Full-page three-section editor (system + userPrepend + userPostpend) |
 | `SettingsMemoryPage` | 372 | Active memory + saved memory files CRUD |
 | `SettingsSearchPage` | 905 | RAG toggle, search method, embedding model management, RAG threshold, cache management |
-| `SettingsWebSearchPage` | 278 | Web search toggle, provider (Brave/Serper/Tavily/SearXNG), API key/URL |
+| `SettingsWebSearchPage` | 278 | Web search toggle, provider (DuckDuckGo Lite/Brave/Serper/Tavily/SearXNG), API key/URL |
 | `SettingsShellPage` | 314 | Conch shell device CRUD |
 | `SettingsTranscriptionPage` | 305 | Image transcription toggle, quality, model selection |
 | `SettingsGenerationPage` | 459 | Per-conversation generation defaults |
+| `SettingsImageGenPage` | 218 | Image generation toggle, model, size, BYOK key/URL |
+| `SettingsSandboxPage` | 180 | Alpine Linux sandbox management, package install, rootfs reset |
 | `SettingsTitleGenPage` | 139 | Auto-title toggle + model |
 | `SettingsLanguagePage` | 95 | Language selection |
-| `SettingsAppearancePage` | 226 | Theme mode, color scheme, dynamic color |
-| `SettingsDataControlPage` | 777 | Export/Import .agora, Claude/ChatGPT import |
+| `SettingsAppearancePage` | 226 | Theme mode, color scheme, dynamic color, blur effects toggle |
+| `SettingsDataControlPage` | 777 | Export/Import .agora, Claude/ChatGPT import, auto-backup config |
 | `SettingsClaudeImportPage` | 266 | Claude import wizard |
-| `SettingsAboutPage` | 200 | App version, licenses, update checker |
+| `SettingsAboutPage` | 200 | App version, licenses, update checker, crash log viewer |
 
-### 11h. UI Components
+### 12h. UI Components
 
 | File | Lines | Purpose |
 |---|---|---|
-| `LatexRenderer` | 293 | LaTeX math rendering via JLaTeXMath-Android. Also: `parseLatexSpans()`, `escapeDollarForMarkdown()` |
+| `LatexRenderer` | 293 | LaTeX math rendering via JLaTeXMath-Android. Also: `parseLatexSpans()`, `escapeDollarForMarkdown()` — robust inline math parsing with prose gate, escaped dollar, CJK veto |
 | `TypewriterText` | 73 | Streaming text animation |
 | `AnimatedBlobBackground` | 133 | Decorative animated gradient blobs |
+| `GradientBlur` (`util/`) | 38 | Compose blur effect with gradient mask |
+| `AgoraHaptics` (`ui/common/`) | 52 | Haptic feedback utility: long-press, selection, success/error patterns. Used in drawer, image viewer, message actions |
+| `ThinkingControlPanel` (`ui/common/`) | 215 | Reusable thinking level selector (low/medium/high) with per-model compatibility detection |
+| `PromptSettingControls` (`ui/settings/`) | 128 | Reusable prompt template controls for settings pages |
 | `RatingForm` | 218 | In-app rating/feedback |
-| `RecomposeSafeMarkdown` | 93 | Double-buffered crossfade Composable preventing flash during streaming AST re-parse |
+| `RecomposeSafeMarkdown` | 93 | Double-buffered crossfade Composable preventing flash during streaming AST re-parse. Debounced + effort/budget mutual exclusion |
 | `DocumentationFab` | 73 | FAB linking to documentation |
 
-### 11i. Theme (`ui/theme/`)
+### 12i. Theme (`ui/theme/`)
 
 | File | Lines | Purpose |
 |---|---|---|
@@ -597,7 +676,7 @@ Main settings with tabs and sub-page navigation. Sub-pages:
 
 ---
 
-## 12. Key Data Flows
+## 13. Key Data Flows
 
 ### Sending a message (end-to-end):
 
@@ -684,7 +763,7 @@ ORPHAN: deleteOrphanedEmbeddings() →
 
 ---
 
-## 13. Key Design Decisions
+## 14. Key Design Decisions
 
 - **No HTTP library wrapper** — OkHttp used directly. Connection pooling across all providers.
 - **ViewModel delegates to sub-managers** — ChatViewModel delegates to ConversationManager, SettingsDelegate, GenerationManager, TranscriptionManager, etc. Keeps each file focused.
@@ -692,24 +771,32 @@ ORPHAN: deleteOrphanedEmbeddings() →
 - **Repository layer** — thin wrappers around DAO/Manager, decouple ViewModel from storage.
 - **ToolProvider interface** — pluggable tool architecture. Each tool category is a self-contained provider.
 - **Message tree, not list** — `parentId` + `_selectedChildren` enables branching without data duplication.
-- **Tool calls are local** — model manipulates memory files, searches conversations (RAG), searches web (Brave/Serper/Tavily/SearXNG), controls remote machines (Conch), transcribes images.
+- **Tool calls are local** — model manipulates memory files, searches conversations (RAG), searches web (DuckDuckGo Lite/Brave/Serper/Tavily/SearXNG), controls remote machines (Conch), generates images (BYOK), transcribes images.
+- **Image generation is BYOK** — dedicated API key + base URL, decoupled from chat provider. Images render inline in chat + full-screen viewer.
 - **SSE streaming everywhere** — all providers stream via Server-Sent Events.
 - **Model IDs are prefixed** — format `ProviderName:model-id` (e.g. `OpenAI:gpt-4`). `ModelId` type provides canonical parsing.
 - **Custom providers** — user-defined OpenAI-compatible endpoints.
-- **llama.cpp as git submodule** — under `thirdparty/llama.cpp`, linked via CMake `add_subdirectory`.
-- **Separate JNI for embedding vs chat** — `llama_jni.cpp` for embeddings, `llama_chat_jni.cpp` for chat.
+- **DuckDuckGo Lite as default search** — anonymous, no-key web search provider; HTML scrape, best-effort.
+- **SAF DocumentsProvider for sandbox** — Android Storage Access Framework exposes sandbox rootfs to other apps; root home at `/root`.
+- **llama.cpp + proot as git submodules** — under `thirdparty/`, linked via CMake (`add_subdirectory`) and GNUmakefile respectively.
+- **Separate JNI for embedding vs chat vs sandbox** — `llama_jni.cpp` for embeddings, `llama_chat_jni.cpp` for chat, `proot_jni.cpp` for sandbox.
 - **Mutex-guarded engine lifecycle** — only one local model loaded at a time.
 - **On-device inference on IO dispatcher** — cancel support via volatile flag + abort callback.
 - **Foreground service** — keeps process alive during LLM generation.
-- **WorkManager for embedding cache** — survives process death during bulk caching.
+- **WorkManager for embedding cache + auto backup** — survives process death during bulk caching; periodic auto-backup with configurable period/categories/retention.
 - **Conch end-to-end encryption** — ECDH + AES-256-GCM + HMAC-SHA256, token bucket, nonce anti-replay.
+- **SecretCrypto for API key storage** — AES-256-GCM encrypted API keys with Android Keystore-backed key wrapping, TOFU (Trust On First Use) for SSH host keys.
 - **Selective data export** — user chooses categories, API key warnings.
 - **Three-section system prompts** — system + userPrepend + userPostpend with variable substitution.
 - **Transcription fallback** — in-house image→text pipeline for providers without native vision support.
+- **Collapsing large-title settings** — iOS-style unified scaffold across all ~22 settings sub-pages, derived scroll fraction with eased scale/translation, shared animation spec.
+- **Haptic feedback** — `AgoraHaptics` utility for long-press, selection, and success/error patterns throughout the UI.
+- **Streaming markdown optimization** — double-buffered crossfade (`RecomposeSafeMarkdown`), debounced recomposition, effort/budget mutual exclusion for LaTeX+markdown.
+- **Reproducible F-Droid builds** — via `build-fdroid.ps1` under Arch WSL; binary artifacts (proot/talloc .so, Alpine rootfs) built in `build:` step to avoid `scanignore`.
 
 ---
 
-## 14. File Index
+## 15. File Index
 
 ### API Layer (22 files)
 | File | Lines | Purpose |
@@ -735,43 +822,47 @@ ORPHAN: deleteOrphanedEmbeddings() →
 | `api/util/ThinkingParser.kt` | 145 | Structured thinking block parser |
 | `api/util/ToolMessages.kt` | 126 | Tool message construction helpers |
 
-### Tool Layer (5 files)
+### Tool Layer (6 files)
 | File | Lines | Purpose |
 |---|---|---|
 | `tool/ToolProvider.kt` | 18 | Interface for pluggable tool providers |
 | `tool/MemoryToolProvider.kt` | 221 | Memory file CRUD tools |
-| `tool/WebSearchToolProvider.kt` | 193 | Web search + fetch tools |
+| `tool/WebSearchToolProvider.kt` | 193 | Web search + fetch tools (DDG Lite, Brave, Serper, Tavily, SearXNG) |
 | `tool/RagToolProvider.kt` | 61 | Conversation search tool |
 | `tool/ShellToolProvider.kt` | 431 | Shell execution + remote file I/O tools |
+| `tool/ImageGenToolProvider.kt` | 121 | Image generation via BYOK `/v1/images/generations` |
 
-### ViewModel Layer (10 files)
+### ViewModel Layer (9 files)
 | File | Lines | Purpose |
 |---|---|---|
-| `viewmodel/ChatViewModel.kt` | 2266 | Central ViewModel (state + orchestration) |
-| `viewmodel/GenerationManager.kt` | 1027 | Generation engine (streaming, tools, RAG, shell) |
+| `viewmodel/ChatViewModel.kt` | ~2300 | Central ViewModel (state + orchestration) |
+| `viewmodel/GenerationManager.kt` | ~1050 | Generation engine (streaming, tools, RAG, shell, image gen) |
 | `viewmodel/ConversationManager.kt` | 120 | Tree traversal, branch switching |
 | `viewmodel/ConversationUiState.kt` | 56 | UI state data classes |
 | `viewmodel/delegate/SettingsDelegate.kt` | 364 | Settings writes extracted from ChatViewModel |
 | `viewmodel/TranscriptionManager.kt` | 191 | Image transcription for vision-blind providers |
 | `viewmodel/RagManager.kt` | 110 | Semantic + keyword search |
-| `viewmodel/ModelSyncManager.kt` | 64 | Provider model list fetching |
-| `viewmodel/ImageProcessor.kt` | 89 | Image decode, resize, compress |
+| `viewmodel/ImageProcessor.kt` | 89 | Image decode, resize, compress, video frames, PDF pages |
 | `viewmodel/ChatViewModelFactory.kt` | 23 | Manual DI factory |
 
-### Data Layer (13 files)
+### Data Layer (17 files)
 | File | Lines | Purpose |
 |---|---|---|
 | `data/local/ChatDatabase.kt` | 257 | Room DB v12, 10 migrations, ChatDao |
 | `data/SettingsManager.kt` | 463 | DataStore preferences (all settings) |
 | `data/MemoryManager.kt` | 162 | File-based persistent memory |
+| `data/AutoBackupManager.kt` | 280 | Periodic auto-backup engine |
 | `data/repository/ConversationRepository.kt` | 118 | ChatDao wrapper (CRUD, tree, branches) |
 | `data/repository/SettingsRepository.kt` | 142 | SettingsManager wrapper |
 | `data/repository/MemoryRepository.kt` | 29 | MemoryManager wrapper |
 | `data/DataExporter.kt` | 319 | .agora export with selective categories |
 | `data/DataImporter.kt` | 530 | .agora import (merge/replace/skip) |
+| `data/ImportStreams.kt` | 45 | Streaming JSON import to avoid OOM |
 | `data/ExportExtraSettings.kt` | 117 | Extra export metadata |
 | `data/ClaudeChatImporter.kt` | 302 | Claude export (.zip) import |
 | `data/GptChatImporter.kt` | 423 | ChatGPT export (.zip) import |
+| `data/BuiltInPrompts.kt` | 60 | Built-in prompt templates (4 categories) |
+| `data/DefaultSystemPrompt.kt` | 30 | Default system prompt with variables |
 | `data/EmbeddingIndexer.kt` | 28 | FloatArray↔ByteArray + cosine similarity |
 | `data/EmbeddingModelConfig.kt` | 15 | Embedding model config data class |
 | `data/LocalChatModelConfig.kt` | 15 | Local chat model config data class |
@@ -780,21 +871,30 @@ ORPHAN: deleteOrphanedEmbeddings() →
 ### DI Layer (1 file)
 | File | Lines | Purpose |
 |---|---|---|
-| `di/AppContainer.kt` | 44 | Manual DI container |
+| `di/AppContainer.kt` | ~50 | Manual DI container (includes SecretCrypto, AutoBackupManager, SandboxManagerFactory) |
 
-### Model Layer (3 files)
+### Model Layer (4 files)
 | File | Lines | Purpose |
 |---|---|---|
 | `model/ChatMessage.kt` | 54 | Core data classes |
 | `model/ModelId.kt` | 44 | Typed "Provider:modelId" wrapper |
+| `model/ThinkingControl.kt` | 20 | Thinking effort level + per-model compatibility |
 | `model/AttachmentMeta.kt` | 30 | Attachment metadata |
 
-### Service Layer (3 files)
+### Service Layer (4 files)
 | File | Lines | Purpose |
 |---|---|---|
 | `service/AgoraForegroundService.kt` | 120 | Foreground service for generation |
-| `service/AppForegroundTracker.kt` | 5 | Lifecycle monitoring stub |
+| `service/AutoBackupWorker.kt` | 89 | WorkManager CoroutineWorker for periodic auto-backup |
 | `service/EmbeddingCacheWorker.kt` | 154 | WorkManager worker for embedding cache |
+| `service/AppForegroundTracker.kt` | 5 | Lifecycle monitoring stub |
+
+### Sandbox Layer (3 files)
+| File | Lines | Purpose |
+|---|---|---|
+| `sandbox/SandboxManager.kt` | ~200 | PRoot Alpine Linux sandbox lifecycle + package management |
+| `sandbox/SandboxManagerFactory.kt` | 18 | SandboxManager factory per filesDir |
+| `sandbox/SandboxDocumentsProvider.kt` | ~180 | SAF DocumentsProvider for sandbox filesystem access |
 
 ### Shell Layer (2 files)
 | File | Lines | Purpose |
@@ -802,14 +902,15 @@ ORPHAN: deleteOrphanedEmbeddings() →
 | `util/ShellCrypto.kt` | 116 | ECDH + AES-256-GCM + HMAC-SHA256 |
 | `util/ShellClient.kt` | 277 | Conch protocol HTTP client |
 
-### Native Layer (3 files)
+### Native Layer (4 files)
 | File | Lines | Purpose |
 |---|---|---|
-| `cpp/llama_chat_jni.cpp` | 370 | Chat generation JNI |
+| `cpp/llama_chat_jni.cpp` | ~370 | Chat generation JNI (+ modified-UTF-8 fix) |
 | `cpp/llama_jni.cpp` | 175 | Embedding JNI |
-| `cpp/CMakeLists.txt` | 19 | CMake build config |
+| `cpp/proot_jni.cpp` | ~65 | PRoot chroot sandbox JNI |
+| `cpp/CMakeLists.txt` | 19 | CMake build config (agora_llama + agora_proot) |
 
-### UI Layer (30 files)
+### UI Layer (31 files)
 | File | Lines | Purpose |
 |---|---|---|
 | `MainActivity.kt` | 456 | Entry point, Compose tree, splash |
@@ -823,30 +924,38 @@ ORPHAN: deleteOrphanedEmbeddings() →
 | `ui/chat/VideoSliceDialog.kt` | 211 | Video frame selection |
 | `ui/chat/AttachmentThumbnail.kt` | 186 | Non-image attachment thumbnail |
 | `ui/chat/FullScreenMediaViewer.kt` | 325 | Gesture full-screen media viewer |
-| `ui/chat/ZoomableImageItem.kt` | 277 | Inline zoomable image |
+| `ui/chat/ZoomableImageItem.kt` | 277 | Inline zoomable image + ImageActions |
+| `ui/chat/ImageActions.kt` | 72 | Long-press save/share for images |
 | `ui/chat/PdfPageSelectDialog.kt` | 203 | PDF page selection |
 | `ui/chat/TextFileViewer.kt` | 163 | Text file viewer |
+| `ui/settings/SettingsScaffold.kt` | 180 | Collapsing large-title scaffold (2 variants) |
+| `ui/settings/SettingsAnimations.kt` | 40 | Shared page transition animation spec |
 | `ui/settings/SettingsScreen.kt` | 305 | Main settings with tabs |
 | `ui/settings/SettingsProviderPage.kt` | 187 | Provider list overview |
 | `ui/settings/SettingsProviderDetailPage.kt` | 482 | Provider detail + local models |
 | `ui/settings/SettingsModelsPage.kt` | 351 | Model selection |
 | `ui/settings/SettingsPromptsPage.kt` | 190 | System prompt CRUD |
+| `ui/settings/PromptSettingControls.kt` | 128 | Reusable prompt controls |
 | `ui/settings/SystemPromptEditorPage.kt` | 478 | Full-page three-section editor |
 | `ui/settings/SettingsMemoryPage.kt` | 372 | Memory management |
 | `ui/settings/SettingsSearchPage.kt` | 905 | Search + embedding settings |
 | `ui/settings/SettingsWebSearchPage.kt` | 278 | Web search settings |
 | `ui/settings/SettingsShellPage.kt` | 314 | Conch shell device management |
 | `ui/settings/SettingsTranscriptionPage.kt` | 305 | Image transcription settings |
+| `ui/settings/SettingsImageGenPage.kt` | 218 | Image generation settings |
+| `ui/settings/SettingsSandboxPage.kt` | 180 | Alpine Linux sandbox management |
 | `ui/settings/SettingsGenerationPage.kt` | 459 | Per-conversation defaults |
 | `ui/settings/SettingsTitleGenPage.kt` | 139 | Title generation settings |
 | `ui/settings/SettingsLanguagePage.kt` | 95 | Language selection |
-| `ui/settings/SettingsAppearancePage.kt` | 226 | Theme mode, color scheme |
-| `ui/settings/SettingsDataControlPage.kt` | 777 | Export/Import data |
+| `ui/settings/SettingsAppearancePage.kt` | 226 | Theme mode, color scheme, blur toggle |
+| `ui/settings/SettingsDataControlPage.kt` | 777 | Export/Import + auto-backup config |
 | `ui/settings/SettingsClaudeImportPage.kt` | 266 | Claude import wizard |
-| `ui/settings/SettingsAboutPage.kt` | 200 | Version, licenses, updates |
+| `ui/settings/SettingsAboutPage.kt` | 200 | Version, licenses, updates, crash log |
 | `ui/settings/DocumentationFab.kt` | 73 | Documentation FAB |
 | `ui/settings/RatingForm.kt` | 218 | In-app rating form |
 | `ui/onboarding/WelcomeScreen.kt` | 616 | Welcome/onboarding |
+| `ui/common/ThinkingControlPanel.kt` | 215 | Thinking level selector |
+| `ui/common/AgoraHaptics.kt` | 52 | Haptic feedback utility |
 | `ui/components/LatexRenderer.kt` | 293 | LaTeX math + dollar escaping |
 | `ui/components/TypewriterText.kt` | 73 | Streaming text animation |
 | `ui/components/AnimatedBlobBackground.kt` | 133 | Animated gradient blobs |
@@ -854,16 +963,20 @@ ORPHAN: deleteOrphanedEmbeddings() →
 | `ui/theme/Theme.kt` | 39 | Agora theme |
 | `ui/theme/Type.kt` | 129 | Typography + MonoFamily |
 
-### Utilities (9 files)
+### Utilities (13 files)
 | File | Lines | Purpose |
 |---|---|---|
 | `util/Constants.kt` | 14 | Message prefix constants |
 | `util/SearchResultFormatter.kt` | 174 | Web result formatting |
 | `util/SnackbarEvent.kt` | 6 | Snackbar event type |
+| `util/SecretCrypto.kt` | 82 | AES-256-GCM API key encryption with Keystore wrapping |
 | `util/ShellCrypto.kt` | 116 | Conch encryption |
 | `util/ShellClient.kt` | 277 | Conch HTTP client |
+| `util/SshClient.kt` | 95 | SSH client with TOFU host key verification |
+| `util/CrashReporter.kt` | 70 | Crash report capture + upload to newoether.space |
 | `util/FileValidator.kt` | 83 | File import validation |
 | `util/UpdateChecker.kt` | 71 | GitHub releases update checker |
 | `util/DebugLog.kt` | 18 | Debug logging utility |
 | `util/PdfPageRenderer.kt` | 75 | PDF page to bitmap renderer |
+| `util/GradientBlur.kt` | 38 | Compose blur with gradient mask |
 | `util/NoOpBringIntoView.kt` | 21 | Compose bring-into-view workaround |
