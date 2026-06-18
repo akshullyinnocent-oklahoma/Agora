@@ -14,8 +14,12 @@ class MemoryRepository(
 ) {
     fun getActiveMemory(): String = memoryManager.getActiveMemory()
 
-    fun updateActiveMemory(content: String, mode: String = "replace"): String =
-        memoryManager.updateActiveMemory(content, mode)
+    fun updateActiveMemory(
+        content: String,
+        mode: String = "replace",
+        oldString: String? = null,
+        newString: String? = null
+    ): String = memoryManager.updateActiveMemory(content, mode, oldString, newString)
 
     fun listFiles(): List<MemoryManager.MemoryFileInfo> = memoryManager.listFiles()
 

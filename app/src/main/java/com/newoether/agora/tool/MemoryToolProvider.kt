@@ -113,13 +113,21 @@ class MemoryToolProvider(
                 ToolDefinition(
                     function = ToolFunction(
                         name = "update_active_memory",
-                        description = "Update the active memory context. Use 'replace' to overwrite, 'append' to add to the end, or 'prepend' to add to the beginning.",
+                        description = "Update the active memory context. Modes: 'replace' (overwrite with 'content'), 'append' (add 'content' to end), 'prepend' (add 'content' to beginning), 'patch' (find 'old_string' exactly once and replace with 'new_string'). Default is replace.",
                         parameters = ToolParameters(
                             properties = mapOf(
-                                "content" to ToolProperty("string", "The content to write."),
+                                "content" to ToolProperty("string", "The content to write (for replace/append/prepend modes)."),
                                 "mode" to ToolProperty(
                                     "string",
-                                    "One of: replace, append, prepend. Default is replace."
+                                    "One of: replace, append, prepend, patch. Default is replace."
+                                ),
+                                "old_string" to ToolProperty(
+                                    "string",
+                                    "Exact string to find and replace in the active memory. Required for patch mode. Must match exactly once."
+                                ),
+                                "new_string" to ToolProperty(
+                                    "string",
+                                    "Replacement string for old_string in patch mode. Pass empty string to delete the matched text."
                                 )
                             ),
                             required = listOf("content")
@@ -215,7 +223,13 @@ class MemoryToolProvider(
 
             "update_active_memory" -> {
                 val mode = arg("mode").ifBlank { "replace" }
-                memoryManager.updateActiveMemory(arg("content"), mode)
+                val oldStr = arg("old_string").ifBlank { null }
+                val newStr = arg("new_string").ifBlank { null }
+                if (mode == "patch" && oldStr == null) {
+                    "Error: 'old_string' is required for patch mode."
+                } else {
+                    memoryManager.updateActiveMemory(arg("content"), mode, oldStr, newStr)
+                }
             }
 
             else -> "Unknown tool: $name"

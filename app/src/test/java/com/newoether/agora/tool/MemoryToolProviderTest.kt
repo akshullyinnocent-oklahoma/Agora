@@ -5,6 +5,7 @@ import com.newoether.agora.viewmodel.GenerationContext
 import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.verify
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.*
 import org.junit.Test
@@ -20,7 +21,7 @@ class MemoryToolProviderTest {
         coEvery { createFile(any(), any(), any()) } returns "Created"
         coEvery { editFile(any(), any(), any(), any(), any(), any()) } returns "Edited"
         coEvery { deleteFile(any()) } returns "Deleted"
-        coEvery { updateActiveMemory(any(), any()) } returns "Updated"
+        coEvery { updateActiveMemory(any(), any(), any(), any()) } returns "Updated"
     }
 
     private val provider = MemoryToolProvider(memoryManager)
@@ -85,6 +86,17 @@ class MemoryToolProviderTest {
     fun execute_createMemoryFile() = runTest {
         val result = provider.execute("create_memory_file", """{"name":"new.md","content":"hello"}""", ctx)
         assertEquals("Created", result)
+    }
+
+    @Test
+    fun execute_updateActiveMemory_patch() = runTest {
+        val result = provider.execute(
+            "update_active_memory",
+            """{"content":"placeholder","mode":"patch","old_string":"foo","new_string":"bar"}""",
+            ctx
+        )
+        assertEquals("Updated", result)
+        verify { memoryManager.updateActiveMemory("placeholder", "patch", "foo", "bar") }
     }
 
     @Test

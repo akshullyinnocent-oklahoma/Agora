@@ -27,7 +27,12 @@ class MemoryManager(context: Context) {
         if (activeMemoryFile.exists()) activeMemoryFile.readText() else ""
 
     @Synchronized
-    fun updateActiveMemory(content: String, mode: String = "replace"): String =
+    fun updateActiveMemory(
+        content: String,
+        mode: String = "replace",
+        oldString: String? = null,
+        newString: String? = null
+    ): String =
         when (mode) {
             "append" -> {
                 activeMemoryFile.appendText("\n$content")
@@ -37,6 +42,17 @@ class MemoryManager(context: Context) {
                 val existing = getActiveMemory()
                 activeMemoryFile.writeText("$content\n$existing")
                 "Prepended to active memory."
+            }
+            "patch" -> {
+                if (oldString == null) throw IllegalArgumentException("old_string is required for patch mode")
+                val existing = getActiveMemory()
+                val count = existing.countOccurrences(oldString)
+                if (count == 0)
+                    throw IllegalArgumentException("old_string not found in active memory")
+                if (count > 1)
+                    throw IllegalArgumentException("old_string matches $count times in active memory — must be unique")
+                activeMemoryFile.writeText(existing.replace(oldString, newString ?: ""))
+                "Active memory patched."
             }
             else -> {
                 activeMemoryFile.writeText(content)
