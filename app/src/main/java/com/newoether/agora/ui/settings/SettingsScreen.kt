@@ -191,7 +191,7 @@ fun SettingsScreen(viewModel: ChatViewModel, onBack: () -> Unit) {
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        AnimatedContent(
+        GuardedAnimatedContent(
             targetState = selectedCategory,
             transitionSpec = {
                 settingsContentTransform(forward = targetState != null)

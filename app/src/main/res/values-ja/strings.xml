@@ -426,6 +426,9 @@
     <string name="sandbox_snackbar_install_failed">%s のインストールに失敗しました</string>
     <string name="sandbox_snackbar_removed">%s を削除しました</string>
     <string name="sandbox_snackbar_remove_failed">%s の削除に失敗しました</string>
+    <string name="sandbox_snackbar_upgrade_done">%d 個のパッケージをアップグレードしました</string>
+    <string name="sandbox_snackbar_upgrade_none">パッケージは既に最新です</string>
+    <string name="sandbox_snackbar_upgrade_failed">アップグレードに失敗しました</string>
     <string name="sandbox_snackbar_reset">サンドボックスをリセットしました</string>
     <string name="sandbox_snackbar_reset_failed">リセットに失敗しました</string>
     <string name="sandbox_snackbar_error">エラー: %s</string>
@@ -446,6 +449,9 @@
     <string name="sandbox_manage_desc">パッケージのインストール、設定、またはリセット</string>
     <string name="sandbox_package_placeholder">python3, git, curl...</string>
     <string name="sandbox_installed_fmt">インストール済みパッケージ（%d）</string>
+    <string name="sandbox_upgrade">アップグレード</string>
+    <string name="sandbox_browse_files">ファイルを閲覧</string>
+    <string name="sandbox_browse_files_desc">システムのファイルマネージャーでサンドボックスディレクトリを開く</string>
 
     <!-- Settings - Title Generation -->
     <string name="title_gen_auto">タイトルを自動生成</string>

@@ -426,6 +426,9 @@
     <string name="sandbox_snackbar_install_failed">%s 설치 실패</string>
     <string name="sandbox_snackbar_removed">%s 제거됨</string>
     <string name="sandbox_snackbar_remove_failed">%s 제거 실패</string>
+    <string name="sandbox_snackbar_upgrade_done">%d개 패키지 업그레이드됨</string>
+    <string name="sandbox_snackbar_upgrade_none">패키지가 이미 최신 상태임</string>
+    <string name="sandbox_snackbar_upgrade_failed">업그레이드 실패</string>
     <string name="sandbox_snackbar_reset">샌드박스가 재설정됨</string>
     <string name="sandbox_snackbar_reset_failed">재설정 실패</string>
     <string name="sandbox_snackbar_error">오류: %s</string>
@@ -446,6 +449,9 @@
     <string name="sandbox_manage_desc">패키지 설치, 구성 또는 재설정</string>
     <string name="sandbox_package_placeholder">python3, git, curl...</string>
     <string name="sandbox_installed_fmt">설치된 패키지(%d)</string>
+    <string name="sandbox_upgrade">업그레이드</string>
+    <string name="sandbox_browse_files">파일 찾아보기</string>
+    <string name="sandbox_browse_files_desc">시스템 파일 관리자에서 샌드박스 디렉토리 열기</string>
 
     <!-- Settings - Title Generation -->
     <string name="title_gen_auto">제목 자동 생성</string>

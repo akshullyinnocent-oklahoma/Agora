@@ -1,5 +1,6 @@
 package com.newoether.agora.ui.settings
 
+import android.util.Log
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateColorAsState
@@ -42,6 +43,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.newoether.agora.R
+import com.newoether.agora.sandbox.openSandboxHome
 import com.newoether.agora.sandbox.SandboxManager
 import kotlinx.coroutines.launch
 
@@ -52,9 +54,8 @@ fun SettingsSandboxPage(sandboxManager: SandboxManager, onBack: () -> Unit, show
     val listState = androidx.compose.foundation.lazy.rememberLazyListState()
     val ctx = androidx.compose.ui.platform.LocalContext.current
 
-    // Core state
-    var available by remember { mutableStateOf(false) }
-    var checking by remember { mutableStateOf(true) }
+    // Core state — use fast sync check for instant first paint, confirm async
+    var available by remember { mutableStateOf(sandboxManager.isAvailableSync()) }
     var backendPackagesLoading by remember { mutableStateOf(false) }
     var attemptedInstall by remember { mutableStateOf(false) } // set when user taps Install (this session)
     var installError by remember { mutableStateOf<String?>(null) }
@@ -80,13 +81,18 @@ fun SettingsSandboxPage(sandboxManager: SandboxManager, onBack: () -> Unit, show
         installPkg = name; lastInstallResult = null; sandboxManager.installPackage(name)
     }
 
+    fun upgradePackages() {
+        if (isBusy) return
+        lastInstallResult = null
+        sandboxManager.upgradePackages()
+    }
+
     LaunchedEffect(Unit) {
-        checking = true
         try {
-            available = sandboxManager.isAvailable()
+            val confirmed = sandboxManager.isAvailable()
+            if (available != confirmed) available = confirmed
             if (available) sandboxManager.refreshPackageList()
         } catch (_: Exception) {}
-        checking = false
     }
 
     // When a user-initiated rootfs install finishes, re-check availability and surface any error.
@@ -117,15 +123,7 @@ fun SettingsSandboxPage(sandboxManager: SandboxManager, onBack: () -> Unit, show
         listState = listState,
         floatingActionButton = { if (showDocFab) DocumentationFab("sandbox.md") }
     ) {
-            // ═══ Loading ═══
-            if (checking) {
-                item {
-                    Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator()
-                    }
-                }
-            } else {
-                // ═══ Dashboard ═══
+            // ═══ Dashboard ═══
                 item {
                     SettingsGroup(title = stringResource(R.string.sandbox_env), items = listOf({
                         if (!available) {
@@ -229,6 +227,14 @@ fun SettingsSandboxPage(sandboxManager: SandboxManager, onBack: () -> Unit, show
                                         null,
                                         tint = MaterialTheme.colorScheme.primary
                                     )
+                                },
+                                trailingContent = {
+                                    TextButton(
+                                        onClick = { upgradePackages() },
+                                        enabled = !isBusy
+                                    ) {
+                                        Text(stringResource(R.string.sandbox_upgrade), style = MaterialTheme.typography.labelMedium)
+                                    }
                                 }
                             )
                         }
@@ -236,6 +242,47 @@ fun SettingsSandboxPage(sandboxManager: SandboxManager, onBack: () -> Unit, show
                 }
 
                 if (available) {
+                    // ═══ Browse Files ═══
+                    item {
+                        SettingsGroup(
+                            title = stringResource(R.string.sandbox_browse_files),
+                            items = listOf({
+                                SettingsItem(
+                                    headlineContent = {
+                                        Text(
+                                            stringResource(R.string.sandbox_browse_files),
+                                            fontWeight = FontWeight.Medium
+                                        )
+                                    },
+                                    supportingContent = {
+                                        Text(
+                                            stringResource(R.string.sandbox_browse_files_desc),
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    },
+                                    leadingContent = {
+                                        Icon(
+                                            Icons.Default.Folder,
+                                            null,
+                                            tint = MaterialTheme.colorScheme.primary
+                                        )
+                                    },
+                                    modifier = Modifier.clickable {
+                                        val homeDir = sandboxManager.getSandboxHomeDir()
+                                        if (homeDir != null) {
+                                            homeDir.mkdirs()
+                                            try {
+                                                ctx.openSandboxHome()
+                                            } catch (e: Exception) {
+                                                Log.w("SettingsSandboxPage", "Failed to open file manager", e)
+                                            }
+                                        }
+                                    }
+                                )
+                            })
+                        )
+                    }
+
                     // ═══ Install Packages ═══
                     item {
                         SettingsGroup(title = stringResource(R.string.sandbox_install_packages), items = listOf({
@@ -468,7 +515,6 @@ fun SettingsSandboxPage(sandboxManager: SandboxManager, onBack: () -> Unit, show
                         item(key = "doc_spacer") { Spacer(modifier = Modifier.height(80.dp)) }
                     }
                 }
-            }
     }
 
     // ── Delete confirm dialog ──

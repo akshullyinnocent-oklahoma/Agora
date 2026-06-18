@@ -426,6 +426,9 @@
     <string name="sandbox_snackbar_install_failed">Не удалось установить %s</string>
     <string name="sandbox_snackbar_removed">%s удалён</string>
     <string name="sandbox_snackbar_remove_failed">Не удалось удалить %s</string>
+    <string name="sandbox_snackbar_upgrade_done">Обновлено пакетов: %d</string>
+    <string name="sandbox_snackbar_upgrade_none">Пакеты уже обновлены</string>
+    <string name="sandbox_snackbar_upgrade_failed">Не удалось обновить</string>
     <string name="sandbox_snackbar_reset">Песочница сброшена</string>
     <string name="sandbox_snackbar_reset_failed">Не удалось сбросить</string>
     <string name="sandbox_snackbar_error">Ошибка: %s</string>
@@ -446,6 +449,9 @@
     <string name="sandbox_manage_desc">Установка, настройка пакетов или сброс</string>
     <string name="sandbox_package_placeholder">python3, git, curl...</string>
     <string name="sandbox_installed_fmt">Установленные пакеты (%d)</string>
+    <string name="sandbox_upgrade">Обновить</string>
+    <string name="sandbox_browse_files">Обзор файлов</string>
+    <string name="sandbox_browse_files_desc">Открыть каталог песочницы в системном файловом менеджере</string>
 
     <!-- Settings - Title Generation -->
     <string name="title_gen_auto">Автоматически генерировать заголовок</string>

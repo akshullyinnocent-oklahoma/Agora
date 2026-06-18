@@ -46,6 +46,13 @@ class ProotSandboxManager(private val context: Context) : SandboxManager {
     override var pendingPkgName: String = ""
 
     private val rootfsDir: File = File(context.filesDir, "alpine-rootfs")
+    private val homeMountDir: File = File(context.filesDir, "sandbox-home")
+    private val homeMountPath = "/home/agora"
+    private val metadataDir: File = File(rootfsDir, "etc/agora")
+    private val baseWorldFile: File = File(metadataDir, "base-world")
+    private val explicitPackagesFile: File = File(metadataDir, "explicit-packages")
+    private val defaultBaseWorld = linkedSetOf("alpine-baselayout", "alpine-keys", "apk-tools", "busybox", "libc-utils")
+    private val packageNameRegex = Regex("^[A-Za-z0-9][A-Za-z0-9+_.:-]*$")
 
     private val prootExecPath: String by lazy {
         // Force System.loadLibrary to trigger extraction from APK.
@@ -55,6 +62,26 @@ class ProotSandboxManager(private val context: Context) : SandboxManager {
     }
 
     override var lastError: String? = null
+
+    /**
+     * Rewrite root's home entry in /etc/passwd from /root to /home/agora.
+     * Some programs call getpwuid(0) instead of reading $HOME, so the passwd
+     * entry must match the HOME env var for consistent behaviour (shell, git, SSH, etc.).
+     * This is a direct file edit — no proot needed, idempotent, and fast.
+     */
+    private fun ensureRootHome() {
+        val passwdFile = File(rootfsDir, "etc/passwd")
+        if (!passwdFile.isFile) return
+        val content = passwdFile.readText()
+        if ("root:x:0:0:root:/home/agora:" in content) return // already correct
+        val updated = content.replace(
+            Regex("^(root:x:0:0:root:)/root(:)", RegexOption.MULTILINE),
+            "$1/home/agora$2"
+        )
+        if (updated != content) {
+            passwdFile.writeText(updated)
+        }
+    }
 
     private fun ensureShell(): Boolean {
         val sh = File(rootfsDir, "bin/sh")
@@ -71,11 +98,21 @@ class ProotSandboxManager(private val context: Context) : SandboxManager {
         return false
     }
 
+    override fun isAvailableSync(): Boolean {
+        if (!rootfsDir.isDirectory) return false
+        if (!File(rootfsDir, "bin/sh").exists()) return false
+        return listOf("lib/ld-musl-aarch64.so.1", "usr/lib/ld-musl-aarch64.so.1")
+            .map { File(rootfsDir, it) }.any { it.exists() }
+    }
+
     override suspend fun isAvailable(): Boolean = withContext(Dispatchers.IO) {
         if (!rootfsDir.isDirectory) { lastError = "rootfs not found: ${rootfsDir.absolutePath}"; return@withContext false }
         if (!ensureShell()) { lastError = "/bin/sh missing"; return@withContext false }
         val linker = listOf("lib/ld-musl-aarch64.so.1", "usr/lib/ld-musl-aarch64.so.1").map { File(rootfsDir, it) }.any { it.exists() }
         if (!linker) { lastError = "musl linker missing"; return@withContext false }
+        ensureSandboxMountTargets()
+        ensurePackageMetadata()
+        ensureRootHome()
         true
     }
 
@@ -99,6 +136,7 @@ class ProotSandboxManager(private val context: Context) : SandboxManager {
 
             File(rootfsDir, "tmp").mkdirs()
             File(rootfsDir, "run").mkdirs()
+            ensureSandboxMountTargets()
             listOf("var/cache/apk", "etc/apk/cache", "var/lock").forEach { File(rootfsDir, it).mkdirs() }
             val rc = File(rootfsDir, "etc/resolv.conf"); rc.parentFile?.mkdirs()
             rc.writeText("nameserver 8.8.8.8\nnameserver 1.1.1.1\n")
@@ -113,6 +151,8 @@ class ProotSandboxManager(private val context: Context) : SandboxManager {
             // No auto `apk upgrade` here: the freshly-downloaded minirootfs is already a coherent
             // pinned release. Running upgrade immediately makes apk re-resolve /bin/sh and dead-locks
             // on the busybox-binsh vs yash-binsh `cmd:sh` conflict. Packages upgrade on demand.
+            captureBaseWorld(force = true)
+            writeExplicitPackages(emptySet())
             isAvailable()
         } catch (e: Throwable) { e.printStackTrace(); lastError = e.message; false }
     }
@@ -176,6 +216,7 @@ class ProotSandboxManager(private val context: Context) : SandboxManager {
         sandboxScope.launch {
             _terminalOutput.value = ""
             _isBusy.value = true
+            lastError = null
             try {
                 val ok = apkInstall(name) { _terminalOutput.value += it + "\n" }
                 ensureShell()
@@ -195,6 +236,7 @@ class ProotSandboxManager(private val context: Context) : SandboxManager {
         sandboxScope.launch {
             _terminalOutput.value = ""
             _isBusy.value = true
+            lastError = null
             try {
                 val ok = apkDelete(name)
                 _terminalOutput.value += if (ok) "✓ Removed $name\n" else "✗ Failed to remove $name\n"
@@ -205,6 +247,36 @@ class ProotSandboxManager(private val context: Context) : SandboxManager {
             } finally { ensureShell(); _isBusy.value = false; _packageList.value = apkList() }
         }
     }
+
+    override fun upgradePackages() {
+        if (_isBusy.value) return
+        sandboxScope.launch {
+            _terminalOutput.value = ""
+            _isBusy.value = true
+            lastError = null
+            try {
+                val upgraded = apkUpgrade { _terminalOutput.value += it + "\n" }
+                ensureShell()
+                _packageList.value = apkList()
+                val ok = lastError == null
+                _terminalOutput.value += when {
+                    upgraded > 0 -> "✓ Upgraded $upgraded packages\n"
+                    ok -> "✓ Packages already up to date\n"
+                    else -> "✗ Upgrade failed\n"
+                }
+                _snackbarMessage.value = when {
+                    upgraded > 0 -> context.getString(R.string.sandbox_snackbar_upgrade_done, upgraded)
+                    ok -> context.getString(R.string.sandbox_snackbar_upgrade_none)
+                    else -> context.getString(R.string.sandbox_snackbar_upgrade_failed)
+                }
+            } catch (e: Throwable) {
+                _terminalOutput.value += "✗ Error: ${e.message}\n"
+                _snackbarMessage.value = context.getString(R.string.sandbox_snackbar_error, e.message ?: "")
+            } finally { ensureShell(); _isBusy.value = false; _packageList.value = apkList() }
+        }
+    }
+
+    override fun getSandboxHomeDir(): File? = homeMountDir
 
     override fun close() {
         sandboxScope.cancel()
@@ -249,14 +321,17 @@ class ProotSandboxManager(private val context: Context) : SandboxManager {
         return tallocDir.absolutePath
     }
 
-    private fun executeRaw(command: String, workdir: String = "/root", timeoutMs: Int = 30000): SandboxManager.SandboxResult {
+    private fun executeRaw(command: String, workdir: String = homeMountPath, timeoutMs: Int = 30000): SandboxManager.SandboxResult {
         ensureShell()
+        ensureSandboxMountTargets()
         val tmpDir = File(rootfsDir, "tmp").apply { mkdirs() }.absolutePath
+        val resolvedWorkdir = workdir.ifBlank { homeMountPath }
         val args = listOf(prootPath,
             "--rootfs=" + rootfsDir.absolutePath,
             "--bind=/dev", "--bind=/proc", "--bind=/sys",
             "--bind=/dev/urandom:/dev/random",
-            "-w", workdir.ifBlank { "/root" },
+            "--bind=${homeMountDir.absolutePath}:$homeMountPath",
+            "-w", resolvedWorkdir,
             "-0", "--link2symlink", "--kill-on-exit", "-L",
             "/bin/sh", "-c", command
         )
@@ -268,7 +343,7 @@ class ProotSandboxManager(private val context: Context) : SandboxManager {
             pb.environment()["LD_LIBRARY_PATH"] = ldPath
             pb.environment()["PROOT_LOADER"] = "$libDir/libproot_loader.so"
             pb.environment()["PROOT_TMP_DIR"] = tmpDir
-            pb.environment()["HOME"] = "/root"
+            pb.environment()["HOME"] = homeMountPath
             pb.environment()["PATH"] = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
             val p = pb.start()
             val out = p.inputStream.bufferedReader().readText()
@@ -280,7 +355,7 @@ class ProotSandboxManager(private val context: Context) : SandboxManager {
 
     override suspend fun executeCommand(cmd: String, wd: String, to: Int): SandboxManager.SandboxResult {
         if (!isAvailable()) return SandboxManager.SandboxResult("", "Sandbox not installed", -1)
-        return executeRaw(cmd, wd.ifBlank { "/root" }, to)
+        return executeRaw(cmd, wd.ifBlank { homeMountPath }, to)
     }
 
     // ── File Operations ────────────────────────────────
@@ -304,21 +379,24 @@ class ProotSandboxManager(private val context: Context) : SandboxManager {
     }
 
     override suspend fun fileGlob(pattern: String, basePath: String, depth: Int?): List<String> = withContext(Dispatchers.IO) {
-        val base = resolvePath(if (basePath.isBlank()) "/" else basePath)
+        val base = resolveSandboxPath(if (basePath.isBlank()) "/" else basePath)
         val files = mutableListOf<String>()
-        val rootFs = rootfsDir.canonicalPath  // resolves /data/data symlink
         // null = legacy full recursion; <=0 = explicit unlimited; >=1 = max levels.
         val remaining = if (depth == null || depth <= 0) -1 else depth
-        walkFiles(base, files, rootFs, remaining)
-        globMatch(files, rootFs, pattern).map { "/$it" }
+        walkVirtualFiles(base.file, files, base.physicalRoot.canonicalPath, base.virtualRoot, remaining)
+        globMatch(files, pattern)
     }
 
     override suspend fun fileGrep(pattern: String, basePath: String, fileGlob: String): Result<List<SandboxManager.GrepMatch>> = withContext(Dispatchers.IO) {
         try {
             val regex = try { Regex(pattern) } catch (e: Throwable) { Regex(java.util.regex.Pattern.quote(pattern)) }
-            val rootFs = rootfsDir.absolutePath
             val files = if (fileGlob.isNotBlank()) fileGlob(fileGlob, basePath)
-            else { val b = resolvePath(if (basePath.isBlank()) "/" else basePath); val a = mutableListOf<String>(); walkFiles(b, a, rootFs); a.map { "/$it" } }
+            else {
+                val b = resolveSandboxPath(if (basePath.isBlank()) "/" else basePath)
+                val a = mutableListOf<String>()
+                walkVirtualFiles(b.file, a, b.physicalRoot.canonicalPath, b.virtualRoot)
+                a
+            }
             val matches = mutableListOf<SandboxManager.GrepMatch>()
             for (file in files) {
                 try {
@@ -350,6 +428,15 @@ class ProotSandboxManager(private val context: Context) : SandboxManager {
 
     override suspend fun apkInstall(packageName: String, onProgress: (String) -> Unit): Boolean = withContext(Dispatchers.IO) {
         if (!isAvailable()) { onProgress("Sandbox not installed"); return@withContext false }
+        val requested = try {
+            sanitizePackageName(packageName)
+        } catch (e: IllegalArgumentException) {
+            onProgress("FAIL: ${e.message}")
+            lastError = e.message
+            return@withContext false
+        }
+        lastError = null
+        ensurePackageMetadata()
 
         // 1. Download + parse repo index
         onProgress("Fetching package index...")
@@ -375,23 +462,13 @@ class ProotSandboxManager(private val context: Context) : SandboxManager {
             lastError = "Parse index: ${e.message}"; indexFile.delete(); return@withContext false
         } finally { indexFile.delete() }
 
-        if (packageName !in repoPkgs) {
-            onProgress("FAIL: package '$packageName' not found in index")
-            lastError = "Not found: $packageName"; return@withContext false
+        if (requested !in repoPkgs) {
+            onProgress("FAIL: package '$requested' not found in index")
+            lastError = "Not found: $requested"; return@withContext false
         }
 
         // 2. Read installed DB — don't reinstall/downgrade existing packages
-        val installedDb = File(rootfsDir, "lib/apk/db/installed")
-        val installed = mutableMapOf<String, String>() // name → version
-        if (installedDb.exists()) {
-            var n = ""; var v = ""
-            installedDb.readLines(Charsets.UTF_8).forEach { line ->
-                if (line.startsWith("P:")) n = line.substring(2).trim()
-                else if (line.startsWith("V:")) v = line.substring(2).trim()
-                else if (line.isBlank()) { if (n.isNotEmpty()) installed[n] = v; n = ""; v = "" }
-            }
-            if (n.isNotEmpty()) installed[n] = v
-        }
+        val installed = readInstalledVersions()
 
         // 3. Recursively resolve target + transitive deps.
         // Install if missing; upgrade if repo is newer; NEVER downgrade.
@@ -412,8 +489,14 @@ class ProotSandboxManager(private val context: Context) : SandboxManager {
                 }
             }
         }
-        resolve(packageName)
+        resolve(requested)
         onProgress("${toInstall.size} packages to install")
+
+        if (toInstall.isEmpty()) {
+            addExplicitPackage(requested)
+            onProgress("$requested is already installed and up to date.")
+            return@withContext true
+        }
 
         // 4. Download all .apk files
         val tmpDir = File(rootfsDir, "tmp"); tmpDir.listFiles()?.forEach { it.delete() }; tmpDir.mkdirs()
@@ -439,7 +522,7 @@ class ProotSandboxManager(private val context: Context) : SandboxManager {
             val shPaths = paths.filter { p -> shPkgs.any { p.contains(it) } }
             if (shPaths.isNotEmpty()) {
                 onProgress("Installing shell provider first...")
-                val r = executeRaw("apk add --allow-untrusted --no-network ${shPaths.joinToString(" ")}", timeoutMs = 60000)
+                val r = executeRaw("apk add --allow-untrusted --no-network ${shPaths.joinToString(" ") { shellQuote(it) }}", timeoutMs = 60000)
                 onProgress(r.stdout)
                 paths.removeAll(shPaths)
             }
@@ -447,11 +530,16 @@ class ProotSandboxManager(private val context: Context) : SandboxManager {
 
         // 6. Main install
         onProgress("Installing ${paths.size} packages...")
-        val result = executeRaw("apk add --allow-untrusted --no-network ${paths.joinToString(" ")}", timeoutMs = 120000)
+        val result = if (paths.isNotEmpty()) {
+            executeRaw("apk add --allow-untrusted --no-network ${paths.joinToString(" ") { shellQuote(it) }}", timeoutMs = 120000)
+        } else {
+            SandboxManager.SandboxResult("", "", 0)
+        }
         onProgress(result.stdout); tmpDir.listFiles()?.forEach { it.delete() }
         // Verify install — apk may return non-zero on minor post-install script errors
-        val installedOk = File(rootfsDir, "lib/apk/db/installed").readText(Charsets.UTF_8).contains("P:$packageName\n")
+        val installedOk = requested in readInstalledVersions()
         if (!installedOk) { lastError = result.stderr.ifBlank { result.stdout }; return@withContext false }
+        addExplicitPackage(requested)
         true
     }
 
@@ -477,17 +565,55 @@ class ProotSandboxManager(private val context: Context) : SandboxManager {
 
     override suspend fun apkDelete(packageName: String): Boolean = withContext(Dispatchers.IO) {
         if (!isAvailable()) { _terminalOutput.value += "Sandbox not available\n"; return@withContext false }
-        val db = File(rootfsDir, "lib/apk/db/installed")
-        if (db.exists()) { _terminalOutput.value += "DB has package: ${db.readText(Charsets.UTF_8).contains(packageName)}\n" }
-        _terminalOutput.value += "Running: apk del $packageName\n"
-        val result = executeRaw("apk del $packageName", timeoutMs = 60000)
+        val requested = try {
+            sanitizePackageName(packageName)
+        } catch (e: IllegalArgumentException) {
+            _terminalOutput.value += "FAIL: ${e.message}\n"
+            lastError = e.message
+            return@withContext false
+        }
+        lastError = null
+        ensurePackageMetadata()
+        val installedBefore = readInstalledVersions()
+        _terminalOutput.value += "DB has package: ${requested in installedBefore}\n"
+        if (requested !in installedBefore) {
+            val explicit = readExplicitPackages().apply { remove(requested) }
+            writeExplicitPackages(explicit)
+            normalizeWorld(explicit)
+            return@withContext true
+        }
+
+        val baseNames = readBaseWorld().map { worldPackageName(it) }.toSet()
+        if (requested in baseNames) {
+            lastError = "Refusing to remove base package: $requested"
+            _terminalOutput.value += "${lastError}\n"
+            return@withContext false
+        }
+
+        val previousExplicit = readExplicitPackages()
+        val nextExplicit = previousExplicit.toMutableSet().apply { remove(requested) }.toSet()
+        writeExplicitPackages(nextExplicit)
+        normalizeWorld(nextExplicit)
+
+        _terminalOutput.value += "Running: apk del $requested\n"
+        val result = executeRaw("apk del ${shellQuote(requested)}", timeoutMs = 60000)
         _terminalOutput.value += result.stdout
         _terminalOutput.value += if (result.exitCode == 0) "Exit: 0\n" else "Exit: ${result.exitCode}\n"
-        result.exitCode == 0
+        val removed = requested !in readInstalledVersions()
+        if (!removed) {
+            writeExplicitPackages(previousExplicit)
+            normalizeWorld(previousExplicit)
+            lastError = result.stderr.ifBlank { result.stdout }.ifBlank { "Package was not removed: $requested" }
+            return@withContext false
+        }
+        normalizeWorld()
+        result.exitCode == 0 || removed
     }
 
     override suspend fun apkUpgrade(onProgress: (String) -> Unit): Int = withContext(Dispatchers.IO) {
         if (!isAvailable()) return@withContext 0
+        lastError = null
+        ensurePackageMetadata()
 
         // 1. Download + parse APKINDEX
         onProgress("Fetching package index...")
@@ -495,9 +621,9 @@ class ProotSandboxManager(private val context: Context) : SandboxManager {
         val indexFile = File(context.filesDir, "APKINDEX_UPGRADE.tar.gz")
         try {
             val conn = URL(indexUrl).openConnection() as HttpURLConnection
-            if (conn.responseCode != 200) { onProgress("HTTP ${conn.responseCode}"); return@withContext 0 }
+            if (conn.responseCode != 200) { onProgress("HTTP ${conn.responseCode}"); lastError = "HTTP ${conn.responseCode} from $indexUrl"; return@withContext 0 }
             conn.inputStream.use { i -> indexFile.outputStream().use { o -> i.copyTo(o) } }
-        } catch (e: Throwable) { onProgress("FAIL: ${e.message}"); return@withContext 0 }
+        } catch (e: Throwable) { onProgress("FAIL: ${e.message}"); lastError = e.message; return@withContext 0 }
 
         val repoPkgs: Map<String, FullPkgEntry>
         val soToPkg: Map<String, String>
@@ -505,21 +631,11 @@ class ProotSandboxManager(private val context: Context) : SandboxManager {
             val (r, s) = parseFullApkIndex(indexFile)
             repoPkgs = r; soToPkg = s
         } catch (e: Throwable) {
-            onProgress("FAIL: parse index — ${e.javaClass.simpleName}: ${e.message}"); indexFile.delete(); return@withContext 0
+            onProgress("FAIL: parse index — ${e.javaClass.simpleName}: ${e.message}"); lastError = "Parse index: ${e.message}"; indexFile.delete(); return@withContext 0
         } finally { indexFile.delete() }
 
         // 2. Read installed DB
-        val installedDb = File(rootfsDir, "lib/apk/db/installed")
-        val installed = mutableMapOf<String, String>()
-        if (installedDb.exists()) {
-            var n = ""; var v = ""
-            installedDb.readLines(Charsets.UTF_8).forEach { line ->
-                if (line.startsWith("P:")) n = line.substring(2).trim()
-                else if (line.startsWith("V:")) v = line.substring(2).trim()
-                else if (line.isBlank()) { if (n.isNotEmpty()) installed[n] = v; n = ""; v = "" }
-            }
-            if (n.isNotEmpty()) installed[n] = v
-        }
+        val installed = readInstalledVersions()
 
         // 3. Collect installed packages where repo has a newer version
         val toUpgrade = linkedSetOf<String>()
@@ -558,17 +674,33 @@ class ProotSandboxManager(private val context: Context) : SandboxManager {
                 onProgress("Downloading $fn...")
                 try {
                     val conn = URL("$alpineMirror/aarch64/$fn").openConnection() as HttpURLConnection
-                    if (conn.responseCode != 200) { onProgress("HTTP ${conn.responseCode}"); tmpDir.listFiles()?.forEach { it.delete() }; return@withContext 0 }
+                    if (conn.responseCode != 200) {
+                        onProgress("HTTP ${conn.responseCode}")
+                        lastError = "HTTP ${conn.responseCode}: $fn"
+                        tmpDir.listFiles()?.forEach { it.delete() }
+                        return@withContext 0
+                    }
                     conn.inputStream.use { i -> f.outputStream().use { o -> i.copyTo(o) } }
-                } catch (ex: Throwable) { onProgress("FAIL: ${ex.message}"); tmpDir.listFiles()?.forEach { it.delete() }; return@withContext 0 }
+                } catch (ex: Throwable) { onProgress("FAIL: ${ex.message}"); lastError = "Download: ${ex.message}"; tmpDir.listFiles()?.forEach { it.delete() }; return@withContext 0 }
             }
             val dst = File(tmpDir, fn); f.copyTo(dst, true); f.delete(); paths.add("/tmp/$fn")
         }
 
         onProgress("Installing ${paths.size} packages...")
-        val result = executeRaw("apk add --allow-untrusted --no-network ${paths.joinToString(" ")}", timeoutMs = 300000)
+        val result = executeRaw("apk add --allow-untrusted --no-network ${paths.joinToString(" ") { shellQuote(it) }}", timeoutMs = 300000)
         onProgress(result.stdout); tmpDir.listFiles()?.forEach { it.delete() }
-        toInstall.size
+        normalizeWorld()
+        val after = readInstalledVersions()
+        val upgradedCount = toUpgrade.count { name ->
+            val beforeVersion = installed[name]
+            val afterVersion = after[name]
+            beforeVersion != null && afterVersion != null && compareAlpineVersions(afterVersion, beforeVersion) > 0
+        }
+        if (result.exitCode != 0 && upgradedCount == 0) {
+            lastError = result.stderr.ifBlank { result.stdout }.ifBlank { "Upgrade failed" }
+            return@withContext 0
+        }
+        upgradedCount
     }
 
     override suspend fun getDiskUsageMB(): Long = withContext(Dispatchers.IO) {
@@ -725,30 +857,207 @@ class ProotSandboxManager(private val context: Context) : SandboxManager {
 
     // ── Helpers ────────────────────────────────────────
 
-    private fun resolvePath(path: String): File {
-        val resolved = File(rootfsDir, path.trimStart('/')).canonicalFile
-        require(resolved.absolutePath.startsWith(rootfsDir.canonicalFile.absolutePath)) { "Path traversal: $path" }
-        return resolved
+    private fun sanitizePackageName(packageName: String): String {
+        val trimmed = packageName.trim()
+        require(packageNameRegex.matches(trimmed)) { "Invalid package name: $packageName" }
+        return trimmed
     }
+
+    private fun shellQuote(value: String): String = "'" + value.replace("'", "'\\''") + "'"
+
+    private fun installedDbFile(): File = File(rootfsDir, "lib/apk/db/installed")
+
+    private fun readInstalledVersions(): LinkedHashMap<String, String> {
+        val installed = linkedMapOf<String, String>()
+        val db = installedDbFile()
+        if (!db.exists()) return installed
+        var name = ""
+        var version = ""
+        db.readLines(Charsets.UTF_8).forEach { line ->
+            when {
+                line.startsWith("P:") -> name = line.substring(2).trim()
+                line.startsWith("V:") -> version = line.substring(2).trim()
+                line.isBlank() -> {
+                    if (name.isNotEmpty()) installed[name] = version
+                    name = ""
+                    version = ""
+                }
+            }
+        }
+        if (name.isNotEmpty()) installed[name] = version
+        return installed
+    }
+
+    private fun worldFile(): File = File(rootfsDir, "etc/apk/world")
+
+    private fun readWorldLines(): LinkedHashSet<String> {
+        val world = worldFile()
+        if (!world.exists()) return linkedSetOf()
+        return world.readLines(Charsets.UTF_8)
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+            .toCollection(linkedSetOf())
+    }
+
+    private fun writeWorldLines(lines: Collection<String>) {
+        val world = worldFile()
+        world.parentFile?.mkdirs()
+        world.writeText(lines.joinToString("\n", postfix = if (lines.isEmpty()) "" else "\n"), Charsets.UTF_8)
+    }
+
+    private fun worldPackageName(line: String): String {
+        val cleaned = line.trim().removePrefix("!")
+        val end = cleaned.indexOfFirst { it == '@' || it == '<' || it == '>' || it == '=' || it == '~' }
+        return if (end >= 0) cleaned.substring(0, end) else cleaned
+    }
+
+    private fun captureBaseWorld(force: Boolean = false) {
+        metadataDir.mkdirs()
+        if (!force && baseWorldFile.exists()) return
+        val current = readWorldLines()
+        val installed = readInstalledVersions().keys
+        val inferredBase = current.filter { worldPackageName(it) in defaultBaseWorld && worldPackageName(it) in installed }
+        val fallbackBase = defaultBaseWorld.filter { it in installed }
+        val base = when {
+            force && current.isNotEmpty() -> current
+            force -> fallbackBase.ifEmpty { defaultBaseWorld }
+            inferredBase.isNotEmpty() -> inferredBase
+            else -> current
+        }
+        baseWorldFile.writeText(base.joinToString("\n", postfix = if (base.isEmpty()) "" else "\n"), Charsets.UTF_8)
+    }
+
+    private fun readBaseWorld(): LinkedHashSet<String> {
+        captureBaseWorld()
+        return baseWorldFile.readLines(Charsets.UTF_8)
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+            .toCollection(linkedSetOf())
+    }
+
+    private fun readExplicitPackages(): LinkedHashSet<String> {
+        if (!explicitPackagesFile.exists()) return linkedSetOf()
+        return explicitPackagesFile.readLines(Charsets.UTF_8)
+            .mapNotNull { runCatching { sanitizePackageName(it) }.getOrNull() }
+            .toCollection(linkedSetOf())
+    }
+
+    private fun writeExplicitPackages(packages: Collection<String>) {
+        metadataDir.mkdirs()
+        val clean = packages.mapNotNull { runCatching { sanitizePackageName(it) }.getOrNull() }.toCollection(linkedSetOf())
+        explicitPackagesFile.writeText(clean.joinToString("\n", postfix = if (clean.isEmpty()) "" else "\n"), Charsets.UTF_8)
+    }
+
+    private fun ensurePackageMetadata() {
+        if (!rootfsDir.isDirectory) return
+        metadataDir.mkdirs()
+        captureBaseWorld()
+        if (!explicitPackagesFile.exists()) {
+            val baseNames = readBaseWorld().map { worldPackageName(it) }.toSet()
+            val migratedExplicit = readWorldLines()
+                .map { worldPackageName(it) }
+                .filter { it !in baseNames }
+                .mapNotNull { runCatching { sanitizePackageName(it) }.getOrNull() }
+                .toCollection(linkedSetOf())
+            writeExplicitPackages(migratedExplicit)
+        }
+        normalizeWorld()
+    }
+
+    private fun normalizeWorld(explicitPackages: Set<String> = readExplicitPackages()) {
+        metadataDir.mkdirs()
+        val base = readBaseWorld()
+        val baseNames = base.map { worldPackageName(it) }.toSet()
+        val normalized = linkedSetOf<String>()
+        normalized.addAll(base)
+        explicitPackages
+            .mapNotNull { runCatching { sanitizePackageName(it) }.getOrNull() }
+            .filter { it !in baseNames }
+            .forEach { normalized.add(it) }
+        writeWorldLines(normalized)
+    }
+
+    private fun addExplicitPackage(packageName: String) {
+        val name = sanitizePackageName(packageName)
+        ensurePackageMetadata()
+        val next = readExplicitPackages().apply { add(name) }
+        writeExplicitPackages(next)
+        normalizeWorld(next)
+    }
+
+    private data class ResolvedSandboxPath(
+        val file: File,
+        val physicalRoot: File,
+        val virtualRoot: String
+    )
+
+    private fun ensureSandboxMountTargets() {
+        homeMountDir.mkdirs()
+        File(rootfsDir, homeMountPath.trimStart('/')).mkdirs()
+    }
+
+    private fun normalizeVirtualPath(path: String): String {
+        val raw = path.trim().replace('\\', '/')
+        val absolute = if (raw.isBlank()) "/" else if (raw.startsWith("/")) raw else "/$raw"
+        val collapsed = absolute.replace(Regex("/+"), "/")
+        return if (collapsed.length > 1) collapsed.trimEnd('/') else collapsed
+    }
+
+    private fun resolveSandboxPath(path: String): ResolvedSandboxPath {
+        val normalized = normalizeVirtualPath(path)
+        if (normalized == homeMountPath || normalized.startsWith("$homeMountPath/")) {
+            ensureSandboxMountTargets()
+            val root = homeMountDir.canonicalFile
+            val suffix = normalized.removePrefix(homeMountPath).trimStart('/')
+            val resolved = File(root, suffix).canonicalFile
+            require(resolved.absolutePath == root.absolutePath || resolved.absolutePath.startsWith(root.absolutePath + File.separator)) {
+                "Path traversal: $path"
+            }
+            return ResolvedSandboxPath(resolved, root, homeMountPath)
+        }
+
+        val root = rootfsDir.canonicalFile
+        val resolved = File(root, normalized.trimStart('/')).canonicalFile
+        require(resolved.absolutePath == root.absolutePath || resolved.absolutePath.startsWith(root.absolutePath + File.separator)) {
+            "Path traversal: $path"
+        }
+        return ResolvedSandboxPath(resolved, root, "/")
+    }
+
+    private fun resolvePath(path: String): File = resolveSandboxPath(path).file
 
     // remaining: levels still allowed including the current dir's files. -1 = unlimited;
     // 1 = only this dir's files (no descent); >1 = descend with one fewer level.
-    private fun walkFiles(dir: File, result: MutableList<String>, rootFsAbsPath: String, remaining: Int = -1) {
+    private fun walkVirtualFiles(
+        dir: File,
+        result: MutableList<String>,
+        physicalRootAbsPath: String,
+        virtualRoot: String,
+        remaining: Int = -1
+    ) {
         try { dir.listFiles()?.forEach {
             if (it.isDirectory) {
                 if (remaining < 0 || remaining > 1) {
-                    walkFiles(it, result, rootFsAbsPath, if (remaining < 0) -1 else remaining - 1)
+                    walkVirtualFiles(it, result, physicalRootAbsPath, virtualRoot, if (remaining < 0) -1 else remaining - 1)
                 }
             } else {
                 val path = try { it.canonicalPath } catch (_: Exception) { it.absolutePath }
-                result.add(path.removePrefix(rootFsAbsPath).removePrefix("/"))
+                val rel = path.removePrefix(physicalRootAbsPath).removePrefix(File.separator).replace(File.separatorChar, '/')
+                val prefix = if (virtualRoot == "/") "" else virtualRoot.trimEnd('/')
+                result.add("$prefix/$rel")
             }
         } } catch (_: Throwable) {}
     }
 
-    private fun globMatch(files: List<String>, basePath: String, pattern: String): List<String> {
-        val adj = if (pattern.contains('/')) pattern else "**/$pattern"
-        val matcher = try { FileSystems.getDefault().getPathMatcher("glob:$basePath/$adj") } catch (_: Throwable) { return emptyList() }
-        return files.filter { f -> val full = if (f.startsWith("/")) f else "$basePath/$f"; try { matcher.matches(java.nio.file.Paths.get(full)) } catch (_: Throwable) { false } }
+    private fun globMatch(files: List<String>, pattern: String): List<String> {
+        val cleanPattern = pattern.trim().replace('\\', '/')
+        val adjusted = when {
+            cleanPattern.isBlank() -> "/**"
+            cleanPattern.startsWith("/") -> cleanPattern
+            cleanPattern.contains("/") -> "/$cleanPattern"
+            else -> "/**/$cleanPattern"
+        }
+        val matcher = try { FileSystems.getDefault().getPathMatcher("glob:$adjusted") } catch (_: Throwable) { return emptyList() }
+        return files.filter { f -> try { matcher.matches(java.nio.file.Paths.get(f)) } catch (_: Throwable) { false } }
     }
 }

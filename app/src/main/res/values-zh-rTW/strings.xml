@@ -339,6 +339,9 @@
     <string name="sandbox_snackbar_install_failed">安裝失敗: %s</string>
     <string name="sandbox_snackbar_removed">已移除 %s</string>
     <string name="sandbox_snackbar_remove_failed">移除失敗: %s</string>
+    <string name="sandbox_snackbar_upgrade_done">已升級 %d 個套件</string>
+    <string name="sandbox_snackbar_upgrade_none">套件皆為最新</string>
+    <string name="sandbox_snackbar_upgrade_failed">升級失敗</string>
     <string name="sandbox_snackbar_reset">沙箱已重設</string>
     <string name="sandbox_snackbar_reset_failed">重設失敗</string>
     <string name="sandbox_snackbar_error">錯誤: %s</string>
@@ -359,6 +362,9 @@
     <string name="sandbox_manage_desc">安裝、設定套件或重設環境</string>
     <string name="sandbox_package_placeholder">python3, git, curl…</string>
     <string name="sandbox_installed_fmt">已安裝套件 (%d)</string>
+    <string name="sandbox_upgrade">升級</string>
+    <string name="sandbox_browse_files">瀏覽檔案</string>
+    <string name="sandbox_browse_files_desc">在系統檔案管理員中開啟沙箱目錄</string>
 
     <!-- Settings - Title Generation -->
     <string name="title_gen_auto">自動生成標題</string>

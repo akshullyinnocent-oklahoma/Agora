@@ -1,5 +1,6 @@
 package com.newoether.agora.sandbox
 
+import java.io.File
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
@@ -26,6 +27,9 @@ class PlaySandboxManager : SandboxManager {
     override val snackbarMessage: StateFlow<String?> = _snackbarMessage
     override fun installPackage(name: String) {}
     override fun removePackage(name: String) {}
+    override fun upgradePackages() {}
+
+    override fun isAvailableSync(): Boolean = false
 
     override suspend fun isAvailable(): Boolean = false
 
@@ -80,6 +84,7 @@ class PlaySandboxManager : SandboxManager {
 
     override suspend fun getDiskUsageMB(): Long = 0L
 
+    override fun getSandboxHomeDir(): File? = null
     override suspend fun reset(): Boolean = false
     override fun close() {}
 }

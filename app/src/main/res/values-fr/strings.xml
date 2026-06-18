@@ -426,6 +426,9 @@
     <string name="sandbox_snackbar_install_failed">Échec de l\'installation de %s</string>
     <string name="sandbox_snackbar_removed">%s supprimé</string>
     <string name="sandbox_snackbar_remove_failed">Échec de la suppression de %s</string>
+    <string name="sandbox_snackbar_upgrade_done">%d paquets mis à jour</string>
+    <string name="sandbox_snackbar_upgrade_none">Paquets déjà à jour</string>
+    <string name="sandbox_snackbar_upgrade_failed">Échec de la mise à jour</string>
     <string name="sandbox_snackbar_reset">Bac à sable réinitialisé</string>
     <string name="sandbox_snackbar_reset_failed">Échec de la réinitialisation</string>
     <string name="sandbox_snackbar_error">Erreur : %s</string>
@@ -446,6 +449,9 @@
     <string name="sandbox_manage_desc">Installer, configurer des paquets ou réinitialiser</string>
     <string name="sandbox_package_placeholder">python3, git, curl...</string>
     <string name="sandbox_installed_fmt">Paquets installés (%d)</string>
+    <string name="sandbox_upgrade">Mettre à jour</string>
+    <string name="sandbox_browse_files">Parcourir les fichiers</string>
+    <string name="sandbox_browse_files_desc">Ouvrir le répertoire sandbox dans le gestionnaire de fichiers</string>
 
     <!-- Settings - Title Generation -->
     <string name="title_gen_auto">Générer le titre automatiquement</string>

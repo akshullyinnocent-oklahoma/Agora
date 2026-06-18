@@ -326,6 +326,7 @@
     <string name="sandbox_alpine_version">Alpine Linux</string>
     <string name="sandbox_disk_usage">磁盘使用</string>
     <string name="sandbox_install">安装</string>
+    <string name="sandbox_upgrade">升级</string>
     <string name="sandbox_install_packages">安装包</string>
     <string name="sandbox_package_name">包名</string>
     <string name="sandbox_quick_install">快速安装</string>
@@ -340,6 +341,9 @@
     <string name="sandbox_snackbar_install_failed">安装失败: %s</string>
     <string name="sandbox_snackbar_removed">已移除 %s</string>
     <string name="sandbox_snackbar_remove_failed">移除失败: %s</string>
+    <string name="sandbox_snackbar_upgrade_done">已升级 %d 个包</string>
+    <string name="sandbox_snackbar_upgrade_none">所有包已是最新</string>
+    <string name="sandbox_snackbar_upgrade_failed">升级失败</string>
     <string name="sandbox_snackbar_reset">沙箱已重置</string>
     <string name="sandbox_snackbar_reset_failed">重置失败</string>
     <string name="sandbox_snackbar_error">错误: %s</string>
@@ -354,12 +358,14 @@
     <string name="sandbox_disk_usage_mb">~%d MB / 2 GB</string>
     <string name="sandbox_disk_usage_gb">~%.1f GB / 2 GB</string>
     <string name="sandbox_remove_pkg_title">移除 %s</string>
-    <string name="sandbox_remove_pkg_desc">从沙箱中移除 %s？这将释放其占用的磁盘空间。</string>
+    <string name="sandbox_remove_pkg_desc">从沙箱中移除 %s？不再需要的依赖也会一起移除。</string>
     <string name="sandbox_remove_content_desc">移除包</string>
     <string name="sandbox_manage">管理本地沙箱</string>
     <string name="sandbox_manage_desc">安装、配置包或重置环境</string>
     <string name="sandbox_package_placeholder">python3, git, curl…</string>
     <string name="sandbox_installed_fmt">已安装包 (%d)</string>
+    <string name="sandbox_browse_files">浏览文件</string>
+    <string name="sandbox_browse_files_desc">在系统文件管理器中打开沙箱目录</string>
 
     <!-- Settings - Title Generation -->
     <string name="title_gen_auto">自动生成标题</string>

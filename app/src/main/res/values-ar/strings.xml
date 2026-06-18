@@ -426,6 +426,9 @@
     <string name="sandbox_snackbar_install_failed">فشل تثبيت %s</string>
     <string name="sandbox_snackbar_removed">تمت إزالة %s</string>
     <string name="sandbox_snackbar_remove_failed">فشلت إزالة %s</string>
+    <string name="sandbox_snackbar_upgrade_done">تمت ترقية %d حزم</string>
+    <string name="sandbox_snackbar_upgrade_none">الحزم محدثة بالفعل</string>
+    <string name="sandbox_snackbar_upgrade_failed">فشلت الترقية</string>
     <string name="sandbox_snackbar_reset">تمت إعادة تعيين الصندوق الرملي</string>
     <string name="sandbox_snackbar_reset_failed">فشلت إعادة التعيين</string>
     <string name="sandbox_snackbar_error">خطأ: %s</string>
@@ -446,6 +449,9 @@
     <string name="sandbox_manage_desc">تثبيت الحزم أو تهيئتها أو إعادة التعيين</string>
     <string name="sandbox_package_placeholder">python3, git, curl...</string>
     <string name="sandbox_installed_fmt">الحزم المثبتة (%d)</string>
+    <string name="sandbox_upgrade">ترقية</string>
+    <string name="sandbox_browse_files">استعراض الملفات</string>
+    <string name="sandbox_browse_files_desc">فتح دليل الصندوق الرملي في مدير ملفات النظام</string>
 
     <!-- Settings - Title Generation -->
     <string name="title_gen_auto">توليد العنوان تلقائيًا</string>

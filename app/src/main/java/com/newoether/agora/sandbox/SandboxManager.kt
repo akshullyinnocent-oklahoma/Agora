@@ -1,5 +1,6 @@
 package com.newoether.agora.sandbox
 
+import java.io.File
 import kotlinx.coroutines.flow.StateFlow
 
 /**
@@ -46,8 +47,15 @@ interface SandboxManager {
 
     /** Fire-and-forget package removal. */
     fun removePackage(name: String)
+
+    /** Fire-and-forget package upgrade for all installed packages. */
+    fun upgradePackages()
+
     /** Human-readable error from the last check, if any. */
     val lastError: String?
+
+    /** Fast synchronous check — does the rootfs minimally exist? Returns immediately. */
+    fun isAvailableSync(): Boolean
 
     /** Whether the sandbox rootfs is installed and ready. */
     suspend fun isAvailable(): Boolean
@@ -107,6 +115,9 @@ interface SandboxManager {
 
     /** Delete rootfs and proot binary, returning to uninstalled state. */
     suspend fun reset(): Boolean
+
+    /** Physical directory mounted as /home inside the sandbox, or null if not available. */
+    fun getSandboxHomeDir(): File?
 
     /** Release any held resources. */
     fun close()

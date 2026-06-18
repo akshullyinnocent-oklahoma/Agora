@@ -2,6 +2,11 @@ package com.newoether.agora.ui.settings
 
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
+import androidx.compose.foundation.layout.Box
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
 
 // ── Shared animation specs for settings page transitions ──
 //     One source of truth — tune here, every sub-page follows.
@@ -52,5 +57,33 @@ internal fun settingsContentTransform(forward: Boolean): ContentTransform {
         settingsEnterTrans(slideFromRight = true) togetherWith settingsExitTrans(slideToRight = false)
     } else {
         settingsEnterTrans(slideFromRight = false) togetherWith settingsExitTrans(slideToRight = true)
+    }
+}
+
+/**
+ * [AnimatedContent] wrapper that prevents ghost clicks on the exiting content
+ * during the slide-out animation.  Without this guard the old composable remains
+ * in the tree and fully interactive until the transition finishes.
+ */
+@Composable
+internal fun <T> GuardedAnimatedContent(
+    targetState: T,
+    transitionSpec: AnimatedContentTransitionScope<T>.() -> ContentTransform,
+    content: @Composable AnimatedContentScope.(T) -> Unit
+) {
+    AnimatedContent(targetState = targetState, transitionSpec = transitionSpec) { currentState ->
+        Box(
+            modifier = if (currentState != targetState) Modifier.pointerInput(Unit) {
+                awaitPointerEventScope {
+                    while (true) {
+                        awaitPointerEvent(PointerEventPass.Initial)
+                            .changes
+                            .forEach { it.consume() }
+                    }
+                }
+            } else Modifier
+        ) {
+            content(currentState)
+        }
     }
 }

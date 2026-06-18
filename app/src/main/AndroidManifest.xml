@@ -43,6 +43,17 @@
                 android:resource="@xml/file_paths" />
         </provider>
 
+        <provider
+            android:name=".sandbox.SandboxDocumentsProvider"
+            android:authorities="${applicationId}.documents"
+            android:exported="true"
+            android:grantUriPermissions="true"
+            android:permission="android.permission.MANAGE_DOCUMENTS">
+            <intent-filter>
+                <action android:name="android.content.action.DOCUMENTS_PROVIDER" />
+            </intent-filter>
+        </provider>
+
         <service
             android:name=".service.AgoraForegroundService"
             android:foregroundServiceType="dataSync"

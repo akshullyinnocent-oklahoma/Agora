@@ -426,6 +426,9 @@
     <string name="sandbox_snackbar_install_failed">Error al instalar %s</string>
     <string name="sandbox_snackbar_removed">%s eliminado</string>
     <string name="sandbox_snackbar_remove_failed">Error al eliminar %s</string>
+    <string name="sandbox_snackbar_upgrade_done">%d paquetes actualizados</string>
+    <string name="sandbox_snackbar_upgrade_none">Paquetes ya actualizados</string>
+    <string name="sandbox_snackbar_upgrade_failed">Error al actualizar</string>
     <string name="sandbox_snackbar_reset">Entorno aislado restablecido</string>
     <string name="sandbox_snackbar_reset_failed">Error al restablecer</string>
     <string name="sandbox_snackbar_error">Error: %s</string>
@@ -446,6 +449,9 @@
     <string name="sandbox_manage_desc">Instalar, configurar paquetes o restablecer</string>
     <string name="sandbox_package_placeholder">python3, git, curl...</string>
     <string name="sandbox_installed_fmt">Paquetes instalados (%d)</string>
+    <string name="sandbox_upgrade">Actualizar</string>
+    <string name="sandbox_browse_files">Explorar archivos</string>
+    <string name="sandbox_browse_files_desc">Abrir directorio sandbox en administrador de archivos</string>
 
     <!-- Settings - Title Generation -->
     <string name="title_gen_auto">Generar título automáticamente</string>

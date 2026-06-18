@@ -61,7 +61,7 @@ fun SettingsProviderPage(viewModel: ChatViewModel, onBack: () -> Unit) {
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        AnimatedContent(
+        GuardedAnimatedContent(
             targetState = selectedProvider,
             transitionSpec = {
                 settingsContentTransform(forward = targetState != null)

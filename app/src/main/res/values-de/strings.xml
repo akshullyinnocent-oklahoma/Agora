@@ -426,6 +426,9 @@
     <string name="sandbox_snackbar_install_failed">Installation von %s fehlgeschlagen</string>
     <string name="sandbox_snackbar_removed">%s entfernt</string>
     <string name="sandbox_snackbar_remove_failed">Entfernen von %s fehlgeschlagen</string>
+    <string name="sandbox_snackbar_upgrade_done">%d Pakete aktualisiert</string>
+    <string name="sandbox_snackbar_upgrade_none">Pakete bereits aktuell</string>
+    <string name="sandbox_snackbar_upgrade_failed">Aktualisierung fehlgeschlagen</string>
     <string name="sandbox_snackbar_reset">Sandbox zurückgesetzt</string>
     <string name="sandbox_snackbar_reset_failed">Zurücksetzen fehlgeschlagen</string>
     <string name="sandbox_snackbar_error">Fehler: %s</string>
@@ -446,6 +449,9 @@
     <string name="sandbox_manage_desc">Pakete installieren, konfigurieren oder zurücksetzen</string>
     <string name="sandbox_package_placeholder">python3, git, curl...</string>
     <string name="sandbox_installed_fmt">Installierte Pakete (%d)</string>
+    <string name="sandbox_upgrade">Aktualisieren</string>
+    <string name="sandbox_browse_files">Dateien durchsuchen</string>
+    <string name="sandbox_browse_files_desc">Sandbox-Verzeichnis im System-Dateimanager öffnen</string>
 
     <!-- Settings - Title Generation -->
     <string name="title_gen_auto">Titel automatisch generieren</string>

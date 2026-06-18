@@ -51,7 +51,7 @@ fun SettingsShellPage(viewModel: ChatViewModel, onBack: () -> Unit) {
     var sandboxEntryCount by remember { mutableIntStateOf(0) }
     BackHandler(enabled = showSandboxMgmt) { showSandboxMgmt = false }
 
-    AnimatedContent(
+    GuardedAnimatedContent(
         targetState = showSandboxMgmt,
         transitionSpec = {
             settingsContentTransform(forward = targetState)
@@ -155,7 +155,7 @@ fun SettingsShellPage(viewModel: ChatViewModel, onBack: () -> Unit) {
             if (showDocFab) Spacer(Modifier.height(80.dp))
             } // Scaffold content
         } // else
-    } // AnimatedContent
+    } // GuardedAnimatedContent
 }
 
 // ═══════════════════════════════════════════════════════════════
