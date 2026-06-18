@@ -2408,7 +2408,7 @@ private fun TimelineSegmentsContent(
                                 .fillMaxWidth()
                                 .padding(top = if (index == 0) 0.dp else 6.dp)
                         ) {
-                            SelectionContainer {
+                            SelectionContainer(modifier = Modifier.noOpBringIntoView()) {
                                 RecomposeSafeMarkdown(
                                     content = seg.content,
                                     isStreaming = isStreaming && index == segments.lastIndex,
