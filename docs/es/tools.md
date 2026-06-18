@@ -19,16 +19,24 @@ Este bucle puede repetirse múltiples veces dentro de un solo turno de mensaje.
 
 Busca en internet y obtén páginas web. El modelo puede buscar información actual, verificar hechos o recuperar documentación.
 
-- **Proveedores**: Brave, Serper, Tavily, SearXNG
+- **Proveedores**: DuckDuckGo Lite (predeterminado, sin clave), Brave, Serper, Tavily, SearXNG
 - **Configuración**: Configuración → Búsqueda Web
 - **Guía**: [Búsqueda Web](web-search.md)
 
+### Generación de Imágenes
+
+Genera imágenes a partir de prompts de texto usando un modelo dedicado de texto a imagen. Las imágenes se muestran en línea en la conversación y pueden verse a pantalla completa.
+
+- **Proveedor**: BYOK — usa tu propia clave API y URL base, independiente del modelo de chat
+- **Configuración**: Configuración → Generación de Imágenes
+- **Guía**: [Generación de Imágenes](image-generation.md)
+
 ### Ejecución de Código
 
-Ejecuta fragmentos de código en un entorno aislado (dependiente del proveedor). Útil para cálculos, análisis de datos o probar lógica en línea.
+Ejecuta código en un entorno aislado:
 
-- **Proveedor**: Google Gemini (ejecución de código integrada)
-- **Configuración**: No requiere configuración — habilitado automáticamente para modelos Gemini
+- **Gemini Code Execution** — ejecución de código integrada para modelos Gemini (sin configuración)
+- **Sandbox** — entorno local Alpine Linux mediante PRoot, con gestión de paquetes y acceso a archivos SAF
 
 ### Shell Remoto
 

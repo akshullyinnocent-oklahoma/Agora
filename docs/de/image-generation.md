@@ -15,8 +15,8 @@ Die Bildgenerierung verwendet eine **eigene Modellauswahl**, unabhängig vom Mod
 3. Tippen Sie auf **Modell** und wählen Sie ein Text-zu-Bild-Modell
 4. Legen Sie optional die **Standardgröße** fest (Breite × Höhe)
 
-!!! note "Verwendet Provider-Anmeldeinformationen wieder"
-    Das Bildmodell verwendet den API-Key und die Basis-URL seines Providers wieder — dieselben Anmeldeinformationen, die Sie bereits unter **Einstellungen → API-Provider** konfiguriert haben. Es gibt keinen separaten Key einzugeben. Ein lokales Modell (mit den richtigen Gewichten) kann ebenfalls verwendet werden, um die Generierung auf dem Gerät zu halten.
+!!! note "BYOK — dedizierte Anmeldeinformationen"
+    Die Bildgenerierung verwendet ihren **eigenen dedizierten API-Key und Basis-URL**, unabhängig von Ihren Chat-Providern. Das bedeutet, Sie können einen anderen Dienst für Bilder als für den Chat verwenden. Gehen Sie zu **Einstellungen → Bildgenerierung**, um Key, Basis-URL, Modell und Standardgröße zu konfigurieren.
 
 ## Modellauswahl
 

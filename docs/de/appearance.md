@@ -48,6 +48,15 @@ Der Schema-Stil bestimmt, *wie* Farben aus der gewählten Palette auf UI-Element
 
 ---
 
+## Blur-Effekte
+
+Aktivieren Sie **Blur-Effekte aktivieren**, um Hintergrundunschärfe und Verlaufsunschärfe in der gesamten Benutzeroberfläche zu steuern. Wenn deaktiviert, werden Blur-Effekte durch Volltonfarben ersetzt, was die Leistung auf schwächeren Geräten verbessern kann.
+
+!!! tip "Leistung"
+    Deaktivieren Sie Blur-Effekte, wenn Sie UI-Verzögerungen beim Scrollen oder bei Animationen auf älteren Geräten bemerken.
+
+---
+
 ## Dynamic Color (Android 12+)
 
 Wenn auf Geräten mit Android 12 oder höher aktiviert, extrahiert Agora eine Farbpalette aus Ihrem System-Hintergrundbild und wendet sie automatisch an.

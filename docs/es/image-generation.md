@@ -15,8 +15,8 @@ La generación de imágenes usa su **propia selección de modelo**, independient
 3. Toca **Modelo** y elige un modelo de texto a imagen
 4. Opcionalmente establece el **Tamaño Predeterminado** (ancho × alto)
 
-!!! note "Reutiliza las credenciales del proveedor"
-    El modelo de imagen reutiliza la clave API y la URL base de su proveedor — las mismas credenciales que ya configuraste en **Configuración → Proveedores de API**. No hay una clave separada que introducir. También se puede usar un modelo local (con los pesos correctos) para mantener la generación en el dispositivo.
+!!! note "BYOK — credenciales dedicadas"
+    La generación de imágenes usa su **propia clave API y URL base dedicadas**, independientes de tus proveedores de chat. Esto significa que puedes usar un servicio diferente para imágenes que para el chat. Ve a **Configuración → Generación de Imágenes** para configurar la clave, URL base, modelo y tamaño predeterminado.
 
 ## Selección de Modelo
 

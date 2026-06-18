@@ -18,12 +18,13 @@
 - **[生成](generation.md)** — 溫度、top P、最大 token 數、思考模式、頻率/存在懲罰
 - **[標題生成](title-generation.md)** — 自動生成對話標題
 - **[圖片轉錄](transcription.md)** — 為不支援視覺的提供者提供的圖片轉文字管線
+- **[圖片生成](image-generation.md)** — 作為聊天工具的文字轉圖片生成
 - **[外觀](appearance.md)** — 主題模式、色彩方案、動態色彩、方案風格
 
 ### 代理工具
 
 - **[總覽](tools.md)** — 多輪工具呼叫的運作方式
-- **[網頁搜尋](web-search.md)** — Brave、Serper、Tavily、SearXNG 整合
+- **[網頁搜尋](web-search.md)** — DuckDuckGo Lite、Brave、Serper、Tavily、SearXNG 整合
 - **[遠端 Shell (Conch)](shell.md)** — 加密遠端指令執行、檔案操作、MCP 整合
 - **[沙箱](sandbox.md)** — 本地 Alpine Linux 環境，用於隔離的指令執行
 
@@ -37,8 +38,8 @@
 
 - **[本地模型](local-model.md)** — 透過 llama.cpp 在裝置上執行 GGUF 模型
 - **[PDF 匯入](pdf-import.md)** — 擷取 PDF 頁面並傳送給視覺模型
-- **[資料可攜性](import-export.md)** — 匯出/匯入 .agora 檔案、從 Claude 和 ChatGPT 匯入
-- **[語言](language.md)** — 在英文、中文或系統預設值之間切換
+- **[資料可攜性](import-export.md)** — 匯出/匯入 .agora 檔案、自動備份、從 Claude 和 ChatGPT 匯入
+- **[語言](language.md)** — 在 English、中文、繁體中文或系統預設值之間切換
 - **[關於](about.md)** — 版本資訊、更新、文件開關、連結、評分
 
 ---
@@ -50,6 +51,6 @@ Agora 是一款面向 AI 進階使用者的 BYOK Android 客戶端：
 - **無中介層**：直接 API 連線，無遙測，無追蹤
 - **裝置端儲存**：所有資料均存放於本地的 Room 資料庫中
 - **非線性對話**：編輯任何過往訊息，探索替代分支
-- **預設代理**：多輪工具呼叫，支援網頁搜尋、Shell 執行、檔案操作與記憶體
+- **預設代理**：多輪工具呼叫，支援網頁搜尋、圖片生成、程式碼執行、Shell、檔案操作與記憶體
 - **遠端控制**：透過加密的 Conch 協定管理伺服器
 - **開放原始碼**：MIT 授權，[原始碼於 GitHub](https://github.com/newo-ether/Agora)

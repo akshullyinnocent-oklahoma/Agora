@@ -1,6 +1,6 @@
 # Manuel Utilisateur Agora
 
-Bienvenue dans le manuel utilisateur Agora. Agora est un client LLM BYOK (Bring Your Own Key) pour Android avec accès multi-fournisseurs, conversations à branchement non linéaire, appels d'outils agentiques et contrôle d'appareil à distance.
+Bienvenue dans le manuel utilisateur Agora. Agora est un client LLM BYOK (Bring Your Own Key) pour Android avec accès multi-fournisseurs, conversations à branchement non linéaire, appels d'outils agentiques, génération d'images et contrôle d'appareil à distance.
 
 ## Liens Rapides
 
@@ -18,12 +18,13 @@ Bienvenue dans le manuel utilisateur Agora. Agora est un client LLM BYOK (Bring 
 - **[Génération](generation.md)** — température, top P, tokens max, réflexion, pénalités de fréquence/présence
 - **[Génération de Titres](title-generation.md)** — générer automatiquement les titres des conversations
 - **[Transcription d'Images](transcription.md)** — pipeline image-texte pour les fournisseurs sans vision
-- **[Apparence](appearance.md)** — mode thème, schéma de couleurs, couleur dynamique, style de schéma
+- **[Génération d'Images](image-generation.md)** — génération texte-image comme outil de chat
+- **[Apparence](appearance.md)** — mode thème, schéma de couleurs, couleur dynamique, style de schéma, effets de flou
 
 ### Outils Agentiques
 
 - **[Aperçu](tools.md)** — comment fonctionne l'appel d'outils multi-tours
-- **[Recherche Web](web-search.md)** — intégration Brave, Serper, Tavily, SearXNG
+- **[Recherche Web](web-search.md)** — intégration DuckDuckGo Lite, Brave, Serper, Tavily, SearXNG
 - **[Shell Distant (Conch)](shell.md)** — exécution de commandes chiffrées à distance, opérations sur fichiers, intégration MCP
 - **[Sandbox](sandbox.md)** — environnement Alpine Linux local pour l'exécution isolée de commandes
 
@@ -37,8 +38,8 @@ Bienvenue dans le manuel utilisateur Agora. Agora est un client LLM BYOK (Bring 
 
 - **[Modèles Locaux](local-model.md)** — exécuter des modèles GGUF sur l'appareil via llama.cpp
 - **[Import PDF](pdf-import.md)** — extraire et envoyer des pages PDF aux modèles de vision
-- **[Portabilité des Données](import-export.md)** — exporter/importer des fichiers .agora, importer depuis Claude et ChatGPT
-- **[Langue](language.md)** — basculer entre anglais, chinois ou langue système
+- **[Portabilité des Données](import-export.md)** — exporter/importer des fichiers .agora, sauvegarde automatique, importer depuis Claude et ChatGPT
+- **[Langue](language.md)** — basculer entre anglais, chinois, chinois traditionnel ou langue système
 - **[À Propos](about.md)** — informations de version, mises à jour, options de documentation, liens, évaluation
 
 ---
@@ -50,6 +51,6 @@ Agora est un client Android BYOK pour les utilisateurs avancés d'IA :
 - **Sans intermédiaire** : Connexions API directes, pas de télémétrie, pas de pistage
 - **Stockage local** : Tout réside localement dans une base de données Room
 - **Conversations non linéaires** : Modifiez n'importe quel message passé et explorez des branches alternatives
-- **Agentique par défaut** : Appels d'outils multi-tours avec recherche web, exécution shell, opérations sur fichiers et mémoire
+- **Agentique par défaut** : Appels d'outils multi-tours avec recherche web, génération d'images, exécution de code, shell, opérations sur fichiers et mémoire
 - **Contrôle à distance** : Gérez des serveurs via le protocole chiffré Conch
 - **Open source** : Licence MIT, [code source sur GitHub](https://github.com/newo-ether/Agora)

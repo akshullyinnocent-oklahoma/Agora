@@ -6,12 +6,24 @@
 
 | 提供者 | 描述 | 免費方案 | 設定 |
 |----------|-------------|-----------|-------|
+| **DuckDuckGo Lite** | 匿名、無需 API 金鑰 | 是（無限制，盡力而為） | 無需設定 — 即刻運作 |
 | **Brave** | 注重隱私的搜尋 API | 是（每月 2,000 次查詢） | [api.search.brave.com](https://api.search.brave.com/) |
 | **Serper** | 快速的 Google 搜尋 API | 是（每月 2,500 次查詢） | [serper.dev](https://serper.dev) |
 | **Tavily** | AI 最佳化搜尋，專為 LLM 代理打造 | 是（每月 1,000 次查詢） | [tavily.com](https://tavily.com) |
 | **SearXNG** | 自託管的元搜尋引擎 | 自託管（無限制） | 您自己的執行個體 |
 
 ## 設定
+
+### DuckDuckGo Lite
+
+DuckDuckGo Lite 是**預設**搜尋提供者 — 無需 API 金鑰，即刻運作。
+
+1. 在 Agora 中，前往 **設定 → 網頁搜尋**
+2. 選擇 **DuckDuckGo Lite** 作為搜尋提供者
+3. 無需金鑰或 URL — 即刻開始搜尋
+
+!!! note "盡力而為的服務"
+    DuckDuckGo Lite 使用 `lite.duckduckgo.com` 的 HTML 擷取。DDG 可能變更版面、施加速率限制或封鎖自動化請求。它作為明確的盡力而為、免金鑰選項提供。若需要可靠性，請設定下方的 API 型提供者。
 
 ### Brave
 

@@ -15,8 +15,8 @@ La génération d'images utilise sa **propre sélection de modèle**, indépenda
 3. Appuyez sur **Modèle** et choisissez un modèle texte-image
 4. Définissez éventuellement la **Taille par Défaut** (largeur × hauteur)
 
-!!! note "Réutilise les identifiants du fournisseur"
-    Le modèle d'image réutilise la clé API et l'URL de base de son fournisseur — les mêmes identifiants que vous avez déjà configurés sous **Paramètres → Fournisseurs API**. Il n'y a pas de clé séparée à saisir. Un modèle local (avec les bons poids) peut également être utilisé pour garder la génération sur l'appareil.
+!!! note "BYOK — identifiants dédiés"
+    La génération d'images utilise sa **propre clé API et URL de base dédiées**, indépendantes de vos fournisseurs de chat. Cela signifie que vous pouvez utiliser un service différent pour les images que pour le chat. Allez dans **Paramètres → Génération d'Images** pour configurer la clé, l'URL de base, le modèle et la taille par défaut.
 
 ## Sélection de Modèle
 

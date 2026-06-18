@@ -6,12 +6,24 @@ Lassen Sie das Modell das Internet durchsuchen und Webseiten in Echtzeit abrufen
 
 | Provider | Beschreibung | Kostenloses Kontingent | Einrichtung |
 |----------|-------------|-----------|-------|
+| **DuckDuckGo Lite** | Anonym, kein API-Key erforderlich | Ja (unbegrenzt, Best-Effort) | Keine Einrichtung — funktioniert sofort |
 | **Brave** | Datenschutzorientierte Such-API | Ja (2.000 Anfragen/Monat) | [api.search.brave.com](https://api.search.brave.com/) |
 | **Serper** | Schnelle Google Search API | Ja (2.500 Anfragen/Monat) | [serper.dev](https://serper.dev) |
 | **Tavily** | KI-optimierte Suche, für LLM-Agenten entwickelt | Ja (1.000 Anfragen/Monat) | [tavily.com](https://tavily.com) |
 | **SearXNG** | Selbst gehostete Metasuchmaschine | Selbst gehostet (unbegrenzt) | Ihre eigene Instanz |
 
 ## Einrichtung
+
+### DuckDuckGo Lite
+
+DuckDuckGo Lite ist der **Standard**-Suchprovider — kein API-Key erforderlich, funktioniert sofort.
+
+1. Gehen Sie in Agora zu **Einstellungen → Websuche**
+2. Wählen Sie **DuckDuckGo Lite** als Suchprovider
+3. Kein Key oder URL nötig — sofort mit der Suche beginnen
+
+!!! note "Best-Effort-Dienst"
+    DuckDuckGo Lite verwendet HTML-Scraping von `lite.duckduckgo.com`. DDG kann das Layout ändern, Ratenbegrenzungen anwenden oder automatisierte Anfragen blockieren. Es wird ausdrücklich als Best-Effort-Option ohne Key angeboten. Wenn Sie Zuverlässigkeit benötigen, konfigurieren Sie einen der API-basierten Provider unten.
 
 ### Brave
 

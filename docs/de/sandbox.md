@@ -3,7 +3,7 @@
 Agora kann eine leichtgewichtige Alpine Linux-Umgebung lokal auf Ihrem Gerät ausführen — keine Internetverbindung erforderlich. Die Sandbox ermöglicht es dem Modell, Pakete zu installieren und Befehle in einem isolierten Root-Dateisystem auszuführen.
 
 !!! note "Verfügbarkeit"
-    Die Sandbox ist in Shell-aktivierten Builds verfügbar. Zugriff über **Einstellungen → Shell → Sandbox-Verwaltung**.
+    Die Sandbox ist in allen Builds verfügbar. Zugriff über **Einstellungen → Shell → Sandbox-Verwaltung** oder direkt über **Einstellungen → Sandbox**.
 
 ## Wie es funktioniert
 

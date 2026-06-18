@@ -50,3 +50,9 @@ Desactiva esta opción si prefieres una interfaz más limpia sin el FAB de docum
 ## Valoración
 
 Un formulario de comentarios integrado te permite valorar la aplicación y enviar comentarios. Tus comentarios ayudan a mejorar Agora.
+
+---
+
+## Registro de Fallos
+
+Si Agora encuentra un error, puedes ver el registro de fallos desde **Configuración → Acerca de → Registro de Fallos**. El registro se muestra en un diálogo monoespaciado con un botón **Copiar** para compartir detalles de diagnóstico al reportar errores.

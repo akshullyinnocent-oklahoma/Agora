@@ -50,3 +50,9 @@ Deaktivieren Sie dies, wenn Sie eine übersichtlichere Oberfläche ohne den Doku
 ## Bewertung
 
 Ein integriertes Feedback-Formular ermöglicht es Ihnen, die App zu bewerten und Kommentare einzureichen. Ihr Feedback hilft, Agora zu verbessern.
+
+---
+
+## Absturz-Log
+
+Wenn Agora auf einen Fehler stößt, können Sie das Absturz-Log unter **Einstellungen → Über → Absturz-Log** einsehen. Das Log wird in einem Monospace-Dialog mit einer **Kopieren**-Schaltfläche angezeigt, um Diagnosedetails beim Melden von Fehlern zu teilen.

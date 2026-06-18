@@ -6,12 +6,24 @@
 
 | 프로바이더 | 설명 | 무료 티어 | 설정 |
 |----------|-------------|-----------|-------|
+| **DuckDuckGo Lite** | 익명, API 키 불필요 | 있음 (무제한, 베스트 에포트) | 설정 불필요 — 바로 작동 |
 | **Brave** | 개인정보 중심 검색 API | 있음 (월 2,000회 쿼리) | [api.search.brave.com](https://api.search.brave.com/) |
 | **Serper** | 빠른 Google 검색 API | 있음 (월 2,500회 쿼리) | [serper.dev](https://serper.dev) |
 | **Tavily** | AI 최적화 검색, LLM 에이전트용 | 있음 (월 1,000회 쿼리) | [tavily.com](https://tavily.com) |
 | **SearXNG** | 자체 호스팅 메타검색 엔진 | 자체 호스팅 (무제한) | 자체 인스턴스 |
 
 ## 설정
+
+### DuckDuckGo Lite
+
+DuckDuckGo Lite는 **기본** 검색 프로바이더입니다 — API 키가 필요 없으며, 즉시 작동합니다.
+
+1. Agora에서 **설정 → 웹 검색**으로 이동
+2. 검색 프로바이더로 **DuckDuckGo Lite** 선택
+3. 키나 URL 불필요 — 바로 검색 시작
+
+!!! note "베스트 에포트 서비스"
+    DuckDuckGo Lite는 `lite.duckduckgo.com`의 HTML 스크래핑을 사용합니다. DDG는 레이아웃을 변경하거나, 속도 제한을 두거나, 자동화된 요청을 차단할 수 있습니다. 명시적으로 베스트 에포트, 키 불필요 옵션으로 제공됩니다. 신뢰성이 필요하면 아래의 API 기반 프로바이더를 구성하세요.
 
 ### Brave
 

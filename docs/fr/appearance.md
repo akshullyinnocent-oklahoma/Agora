@@ -48,6 +48,15 @@ Le style de schéma détermine *comment* les couleurs de la palette choisie sont
 
 ---
 
+## Effets de Flou
+
+Activez **Activer les Effets de Flou** pour contrôler le flou d'arrière-plan et les dégradés dans toute l'interface. Lorsqu'il est désactivé, les effets de flou sont remplacés par des couleurs unies, ce qui peut améliorer les performances sur les appareils moins puissants.
+
+!!! tip "Performance"
+    Désactivez les effets de flou si vous remarquez des ralentissements lors du défilement ou des animations sur les appareils plus anciens.
+
+---
+
 ## Couleur Dynamique (Android 12+)
 
 Lorsqu'elle est activée sur les appareils fonctionnant sous Android 12 ou supérieur, Agora extrait une palette de couleurs de votre fond d'écran système et l'applique automatiquement.

@@ -6,12 +6,24 @@ Permite al modelo buscar en internet y obtener páginas web en tiempo real. Cuan
 
 | Proveedor | Descripción | Nivel Gratuito | Configuración |
 |-----------|-------------|----------------|---------------|
+| **DuckDuckGo Lite** | Anónimo, sin necesidad de clave API | Sí (ilimitado, mejor esfuerzo) | Sin configuración — funciona de inmediato |
 | **Brave** | API de búsqueda centrada en privacidad | Sí (2,000 consultas/mes) | [api.search.brave.com](https://api.search.brave.com/) |
 | **Serper** | API rápida de Google Search | Sí (2,500 consultas/mes) | [serper.dev](https://serper.dev) |
 | **Tavily** | Búsqueda optimizada para IA, diseñada para agentes LLM | Sí (1,000 consultas/mes) | [tavily.com](https://tavily.com) |
 | **SearXNG** | Metabuscador autoalojado | Autoalojado (ilimitado) | Tu propia instancia |
 
 ## Configuración
+
+### DuckDuckGo Lite
+
+DuckDuckGo Lite es el proveedor de búsqueda **predeterminado** — no requiere clave API, funciona de inmediato.
+
+1. En Agora, ve a **Configuración → Búsqueda Web**
+2. Selecciona **DuckDuckGo Lite** como proveedor de búsqueda
+3. No se necesita clave ni URL — comienza a buscar de inmediato
+
+!!! note "Servicio de mejor esfuerzo"
+    DuckDuckGo Lite utiliza scraping HTML de `lite.duckduckgo.com`. DDG puede cambiar su diseño, aplicar límites de tasa o bloquear solicitudes automatizadas. Se ofrece explícitamente como una opción sin clave y de mejor esfuerzo. Si necesitas fiabilidad, configura uno de los proveedores basados en API a continuación.
 
 ### Brave
 

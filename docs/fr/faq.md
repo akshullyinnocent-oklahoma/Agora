@@ -81,6 +81,10 @@ Oui, si vous activez **Accéder aux Mémoires Sauvegardées** et/ou **Accéder �
 
 Déployez le serveur [Conch](https://github.com/newo-ether/conch) sur votre machine cible, puis ajoutez l'appareil dans Paramètres → Shell avec son URL et sa clé API. Voir [Shell Distant](shell.md).
 
+### Puis-je rechercher sur le web sans clé API ?
+
+Oui. **DuckDuckGo Lite** est le fournisseur de recherche web par défaut et ne nécessite aucune clé API. Il fonctionne immédiatement — activez simplement Recherche Web dans Paramètres → Recherche Web. Pour une meilleure fiabilité, configurez l'un des fournisseurs basés sur API (Brave, Serper, Tavily, SearXNG). Voir [Recherche Web](web-search.md).
+
 ### La connexion shell est-elle chiffrée ?
 
 Oui. Conch utilise l'échange de clés ECDH + chiffrement AES-256-GCM + signature HMAC-SHA256. Tout le trafic entre Agora et le serveur Conch est chiffré de bout en bout.
@@ -91,7 +95,7 @@ Oui. Conch utilise l'échange de clés ECDH + chiffrement AES-256-GCM + signatur
 
 ### Comment sauvegarder mes données ?
 
-Allez dans Paramètres → Contrôle des Données → **Exporter les Données**. Sélectionnez les catégories et exportez vers un fichier `.agora`. Stockez-le dans un endroit sûr. Voir [Portabilité des Données](import-export.md).
+Allez dans Paramètres → Contrôle des Données → **Exporter les Données** pour créer une sauvegarde manuelle dans un fichier `.agora`. Pour une protection sans intervention, activez **Sauvegarde Automatique** dans Paramètres → Contrôle des Données → Sauvegarde Automatique — elle sauvegarde périodiquement vos données en arrière-plan. Voir [Portabilité des Données](import-export.md).
 
 ### Puis-je importer depuis ChatGPT ou Claude ?
 
@@ -111,7 +115,7 @@ Tout est stocké localement sur votre appareil Android dans une base de données
 
 ### Agora prend-il en charge plusieurs langues ?
 
-Oui. L'interface de l'application prend en charge **l'anglais** et **le chinois (中文)**. Paramètres → Langue. Un redémarrage est nécessaire après le changement.
+Oui. L'interface de l'application prend en charge **l'anglais**, **le chinois (中文)** et **le chinois traditionnel (繁體中文)**. Paramètres → Langue. Un redémarrage est nécessaire après le changement.
 
 ### Comment signaler un bug ou demander une fonctionnalité ?
 

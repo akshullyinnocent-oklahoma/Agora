@@ -81,6 +81,10 @@ Ja, wenn Sie **Zugriff auf Gespeicherte Erinnerungen** und/oder **Zugriff auf Ak
 
 Stellen Sie den [Conch](https://github.com/newo-ether/conch)-Server auf Ihrem Zielrechner bereit und fügen Sie dann das Gerät in Einstellungen → Shell mit URL und API-Key hinzu. Siehe [Remote Shell](shell.md).
 
+### Kann ich ohne API-Key im Web suchen?
+
+Ja. **DuckDuckGo Lite** ist der Standard-Websuchprovider und benötigt keinen API-Key. Es funktioniert sofort — aktivieren Sie einfach Websuche unter Einstellungen → Websuche. Für höhere Zuverlässigkeit konfigurieren Sie einen der API-basierten Provider (Brave, Serper, Tavily, SearXNG). Siehe [Websuche](web-search.md).
+
 ### Ist die Shell-Verbindung verschlüsselt?
 
 Ja. Conch verwendet ECDH-Schlüsselaustausch + AES-256-GCM-Verschlüsselung + HMAC-SHA256-Signierung. Der gesamte Datenverkehr zwischen Agora und dem Conch-Server ist Ende-zu-Ende verschlüsselt.
@@ -91,7 +95,7 @@ Ja. Conch verwendet ECDH-Schlüsselaustausch + AES-256-GCM-Verschlüsselung + HM
 
 ### Wie sichere ich meine Daten?
 
-Gehen Sie zu Einstellungen → Datenkontrolle → **Daten exportieren**. Wählen Sie Kategorien aus und exportieren Sie in eine `.agora`-Datei. Bewahren Sie sie an einem sicheren Ort auf. Siehe [Datenportabilität](import-export.md).
+Gehen Sie zu Einstellungen → Datenkontrolle → **Daten exportieren**, um eine manuelle Sicherung als `.agora`-Datei zu erstellen. Für automatischen Schutz aktivieren Sie **Automatische Sicherung** unter Einstellungen → Datenkontrolle → Automatische Sicherung — sie sichert Ihre Daten regelmäßig im Hintergrund. Siehe [Datenportabilität](import-export.md).
 
 ### Kann ich von ChatGPT oder Claude importieren?
 
@@ -111,7 +115,7 @@ Alles wird lokal auf Ihrem Android-Gerät in einer Room-Datenbank gespeichert. A
 
 ### Unterstützt Agora mehrere Sprachen?
 
-Ja. Die App-Benutzeroberfläche unterstützt **English** und **中文 (Chinesisch)**. Einstellungen → Sprache. Ein Neustart ist nach dem Wechsel erforderlich.
+Ja. Die App-Benutzeroberfläche unterstützt **English**, **中文 (Chinesisch)** und **繁體中文 (Traditionelles Chinesisch)**. Einstellungen → Sprache. Ein Neustart ist nach dem Wechsel erforderlich.
 
 ### Wie melde ich einen Fehler oder wünsche eine Funktion?
 

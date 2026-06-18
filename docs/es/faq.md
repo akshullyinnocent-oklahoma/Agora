@@ -81,6 +81,10 @@ Sí, si habilitas **Acceder a Memorias Guardadas** y/o **Acceder a Memoria Activ
 
 Despliega el servidor [Conch](https://github.com/newo-ether/conch) en tu máquina de destino, luego añade el dispositivo en Configuración → Shell con su URL y clave API. Consulta [Shell Remoto](shell.md).
 
+### ¿Puedo buscar en la web sin una clave API?
+
+Sí. **DuckDuckGo Lite** es el proveedor de búsqueda web predeterminado y no requiere clave API. Funciona de inmediato — solo habilita Búsqueda Web en Configuración → Búsqueda Web. Para mayor fiabilidad, configura uno de los proveedores basados en API (Brave, Serper, Tavily, SearXNG). Consulta [Búsqueda Web](web-search.md).
+
 ### ¿Está cifrada la conexión del shell?
 
 Sí. Conch utiliza intercambio de claves ECDH + cifrado AES-256-GCM + firma HMAC-SHA256. Todo el tráfico entre Agora y el servidor Conch está cifrado de extremo a extremo.
@@ -91,7 +95,7 @@ Sí. Conch utiliza intercambio de claves ECDH + cifrado AES-256-GCM + firma HMAC
 
 ### ¿Cómo hago una copia de seguridad de mis datos?
 
-Ve a Configuración → Control de Datos → **Exportar Datos**. Selecciona categorías y exporta a un archivo `.agora`. Guárdalo en un lugar seguro. Consulta [Portabilidad de Datos](import-export.md).
+Ve a Configuración → Control de Datos → **Exportar Datos** para crear una copia de seguridad manual en un archivo `.agora`. Para protección sin intervención, activa **Copia de Seguridad Automática** en Configuración → Control de Datos → Copia de Seguridad Automática — realiza copias de seguridad periódicas en segundo plano. Consulta [Portabilidad de Datos](import-export.md).
 
 ### ¿Puedo importar desde ChatGPT o Claude?
 
@@ -111,7 +115,7 @@ Todo se almacena localmente en tu dispositivo Android en una base de datos Room.
 
 ### ¿Agora admite varios idiomas?
 
-Sí. La interfaz de la aplicación admite **English** y **中文 (Chino)**. Configuración → Idioma. Se requiere reiniciar después de cambiar.
+Sí. La interfaz de la aplicación admite **English**, **中文 (Chino)** y **繁體中文 (Chino Tradicional)**. Configuración → Idioma. Se requiere reiniciar después de cambiar.
 
 ### ¿Cómo reporto un error o solicito una función?
 

@@ -50,3 +50,9 @@ Désactivez cette option si vous préférez une interface plus propre sans le FA
 ## Évaluation
 
 Un formulaire de retour intégré vous permet d'évaluer l'application et de soumettre des commentaires. Vos retours aident à améliorer Agora.
+
+---
+
+## Journal de Crash
+
+Si Agora rencontre une erreur, vous pouvez consulter le journal de crash depuis **Paramètres → À Propos → Journal de Crash**. Le journal s'affiche dans une boîte de dialogue monospace avec un bouton **Copier** pour partager les détails de diagnostic lors du signalement de bugs.

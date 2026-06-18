@@ -19,16 +19,24 @@ Diese Schleife kann sich innerhalb einer einzelnen Nachrichtenrunde mehrmals wie
 
 Das Internet durchsuchen und Webseiten abrufen. Das Modell kann aktuelle Informationen nachschlagen, Fakten überprüfen oder Dokumentation abrufen.
 
-- **Provider**: Brave, Serper, Tavily, SearXNG
+- **Provider**: DuckDuckGo Lite (Standard, ohne Key), Brave, Serper, Tavily, SearXNG
 - **Konfiguration**: Einstellungen → Websuche
 - **Anleitung**: [Websuche](web-search.md)
 
+### Bildgenerierung
+
+Generieren Sie Bilder aus Text-Prompts mit einem dedizierten Text-zu-Bild-Modell. Bilder werden inline in der Konversation angezeigt und können im Vollbildmodus betrachtet werden.
+
+- **Provider**: BYOK — verwendet Ihren eigenen API-Key und Basis-URL, unabhängig vom Chat-Modell
+- **Konfiguration**: Einstellungen → Bildgenerierung
+- **Anleitung**: [Bildgenerierung](image-generation.md)
+
 ### Code-Ausführung
 
-Code-Snippets in einer sandboxed Umgebung ausführen (provider-abhängig). Nützlich für Berechnungen, Datenanalyse oder Inline-Logiktests.
+Code in einer isolierten Umgebung ausführen:
 
-- **Provider**: Google Gemini (integrierte Code-Ausführung)
-- **Konfiguration**: Keine Einrichtung erforderlich — automatisch für Gemini-Modelle aktiviert
+- **Gemini Code Execution** — integrierte Code-Ausführung für Gemini-Modelle (keine Einrichtung)
+- **Sandbox** — lokale Alpine Linux-Umgebung via PRoot, mit Paketverwaltung und SAF-Dateizugriff
 
 ### Remote Shell
 

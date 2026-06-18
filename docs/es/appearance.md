@@ -48,6 +48,15 @@ El estilo de esquema determina *cómo* se aplican los colores de la paleta elegi
 
 ---
 
+## Efectos de Desenfoque
+
+Activa **Habilitar Efectos de Desenfoque** para controlar el desenfoque de fondo y los degradados en toda la interfaz. Cuando está desactivado, los efectos de desenfoque se reemplazan con colores sólidos, lo que puede mejorar el rendimiento en dispositivos de gama baja.
+
+!!! tip "Rendimiento"
+    Desactiva los efectos de desenfoque si notas retrasos en la interfaz durante el desplazamiento o la animación en dispositivos antiguos.
+
+---
+
 ## Color Dinámico (Android 12+)
 
 Cuando está activado en dispositivos con Android 12 o superior, Agora extrae una paleta de colores de tu fondo de pantalla del sistema y la aplica automáticamente.
