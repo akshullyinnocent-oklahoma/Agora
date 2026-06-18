@@ -564,6 +564,45 @@
     <string name="tool_searching_conversations_default">正在搜尋對話</string>
     <string name="tool_done">完成</string>
     <string name="tool_context">工具</string>
+    <!-- New tool display names (P0) -->
+    <string name="tool_list_conversations">列出對話</string>
+    <string name="tool_read_conversation">閱讀對話</string>
+    <string name="tool_file_read">讀取檔案</string>
+    <string name="tool_file_write">寫入檔案</string>
+    <string name="tool_file_edit">編輯檔案</string>
+    <string name="tool_file_glob">尋找檔案</string>
+    <string name="tool_file_grep">搜尋檔案</string>
+    <!-- Tool in-progress states (doing) -->
+    <string name="tool_listing_conversations">列出對話中…</string>
+    <string name="tool_reading_conversation">閱讀對話中…</string>
+    <string name="tool_reading_file">讀取 %1$s…</string>
+    <string name="tool_writing_file">寫入 %1$s…</string>
+    <string name="tool_editing_file">編輯 %1$s…</string>
+    <string name="tool_finding_files">尋找 %1$s…</string>
+    <string name="tool_searching_file">搜尋 %1$s…</string>
+    <string name="tool_executing_shell">執行中: %1$s…</string>
+    <string name="tool_reading_memory">讀取 %1$s…</string>
+    <string name="tool_saving_memory">儲存 %1$s…</string>
+    <string name="tool_updating_memory">更新 %1$s…</string>
+    <string name="tool_removing_memory">刪除 %1$s…</string>
+    <string name="tool_looking_up_memories">查詢記憶中…</string>
+    <string name="tool_updating_active">更新活躍記憶中…</string>
+    <string name="tool_listing_shells">列出Shell中…</string>
+    <string name="tool_searching_for">搜尋 \'%1$s\'…</string>
+    <!-- Tool done states (P0 + P1) -->
+    <string name="tool_listed_conversations">已列出 %1$d 個對話</string>
+    <string name="tool_listed_no_conversations">未找到對話</string>
+    <string name="tool_read_conversation_done">已閱讀對話: %1$s</string>
+    <string name="tool_read_file_done">已讀取 %1$s</string>
+    <string name="tool_wrote_file">已寫入 %1$s</string>
+    <string name="tool_edited_file">已編輯 %1$s</string>
+    <string name="tool_found_files">找到 %1$d 個檔案</string>
+    <string name="tool_found_no_files">無符合檔案</string>
+    <string name="tool_searched_file">找到 %1$d 處符合</string>
+    <string name="tool_executed_shell">已執行: %1$s (%2$d 位元組)</string>
+    <string name="tool_executed_no_output">已執行: %1$s (無輸出)</string>
+    <string name="tool_read_file_failed">讀取檔案失敗</string>
+    <string name="crash_log_label">崩潰日誌</string>
 
     <!-- Message Info -->
     <string name="message_info">詳細資訊</string>

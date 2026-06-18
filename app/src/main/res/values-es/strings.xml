@@ -76,6 +76,45 @@
     <string name="tool_call_failed">La llamada a la herramienta falló</string>
     <string name="tool_done">Listo</string>
     <string name="tool_context">Herramienta</string>
+    <!-- New tool display names (P0) -->
+    <string name="tool_list_conversations">List Conversations</string>
+    <string name="tool_read_conversation">Read Conversation</string>
+    <string name="tool_file_read">Read File</string>
+    <string name="tool_file_write">Write File</string>
+    <string name="tool_file_edit">Edit File</string>
+    <string name="tool_file_glob">Find Files</string>
+    <string name="tool_file_grep">Search Files</string>
+    <!-- Tool in-progress states (doing) -->
+    <string name="tool_listing_conversations">Listing conversations…</string>
+    <string name="tool_reading_conversation">Reading conversation…</string>
+    <string name="tool_reading_file">Reading %1$s…</string>
+    <string name="tool_writing_file">Writing %1$s…</string>
+    <string name="tool_editing_file">Editing %1$s…</string>
+    <string name="tool_finding_files">Finding %1$s…</string>
+    <string name="tool_searching_file">Searching %1$s…</string>
+    <string name="tool_executing_shell">Executing: %1$s…</string>
+    <string name="tool_reading_memory">Reading %1$s…</string>
+    <string name="tool_saving_memory">Saving %1$s…</string>
+    <string name="tool_updating_memory">Updating %1$s…</string>
+    <string name="tool_removing_memory">Removing %1$s…</string>
+    <string name="tool_looking_up_memories">Looking up memories…</string>
+    <string name="tool_updating_active">Updating active memory…</string>
+    <string name="tool_listing_shells">Listing shells…</string>
+    <string name="tool_searching_for">Searching for \'%1$s\'…</string>
+    <!-- Tool done states (P0 + P1) -->
+    <string name="tool_listed_conversations">Listed %1$d conversations</string>
+    <string name="tool_listed_no_conversations">No conversations found</string>
+    <string name="tool_read_conversation_done">Read conversation: %1$s</string>
+    <string name="tool_read_file_done">Read %1$s</string>
+    <string name="tool_wrote_file">Wrote %1$s</string>
+    <string name="tool_edited_file">Edited %1$s</string>
+    <string name="tool_found_files">Found %1$d files</string>
+    <string name="tool_found_no_files">No files matched</string>
+    <string name="tool_searched_file">Found %1$d matches</string>
+    <string name="tool_executed_shell">Executed: %1$s (%2$d bytes)</string>
+    <string name="tool_executed_no_output">Executed: %1$s (no output)</string>
+    <string name="tool_read_file_failed">Read file failed</string>
+    <string name="crash_log_label">Crash Log</string>
     <string name="message_info">Información del mensaje</string>
     <string name="time_with_label">Hora: %1$s</string>
     <string name="model_with_label">Modelo: %1$s</string>
