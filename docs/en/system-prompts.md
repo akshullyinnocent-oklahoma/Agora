@@ -41,6 +41,21 @@ Please reply in Markdown.
 
 ---
 
+## Built-in Templates
+
+Agora ships with a library of ready-to-use prompt templates organized into 4 categories:
+
+| Category | Description | Example |
+|----------|-------------|---------|
+| **General** | Versatile assistants for everyday tasks | Helpful assistant, explainer, summarizer |
+| **Coding** | Software development and code review | Code reviewer, debugger, architect |
+| **Creative** | Writing, storytelling, and ideation | Storyteller, poet, brainstorming partner |
+| **Analysis** | Data analysis, research, and critique | Data analyst, researcher, devil's advocate |
+
+Built-in templates can be used as-is or edited to suit your needs. They serve as starting points — customize the three sections to match your workflow.
+
+---
+
 ## Creating a Prompt
 
 1. Go to **Settings → System Prompts**

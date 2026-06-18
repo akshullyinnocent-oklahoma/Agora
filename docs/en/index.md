@@ -18,12 +18,13 @@ Welcome to the Agora user manual. Agora is a BYOK (Bring Your Own Key) LLM clien
 - **[Generation](generation.md)** — temperature, top P, max tokens, thinking, frequency/presence penalties
 - **[Title Generation](title-generation.md)** — auto-generate conversation titles
 - **[Image Transcription](transcription.md)** — image-to-text pipeline for vision-blind providers
-- **[Appearance](appearance.md)** — theme mode, color scheme, dynamic color, scheme style
+- **[Image Generation](image-generation.md)** — text-to-image generation as a chat tool
+- **[Appearance](appearance.md)** — theme mode, color scheme, dynamic color, scheme style, blur effects
 
 ### Agentic Tools
 
 - **[Overview](tools.md)** — how multi-round tool calling works
-- **[Web Search](web-search.md)** — Brave, Serper, Tavily, SearXNG integration
+- **[Web Search](web-search.md)** — DuckDuckGo Lite, Brave, Serper, Tavily, SearXNG integration
 - **[Remote Shell (Conch)](shell.md)** — encrypted remote command execution, file operations, MCP integration
 - **[Sandbox](sandbox.md)** — local Alpine Linux environment for isolated command execution
 
@@ -37,8 +38,8 @@ Welcome to the Agora user manual. Agora is a BYOK (Bring Your Own Key) LLM clien
 
 - **[Local Models](local-model.md)** — run GGUF models on-device via llama.cpp
 - **[PDF Import](pdf-import.md)** — extract and send PDF pages to vision models
-- **[Data Portability](import-export.md)** — export/import .agora files, import from Claude and ChatGPT
-- **[Language](language.md)** — switch between English, Chinese, or system default
+- **[Data Portability](import-export.md)** — export/import .agora files, auto backup, import from Claude and ChatGPT
+- **[Language](language.md)** — switch between English, 中文, 繁體中文, or system default
 - **[About](about.md)** — version info, updates, documentation toggles, links, rating
 
 ---
@@ -50,6 +51,6 @@ Agora is a BYOK Android client for AI power users:
 - **No middlemen**: Direct API connections, no telemetry, no tracking
 - **On-device storage**: Everything lives locally in a Room database
 - **Non-linear conversations**: Edit any past message and explore alternative branches
-- **Agentic by default**: Multi-round tool calling with web search, shell execution, file operations, and memory
+- **Agentic by default**: Multi-round tool calling with web search, image generation, code execution, shell, file operations, and memory
 - **Remote control**: Manage servers via the encrypted Conch protocol
 - **Open source**: MIT licensed, [source on GitHub](https://github.com/newo-ether/Agora)

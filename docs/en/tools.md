@@ -19,16 +19,24 @@ This loop can repeat multiple times within a single message turn.
 
 Search the internet and fetch web pages. The model can look up current information, verify facts, or retrieve documentation.
 
-- **Providers**: Brave, Serper, Tavily, SearXNG
+- **Providers**: DuckDuckGo Lite (default, no key), Brave, Serper, Tavily, SearXNG
 - **Configuration**: Settings → Web Search
 - **Guide**: [Web Search](web-search.md)
 
+### Image Generation
+
+Generate images from text prompts using a dedicated text-to-image model. Images render inline in the conversation and can be viewed full-screen.
+
+- **Provider**: BYOK — uses your own API key and base URL, decoupled from the chat model
+- **Configuration**: Settings → Image Generation
+- **Guide**: [Image Generation](image-generation.md)
+
 ### Code Execution
 
-Execute code snippets in a sandboxed environment (provider-dependent). Useful for calculations, data analysis, or testing logic inline.
+Execute code in an isolated environment:
 
-- **Provider**: Google Gemini (built-in code execution)
-- **Configuration**: No setup required — enabled automatically for Gemini models
+- **Gemini Code Execution** — built-in code execution for Gemini models (no setup)
+- **Sandbox** — local Alpine Linux environment via PRoot, with package management and SAF file access
 
 ### Remote Shell
 

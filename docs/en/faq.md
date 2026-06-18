@@ -79,7 +79,11 @@ Yes, if you enable **Access Saved Memories** and/or **Access Active Memory** in 
 
 ### How do I set up remote shell access?
 
-Deploy the [Conch](https://github.com/newo-ether/conch) server on your target machine, then add the device in Settings → Shell with its URL and API key. See [Remote Shell](shell.md).
+Deploy the [Conch](https://github.com/newo-ether/conch) server on your target machine, then add the device in Settings → Shell with its URL and API key. Both Conch and SSH devices are supported. See [Remote Shell](shell.md).
+
+### Can I search the web without an API key?
+
+Yes. **DuckDuckGo Lite** is the default web search provider and requires no API key. It works out of the box — just enable Web Search in Settings → Web Search. For higher reliability, configure one of the API-based providers (Brave, Serper, Tavily, SearXNG). See [Web Search](web-search.md).
 
 ### Is the shell connection encrypted?
 
@@ -91,7 +95,7 @@ Yes. Conch uses ECDH key exchange + AES-256-GCM encryption + HMAC-SHA256 signing
 
 ### How do I back up my data?
 
-Go to Settings → Data Control → **Export Data**. Select categories and export to a `.agora` file. Store it somewhere safe. See [Data Portability](import-export.md).
+Go to Settings → Data Control → **Export Data** to create a manual `.agora` backup. For hands-off protection, enable **Auto Backup** in Settings → Data Control → Auto Backup — it periodically backs up your data in the background. See [Data Portability](import-export.md).
 
 ### Can I import from ChatGPT or Claude?
 
@@ -111,7 +115,7 @@ Everything is stored locally on your Android device in a Room database. Agora ha
 
 ### Does Agora support multiple languages?
 
-Yes. The app UI supports **English** and **中文 (Chinese)**. Settings → Language. A restart is required after switching.
+Yes. The app UI supports **English**, **中文 (Chinese)**, and **繁體中文 (Traditional Chinese)**. Settings → Language. A restart is required after switching.
 
 ### How do I report a bug or request a feature?
 

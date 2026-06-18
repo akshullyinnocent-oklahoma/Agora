@@ -9,6 +9,7 @@ Choose the display language for Agora's interface.
 | **System Default** | `system` | Follow your device's system language setting |
 | **English** | `en` | All UI text in English |
 | **简体中文** | `zh` | All UI text in Simplified Chinese |
+| **繁體中文** | `zh-Hant` | All UI text in Traditional Chinese |
 
 ## How to Change
 

@@ -48,6 +48,15 @@ The scheme style determines *how* colors from the chosen palette are applied to 
 
 ---
 
+## Blur Effects
+
+Toggle **Enable Blur Effects** to control background blur and gradient blur throughout the UI. When disabled, blur effects are replaced with solid colors, which can improve performance on lower-end devices.
+
+!!! tip "Performance"
+    Disable blur effects if you notice UI lag during scrolling or animation on older devices.
+
+---
+
 ## Dynamic Color (Android 12+)
 
 When enabled on devices running Android 12 or higher, Agora extracts a color palette from your system wallpaper and applies it automatically.

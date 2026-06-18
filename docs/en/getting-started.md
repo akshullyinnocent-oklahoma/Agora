@@ -100,8 +100,9 @@ Tap the **hamburger menu** or swipe right from the left edge to open:
 
 ## Next Steps
 
-- [Configure system prompts](system-prompts.md) to customize model behavior
-- [Set up web search](web-search.md) for live internet access
-- [Explore agentic tools](tools.md) — shell execution, file operations, and memory
+- [Set up web search](web-search.md) — DuckDuckGo Lite works out of the box, no API key needed
+- [Configure image generation](image-generation.md) — text-to-image right inside conversations
+- [Set up auto backup](import-export.md#auto-backup) — hands-off periodic data protection
+- [Explore agentic tools](tools.md) — shell execution, file operations, memory, and more
 - [Import data](import-export.md) from Claude or ChatGPT
 - [Run local models](local-model.md) for offline use

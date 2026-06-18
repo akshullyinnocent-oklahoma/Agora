@@ -6,12 +6,24 @@ Let the model search the internet and fetch web pages in real time. When enabled
 
 | Provider | Description | Free Tier | Setup |
 |----------|-------------|-----------|-------|
+| **DuckDuckGo Lite** | Anonymous, no API key needed | Yes (unlimited, best-effort) | No setup — works out of the box |
 | **Brave** | Privacy-focused search API | Yes (2,000 queries/month) | [api.search.brave.com](https://api.search.brave.com/) |
 | **Serper** | Fast Google Search API | Yes (2,500 queries/month) | [serper.dev](https://serper.dev) |
 | **Tavily** | AI-optimized search, built for LLM agents | Yes (1,000 queries/month) | [tavily.com](https://tavily.com) |
 | **SearXNG** | Self-hosted metasearch engine | Self-hosted (unlimited) | Your own instance |
 
 ## Setup
+
+### DuckDuckGo Lite
+
+DuckDuckGo Lite is the **default** search provider — no API key required, works immediately.
+
+1. In Agora, go to **Settings → Web Search**
+2. Select **DuckDuckGo Lite** as the search provider
+3. No key or URL needed — start searching right away
+
+!!! note "Best-effort service"
+    DuckDuckGo Lite uses HTML scraping of `lite.duckduckgo.com`. DDG may change their layout, rate-limit, or block automated requests. It ships as an explicitly best-effort, no-key option. If you need reliability, configure one of the API-based providers below.
 
 ### Brave
 

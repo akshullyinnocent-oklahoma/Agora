@@ -3,11 +3,11 @@
 Agora can run a lightweight Alpine Linux environment locally on your device — no internet connection required. The sandbox lets the model install packages and execute commands in an isolated root filesystem.
 
 !!! note "Availability"
-    The sandbox is available in shell-enabled builds. Access it from **Settings → Shell → Sandbox Management**.
+    The sandbox is available in all builds. Access it from **Settings → Shell → Sandbox Management** or directly via **Settings → Sandbox**.
 
 ## How It Works
 
-The sandbox uses an Alpine Linux root filesystem deployed to your device's app-private storage. A minimal `apk`-based package manager lets you install software into this environment, and commands execute inside a proot-based container.
+The sandbox uses an Alpine Linux root filesystem deployed to your device's app-private storage. A minimal `apk`-based package manager lets you install software into this environment, and commands execute inside a proot-based container. The sandbox also integrates with Android's **Storage Access Framework (SAF)** via a DocumentsProvider, allowing other apps to access sandbox files.
 
 This is **not** a full virtual machine — it's a lightweight user-space container that shares the host kernel. It provides enough isolation for safe experimentation while keeping resource usage low.
 

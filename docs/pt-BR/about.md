@@ -47,6 +47,12 @@ Desative se preferir uma interface mais limpa sem o FAB de documentação.
 
 ---
 
+## Registro de Falhas
+
+Se o Agora encontrar um erro, você pode visualizar o registro de falhas em **Configurações → Sobre → Registro de Falhas**. O registro é exibido em um diálogo monoespaçado com um botão **Copiar** para compartilhar detalhes de diagnóstico ao relatar bugs.
+
+---
+
 ## Avaliação
 
 Um formulário de feedback integrado permite que você avalie o aplicativo e envie comentários. Seu feedback ajuda a melhorar o Agora.

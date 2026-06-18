@@ -15,8 +15,8 @@ Image generation uses its **own model selection**, independent of the model you 
 3. Tap **Model** and choose a text-to-image model
 4. Optionally set the **Default Size** (width × height)
 
-!!! note "Reuses provider credentials"
-    The image model reuses the API key and base URL of its provider — the same credentials you already configured under **Settings → API Providers**. There is no separate key to enter. A local model (with the right weights) can also be used to keep generation on-device.
+!!! note "BYOK — dedicated credentials"
+    Image generation uses its **own dedicated API key and base URL**, independent of your chat providers. This means you can use a different service for images than for chat. Go to **Settings → Image Generation** to configure the key, base URL, model, and default size.
 
 ## Model Selection
 

@@ -48,6 +48,15 @@ O estilo do esquema determina *como* as cores da paleta escolhida são aplicadas
 
 ---
 
+## Efeitos de Desfoque
+
+Alterne **Ativar Efeitos de Desfoque** para controlar o desfoque de fundo e o desfoque gradiente em toda a interface. Quando desativado, os efeitos de desfoque são substituídos por cores sólidas, o que pode melhorar o desempenho em dispositivos menos potentes.
+
+!!! tip "Desempenho"
+    Desative os efeitos de desfoque se você notar lentidão na interface durante a rolagem ou animação em dispositivos mais antigos.
+
+---
+
 ## Cores Dinâmicas (Android 12+)
 
 Quando ativado em dispositivos com Android 12 ou superior, o Agora extrai uma paleta de cores do papel de parede do sistema e a aplica automaticamente.

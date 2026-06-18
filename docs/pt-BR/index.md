@@ -18,12 +18,13 @@ Bem-vindo ao manual do usuário do Agora. O Agora é um cliente LLM BYOK (Bring 
 - **[Geração](generation.md)** — temperatura, top P, máximo de tokens, thinking, penalidades de frequência/presença
 - **[Geração de Títulos](title-generation.md)** — gere títulos de conversas automaticamente
 - **[Transcrição de Imagens](transcription.md)** — pipeline de imagem para texto para provedores sem visão
-- **[Aparência](appearance.md)** — modo de tema, esquema de cores, cores dinâmicas, estilo do esquema
+- **[Geração de Imagens](image-generation.md)** — geração de texto para imagem como ferramenta de chat
+- **[Aparência](appearance.md)** — modo de tema, esquema de cores, cores dinâmicas, estilo do esquema, efeitos de desfoque
 
 ### Ferramentas Agênticas
 
 - **[Visão Geral](tools.md)** — como funciona a chamada de ferramentas em múltiplas rodadas
-- **[Busca na Web](web-search.md)** — integração com Brave, Serper, Tavily, SearXNG
+- **[Busca na Web](web-search.md)** — integração com DuckDuckGo Lite, Brave, Serper, Tavily, SearXNG
 - **[Shell Remoto (Conch)](shell.md)** — execução remota criptografada de comandos, operações de arquivo, integração MCP
 - **[Sandbox](sandbox.md)** — ambiente Alpine Linux local para execução isolada de comandos
 
@@ -37,8 +38,8 @@ Bem-vindo ao manual do usuário do Agora. O Agora é um cliente LLM BYOK (Bring 
 
 - **[Modelos Locais](local-model.md)** — execute modelos GGUF no dispositivo via llama.cpp
 - **[Importação de PDF](pdf-import.md)** — extraia e envie páginas de PDF para modelos de visão
-- **[Portabilidade de Dados](import-export.md)** — exporte/importe arquivos .agora, importe do Claude e ChatGPT
-- **[Idioma](language.md)** — alterne entre Inglês, Chinês ou padrão do sistema
+- **[Portabilidade de Dados](import-export.md)** — exporte/importe arquivos .agora, backup automático, importe do Claude e ChatGPT
+- **[Idioma](language.md)** — alterne entre English, 中文, 繁體中文 ou padrão do sistema
 - **[Sobre](about.md)** — informações da versão, atualizações, opções de documentação, links, avaliação
 
 ---

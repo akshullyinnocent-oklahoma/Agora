@@ -3,7 +3,7 @@
 O Agora pode executar um ambiente Alpine Linux leve localmente no seu dispositivo — sem necessidade de conexão com a internet. O sandbox permite que o modelo instale pacotes e execute comandos em um sistema de arquivos raiz isolado.
 
 !!! note "Disponibilidade"
-    O sandbox está disponível em builds com shell ativado. Acesse-o em **Configurações → Shell → Gerenciamento do Sandbox**.
+    O sandbox está disponível em todas as builds. Acesse-o em **Configurações → Shell → Gerenciamento do Sandbox** ou diretamente via **Configurações → Sandbox**.
 
 ## Como Funciona
 

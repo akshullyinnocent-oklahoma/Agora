@@ -50,3 +50,9 @@ Toggle this off if you prefer a cleaner interface without the documentation FAB.
 ## Rating
 
 A built-in feedback form lets you rate the app and submit comments. Your feedback helps improve Agora.
+
+---
+
+## Crash Log
+
+If Agora encounters an error, you can view the crash log from **Settings → About → Crash Log**. The log is displayed in a monospace dialog with a **Copy** button to share diagnostic details when reporting bugs.

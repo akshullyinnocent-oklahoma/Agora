@@ -6,12 +6,24 @@ Permita que o modelo pesquise na internet e busque páginas da web em tempo real
 
 | Provedor | Descrição | Nível Gratuito | Configuração |
 |----------|-----------|----------------|--------------|
+| **DuckDuckGo Lite** | Anônimo, sem necessidade de chave de API | Sim (ilimitado, melhor esforço) | Sem configuração — funciona imediatamente |
 | **Brave** | API de busca focada em privacidade | Sim (2.000 consultas/mês) | [api.search.brave.com](https://api.search.brave.com/) |
 | **Serper** | API rápida de busca do Google | Sim (2.500 consultas/mês) | [serper.dev](https://serper.dev) |
 | **Tavily** | Busca otimizada para IA, feita para agentes LLM | Sim (1.000 consultas/mês) | [tavily.com](https://tavily.com) |
 | **SearXNG** | Motor de metabusca auto-hospedado | Auto-hospedado (ilimitado) | Sua própria instância |
 
 ## Configuração
+
+### DuckDuckGo Lite
+
+DuckDuckGo Lite é o provedor de busca **padrão** — sem necessidade de chave de API, funciona imediatamente.
+
+1. No Agora, vá em **Configurações → Busca na Web**
+2. Selecione **DuckDuckGo Lite** como provedor de busca
+3. Nenhuma chave ou URL necessária — comece a buscar agora mesmo
+
+!!! note "Serviço de melhor esforço"
+    DuckDuckGo Lite usa raspagem HTML do `lite.duckduckgo.com`. O DDG pode alterar seu layout, limitar a taxa ou bloquear requisições automatizadas. Ele é fornecido como uma opção explicitamente de melhor esforço e sem chave. Se você precisa de confiabilidade, configure um dos provedores baseados em API abaixo.
 
 ### Brave
 

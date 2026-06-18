@@ -77,6 +77,7 @@ Long-press any message to access these actions:
 | **Copy** | Copy the message text to clipboard |
 | **Edit** | Edit the message and create a branch |
 | **Info** | View metadata: timestamp, model used, token count |
+| **Save/Share** | Long-press images to save to gallery or share |
 | **Delete** | Delete this message and all follow-up replies |
 
 !!! warning "Deleting a Message"
@@ -121,16 +122,23 @@ Model responses are rendered with full markdown support:
 - **Headers**, **bold**, *italic*, `inline code`
 - **Code blocks** with syntax highlighting (use ````` ``` `````)
 - **Tables**, blockquotes, lists
-- **LaTeX math** — inline `$E=mc^2$` and block `$$\int_a^b f(x)dx$$`
+- **LaTeX math** — inline `$E=mc^2$` and block `$$\int_a^b f(x)dx$$` with improved parsing (CJK text detection, escaped dollar handling)
+
+Streaming markdown is rendered with a **double-buffered crossfade** technique — the UI smoothly transitions between render passes instead of flickering on each token, even during rapid streaming.
 
 ### Thinking Display
 
-For models that support reasoning (OpenAI o-series, Anthropic extended thinking, Gemini thinking, DeepSeek-R1), the model's thought process is shown in a **collapsible panel** before the final response:
+For models that support reasoning (OpenAI o-series, Anthropic extended thinking, Gemini thinking, DeepSeek-R1), the model's thought process is shown in **grouped, collapsible panels**:
 
 - The panel shows "Thinking..." during the reasoning phase
 - Once complete, it displays the thinking duration (e.g., "Thought for 12s")
 - Tap to expand/collapse the thought content
+- Multiple thinking blocks are grouped together for cleaner presentation
 - Tool calls made during thinking are counted (e.g., "Thought for 8s, called 2 tools")
+
+### Generated Images
+
+When [Image Generation](image-generation.md) is enabled, generated images appear inline in the conversation as model message attachments. Tap an image to open it full-screen with gesture controls (pinch-zoom, pan, double-tap). Long-press to save or share.
 
 ---
 
