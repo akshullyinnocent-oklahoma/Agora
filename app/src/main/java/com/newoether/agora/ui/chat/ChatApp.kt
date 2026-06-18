@@ -1019,14 +1019,19 @@ fun ChatApp(
                         }
                     }
 
+                    val fabElevation by animateDpAsState(
+                        targetValue = if (showButton) 4.dp else 0.dp,
+                        animationSpec = tween(400)
+                    )
+
                     AnimatedVisibility(
                         visible = showButton,
-                        enter = fadeIn(tween(250)) + scaleIn(initialScale = 0.7f, animationSpec = tween(250)),
-                        exit = fadeOut(tween(180)) + scaleOut(targetScale = 0.7f, animationSpec = tween(180)),
+                        enter = fadeIn(tween(400)) + scaleIn(initialScale = 0.6f, animationSpec = tween(400)),
+                        exit = fadeOut(tween(400)) + scaleOut(targetScale = 0.6f, animationSpec = tween(400)),
                         modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = bottomBarHeight + 8.dp)
                     ) {
                         Box(modifier = Modifier.size(48.dp), contentAlignment = Alignment.Center) {
-                            FloatingActionButton(onClick = { scope.launch { scrollToLastUserMessage(animate = true, easing = SCROLL_EASING) } }, containerColor = MaterialTheme.colorScheme.surfaceColorAtElevation(4.dp), contentColor = MaterialTheme.colorScheme.onSurface, shape = CircleShape, elevation = FloatingActionButtonDefaults.elevation(4.dp), modifier = Modifier.size(40.dp)) {
+                            FloatingActionButton(onClick = { scope.launch { scrollToLastUserMessage(animate = true, easing = SCROLL_EASING) } }, containerColor = MaterialTheme.colorScheme.surfaceColorAtElevation(4.dp), contentColor = MaterialTheme.colorScheme.onSurface, shape = CircleShape, elevation = FloatingActionButtonDefaults.elevation(fabElevation), modifier = Modifier.size(40.dp)) {
                                 Icon(Icons.Default.KeyboardArrowDown, stringResource(R.string.scroll_to_bottom), modifier = Modifier.size(24.dp))
                             }
                         }
