@@ -1,9 +1,7 @@
 package com.newoether.agora.ui.settings
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.*
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -56,11 +54,7 @@ fun SettingsShellPage(viewModel: ChatViewModel, onBack: () -> Unit) {
     AnimatedContent(
         targetState = showSandboxMgmt,
         transitionSpec = {
-            if (targetState) {
-                (slideInHorizontally { it }) togetherWith (slideOutHorizontally { -it })
-            } else {
-                (slideInHorizontally { -it }) togetherWith (slideOutHorizontally { it })
-            }
+            settingsContentTransform(forward = targetState)
         }
     ) { isMgmt ->
         if (isMgmt && viewModel.sandboxManager != null) {

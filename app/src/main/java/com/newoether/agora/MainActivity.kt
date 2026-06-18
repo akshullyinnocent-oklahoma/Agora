@@ -627,8 +627,8 @@ fun MainNavigation(viewModel: ChatViewModel, settingsManager: SettingsManager) {
             // Scrim that fades in behind the settings page
             AnimatedVisibility(
                 visible = showSettings,
-                enter = fadeIn(animationSpec = tween(400)),
-                exit = fadeOut(animationSpec = tween(400))
+                enter = fadeIn(animationSpec = tween(300, delayMillis = 50)),
+                exit = fadeOut(animationSpec = tween(400, easing = FastOutSlowInEasing))
             ) {
                 Box(
                     modifier = Modifier
@@ -642,8 +642,24 @@ fun MainNavigation(viewModel: ChatViewModel, settingsManager: SettingsManager) {
 
             AnimatedVisibility(
                 visible = showSettings,
-                enter = slideInHorizontally(animationSpec = tween(400)) { it },
-                exit = slideOutHorizontally(animationSpec = tween(400)) { it }
+                enter = slideInHorizontally(
+                    animationSpec = spring(
+                        dampingRatio = Spring.DampingRatioLowBouncy,
+                        stiffness = Spring.StiffnessLow
+                    )
+                ) { fullWidth -> (fullWidth * 0.25f).toInt() } + fadeIn(animationSpec = tween(300)) + scaleIn(
+                    initialScale = 0.92f,
+                    animationSpec = spring(
+                        dampingRatio = Spring.DampingRatioLowBouncy,
+                        stiffness = Spring.StiffnessLow
+                    )
+                ),
+                exit = slideOutHorizontally(
+                    animationSpec = tween(400, easing = FastOutSlowInEasing)
+                ) { it } + fadeOut(animationSpec = tween(400, easing = FastOutSlowInEasing)) + scaleOut(
+                    targetScale = 0.94f,
+                    animationSpec = tween(400, easing = FastOutSlowInEasing)
+                )
             ) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),

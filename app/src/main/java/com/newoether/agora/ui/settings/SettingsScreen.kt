@@ -1,10 +1,8 @@
 package com.newoether.agora.ui.settings
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
-import androidx.compose.animation.togetherWith
+import androidx.compose.animation.*
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -196,11 +194,7 @@ fun SettingsScreen(viewModel: ChatViewModel, onBack: () -> Unit) {
         AnimatedContent(
             targetState = selectedCategory,
             transitionSpec = {
-                if (targetState == null) {
-                    slideInHorizontally(initialOffsetX = { -it }) togetherWith slideOutHorizontally(targetOffsetX = { it })
-                } else {
-                    slideInHorizontally(initialOffsetX = { it }) togetherWith slideOutHorizontally(targetOffsetX = { -it })
-                }
+                settingsContentTransform(forward = targetState != null)
             }
         ) { category ->
             when (category) {
