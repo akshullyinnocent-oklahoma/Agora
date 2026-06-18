@@ -153,6 +153,7 @@ fun ChatApp(
     val webSearchApiKeys by viewModel.webSearchApiKeys.collectAsState()
     val globalShell by viewModel.shellEnabled.collectAsState()
     val shellDevices by viewModel.shellDevices.collectAsState()
+    val toolCallDisplayMode by viewModel.toolCallDisplayMode.collectAsState()
     val conversationSettings by viewModel.conversationSettings.collectAsState()
     val pendingSettings by viewModel.pendingConversationSettings.collectAsState()
     // Resolved per-conversation values: override → global default
@@ -923,6 +924,7 @@ fun ChatApp(
                                 isLoading = isLoading && generatingInConversationId == currentConversationId,
                                 isSwitching = isSwitching,
                                 visualizeContextRollout = visualizeContextRollout,
+                                toolCallDisplayMode = toolCallDisplayMode,
                                 maxContextWindow = contextWindow,
                                 modelAliases = modelAliases,
                                 bottomBarHeight = bottomBarHeight,

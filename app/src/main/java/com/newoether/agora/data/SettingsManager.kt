@@ -2,6 +2,7 @@ package com.newoether.agora.data
 
 import android.content.Context
 import com.newoether.agora.model.ThinkingLevels
+import com.newoether.agora.model.ToolCallDisplayModes
 import com.newoether.agora.util.DebugLog
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
@@ -159,6 +160,7 @@ class SettingsManager(private val context: Context) {
         val DYNAMIC_COLOR = booleanPreferencesKey("dynamic_color")
         val BLUR_EFFECTS_ENABLED = booleanPreferencesKey("blur_effects_enabled")
         val HAPTICS_ENABLED = booleanPreferencesKey("haptics_enabled")
+        val TOOL_CALL_DISPLAY_MODE = stringPreferencesKey("tool_call_display_mode")
         val SCHEME_STYLE = stringPreferencesKey("scheme_style")
         val FIRST_LAUNCH_TIME = longPreferencesKey("first_launch_time")
         val ONBOARDING_COMPLETED = booleanPreferencesKey("onboarding_completed")
@@ -313,6 +315,7 @@ class SettingsManager(private val context: Context) {
     val dynamicColor: Flow<Boolean> = context.dataStore.data.map { it[DYNAMIC_COLOR] ?: true }
     val blurEffectsEnabled: Flow<Boolean> = context.dataStore.data.map { it[BLUR_EFFECTS_ENABLED] ?: true }
     val hapticsEnabled: Flow<Boolean> = context.dataStore.data.map { it[HAPTICS_ENABLED] ?: true }
+    val toolCallDisplayMode: Flow<String> = context.dataStore.data.map { ToolCallDisplayModes.normalize(it[TOOL_CALL_DISPLAY_MODE]) }
     val schemeStyle: Flow<String> = context.dataStore.data.map { it[SCHEME_STYLE] ?: "TONAL_SPOT" }
     val firstLaunchTime: Flow<Long?> = context.dataStore.data.map { it[FIRST_LAUNCH_TIME] }
     val onboardingCompleted: Flow<Boolean> = context.dataStore.data.map { it[ONBOARDING_COMPLETED] ?: false }
@@ -677,6 +680,10 @@ class SettingsManager(private val context: Context) {
 
     suspend fun saveHapticsEnabled(enabled: Boolean) {
         context.dataStore.edit { it[HAPTICS_ENABLED] = enabled }
+    }
+
+    suspend fun saveToolCallDisplayMode(mode: String) {
+        context.dataStore.edit { it[TOOL_CALL_DISPLAY_MODE] = ToolCallDisplayModes.normalize(mode) }
     }
 
     suspend fun saveSchemeStyle(style: String) {

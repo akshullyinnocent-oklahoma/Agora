@@ -15,14 +15,29 @@ data class ToolCallData(
 
 @Serializable
 data class MessageSegment(
-    val type: String, // "thought", "tool", or "transcription"
+    val type: String, // "answer", "thought", "tool", or "transcription"
     val content: String = "",
     val toolName: String? = null,
     val toolArgs: String? = null,
     val toolResult: String? = null,
     val toolCallId: String? = null,
-    val signature: String? = null
+    val signature: String? = null,
+    val durationMs: Long? = null
 )
+
+object ToolCallDisplayModes {
+    const val TIMELINE = "timeline"
+    const val GROUPED_TIMELINE = "grouped_timeline"
+    const val COMPACT = "compact"
+    const val DEFAULT = GROUPED_TIMELINE
+
+    fun normalize(value: String?): String = when (value) {
+        COMPACT -> COMPACT
+        GROUPED_TIMELINE -> GROUPED_TIMELINE
+        TIMELINE -> TIMELINE
+        else -> DEFAULT
+    }
+}
 
 enum class Participant {
     USER, MODEL, ERROR

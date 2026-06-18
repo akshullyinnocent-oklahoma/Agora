@@ -115,6 +115,7 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.DpOffset
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.res.stringResource
@@ -124,6 +125,7 @@ import com.newoether.agora.model.ChatMessage
 import com.newoether.agora.model.MessageSegment
 import com.newoether.agora.model.MessageStatus
 import com.newoether.agora.model.Participant
+import com.newoether.agora.model.ToolCallDisplayModes
 import com.newoether.agora.ui.common.LocalAgoraHaptics
 import com.newoether.agora.ui.theme.MonoFamily
 import com.newoether.agora.ui.theme.ChatType
@@ -155,16 +157,30 @@ private fun mergeAdjacentSegments(segs: List<MessageSegment>): List<MessageSegme
     val merged = mutableListOf<MessageSegment>()
     for (seg in segs) {
         val last = merged.lastOrNull()
-        // Only continuous reasoning (thought) is merged into one flowing block.
+        // Only continuous answer/reasoning text is merged into one flowing block.
         // Transcriptions stay separate: each describes a distinct image, so a
         // 1:1 image↔block correspondence must be preserved.
-        if (last != null && last.type == seg.type && seg.type == "thought") {
-            merged[merged.lastIndex] = last.copy(content = last.content + seg.content)
+        if (last != null && last.type == seg.type && (seg.type == "answer" || seg.type == "thought")) {
+            merged[merged.lastIndex] = last.copy(
+                content = last.content + seg.content,
+                durationMs = mergeDurationMs(last.durationMs, seg.durationMs)
+            )
         } else {
             merged.add(seg)
         }
     }
     return merged
+}
+
+private fun mergeDurationMs(first: Long?, second: Long?): Long? {
+    val merged = (first ?: 0L) + (second ?: 0L)
+    return merged.takeIf { it > 0L }
+}
+
+private fun thoughtDurationMs(segs: List<MessageSegment>): Long? {
+    return segs.sumOf { seg ->
+        if (seg.type == "thought") seg.durationMs ?: 0L else 0L
+    }.takeIf { it > 0L }
 }
 
 // Label a transcription segment; numbers them ("Image Transcription 1/2/…") only
@@ -568,6 +584,7 @@ fun MessageItem(
     isInContext: Boolean = false,
     modelAliases: Map<String, String> = emptyMap(),
     visualizeContextRollout: Boolean = false,
+    toolCallDisplayMode: String = ToolCallDisplayModes.DEFAULT,
     onStartEdit: () -> Unit = {},
     onCancelEdit: () -> Unit = {},
     branchIndex: Int = 0,
@@ -589,6 +606,7 @@ fun MessageItem(
     }
     var showSegmentDetail by remember { mutableStateOf(false) }
     var selectedSegmentIndex by remember { mutableIntStateOf(-1) }
+    var selectedSegmentIndices by remember { mutableStateOf<List<Int>>(emptyList()) }
     var currentThoughtBlockHeight by remember { mutableIntStateOf(0) }
     var stableCollapsedThoughtHeight by remember { mutableIntStateOf(0) }
     // Capture the fully-settled collapsed height after collapse animation finishes.
@@ -1185,14 +1203,49 @@ fun MessageItem(
                             currentThoughtBlockHeight = 0
                         }
 
-                        // Merged segment block: single block, newest title/icon when collapsed
                         val segmentsOrNull = message.segments
+                        val mergedSegments = remember(segmentsOrNull) {
+                            mergeAdjacentSegments(segmentsOrNull.orEmpty())
+                        }
+                        val normalizedToolCallDisplayMode = ToolCallDisplayModes.normalize(toolCallDisplayMode)
+                        val useTimelineSegments = normalizedToolCallDisplayMode != ToolCallDisplayModes.COMPACT &&
+                            mergedSegments.any { it.type == "answer" }
+                        val groupAdjacentTimelineTools = normalizedToolCallDisplayMode == ToolCallDisplayModes.GROUPED_TIMELINE
+                        val detailSegments = remember(mergedSegments) {
+                            mergedSegments.filter { it.type != "answer" }
+                        }
+
                         AnimatedVisibility(
-                            visible = segmentsOrNull != null && segmentsOrNull.isNotEmpty(),
+                            visible = useTimelineSegments,
                             enter = fadeIn(tween(500)) + expandVertically(tween(500)),
                             exit = fadeOut(tween(500)) + shrinkVertically(tween(500))
                         ) {
-                            val segs = mergeAdjacentSegments(segmentsOrNull ?: return@AnimatedVisibility)
+                            TimelineSegmentsContent(
+                                segments = mergedSegments,
+                                detailSegments = detailSegments,
+                                message = message,
+                                isStreaming = isStreaming,
+                                groupAdjacentBlocks = groupAdjacentTimelineTools,
+                                expandedStates = thoughtExpandedStates,
+                                renderContext = markdownRenderContext,
+                                onSegmentClick = { indices ->
+                                    selectedSegmentIndices = indices
+                                    selectedSegmentIndex = indices.firstOrNull() ?: -1
+                                    showSegmentDetail = true
+                                }
+                            )
+                        }
+
+                        // Compact segment block: single block, newest title/icon when collapsed.
+                        // Answer segments are timeline anchors only; compact mode still renders
+                        // message.text below as the complete answer.
+                        AnimatedVisibility(
+                            visible = !useTimelineSegments && detailSegments.isNotEmpty(),
+                            enter = fadeIn(tween(500)) + expandVertically(tween(500)),
+                            exit = fadeOut(tween(500)) + shrinkVertically(tween(500))
+                        ) {
+                            val segs = detailSegments
+                            if (segs.isEmpty()) return@AnimatedVisibility
                             val lastSeg = segs.last()
                             val isLastTool = lastSeg.type == "tool"
                             val isToolInProgress = isLastTool && lastSeg.toolResult == null
@@ -1200,7 +1253,7 @@ fun MessageItem(
                             val isToolCalling = message.status == MessageStatus.TOOL_CALLING
                             val isTranscribing = message.status == MessageStatus.TRANSCRIBING
                             val toolCount = segs.count { it.type == "tool" && it.toolResult != null }
-                            val thoughtMs = message.thoughtTimeMs
+                            val thoughtMs = thoughtDurationMs(segs) ?: message.thoughtTimeMs
                             val hasThought = thoughtMs != null && thoughtMs > 0
                             val collapsedTitle = when {
                                 isThinking -> message.thoughtTitle ?: stringResource(R.string.thinking_ellipsis)
@@ -1208,14 +1261,7 @@ fun MessageItem(
                                 isToolCalling || isToolInProgress -> toolDisplayName(lastSeg.toolName)
                                 else -> {
                                     if (hasThought) {
-                                        val s = (thoughtMs / 1000).toInt()
-                                        if (toolCount > 0) {
-                                            if (s >= 60) stringResource(R.string.thought_for_minutes_called_tools, s / 60, s % 60, toolCount)
-                                            else stringResource(R.string.thought_for_seconds_called_tools, s, toolCount)
-                                        } else {
-                                            if (s >= 60) stringResource(R.string.thought_for_minutes, s / 60, s % 60)
-                                            else stringResource(R.string.thought_for_seconds, s)
-                                        }
+                                        thoughtDurationTitle(thoughtMs!!, toolCount)
                                     } else if (toolCount > 0) {
                                         stringResource(R.string.called_n_tools, toolCount)
                                     } else if (message.thoughtTitle != null) {
@@ -1296,7 +1342,11 @@ fun MessageItem(
                                                     modifier = Modifier
                                                         .fillMaxWidth()
                                                         .clip(RoundedCornerShape(18.dp))
-                                                        .clickable { selectedSegmentIndex = idx; showSegmentDetail = true }
+                                                        .clickable {
+                                                            selectedSegmentIndices = listOf(idx)
+                                                            selectedSegmentIndex = idx
+                                                            showSegmentDetail = true
+                                                        }
                                                         .padding(horizontal = 10.dp, vertical = 8.dp)
                                                 ) {
                                                     Text(
@@ -1330,7 +1380,11 @@ fun MessageItem(
                                                     modifier = Modifier
                                                         .fillMaxWidth()
                                                         .clip(RoundedCornerShape(18.dp))
-                                                        .clickable { selectedSegmentIndex = idx; showSegmentDetail = true }
+                                                        .clickable {
+                                                            selectedSegmentIndices = listOf(idx)
+                                                            selectedSegmentIndex = idx
+                                                            showSegmentDetail = true
+                                                        }
                                                         .padding(horizontal = 10.dp, vertical = 8.dp)
                                                 ) {
                                                     Text(
@@ -1388,7 +1442,7 @@ fun MessageItem(
                                         }
                                     }
                                 }
-                            } else if (debouncedText.isNotEmpty()) {
+                            } else if (debouncedText.isNotEmpty() && !useTimelineSegments) {
                                 var keepBlockRenderer by remember(message.id) { mutableStateOf(false) }
                                 val useBlockRenderer = isStreaming || keepBlockRenderer
                                 val streamingBlocks = rememberStreamingMarkdownBlocks(
@@ -1553,8 +1607,14 @@ fun MessageItem(
 
     // Segment detail bottom sheet (custom implementation)
     if (showSegmentDetail && selectedSegmentIndex >= 0) {
-        val liveSegs = remember(message) { mergeAdjacentSegments(message.segments.orEmpty()) }
-        val seg = liveSegs.getOrNull(selectedSegmentIndex)
+        val liveSegs = remember(message.segments) {
+            mergeAdjacentSegments(message.segments.orEmpty()).filter { it.type != "answer" }
+        }
+        val selectedSegs = remember(liveSegs, selectedSegmentIndices, selectedSegmentIndex) {
+            selectedSegmentIndices.mapNotNull { liveSegs.getOrNull(it) }
+                .ifEmpty { liveSegs.getOrNull(selectedSegmentIndex)?.let { listOf(it) }.orEmpty() }
+        }
+        val seg = selectedSegs.firstOrNull()
         if (seg == null) {
             showSegmentDetail = false
         } else {
@@ -1789,7 +1849,8 @@ fun MessageItem(
 
                             // Fixed title
                             Text(
-                                text = if (seg.type == "tool") toolDisplayName(seg.toolName)
+                                text = if (selectedSegs.size > 1) compactSegmentTitle(selectedSegs, message, useLiveStatus = false)
+                                    else if (seg.type == "tool") toolDisplayName(seg.toolName)
                                     else if (seg.type == "transcription") transcriptionLabel(liveSegs, selectedSegmentIndex)
                                     else stringResource(R.string.tool_thinking),
                                 style = ChatType.detailTitle,
@@ -1816,35 +1877,56 @@ fun MessageItem(
                                 .navigationBarsPadding()
                                 .padding(bottom = 32.dp)
                         ) {
-                            if (seg.type == "tool") {
-                                val args = seg.toolArgs
-                                if (!args.isNullOrBlank() && args != "{}") {
+                            if (selectedSegs.size > 1) {
+                                selectedSegs.forEachIndexed { index, detailSeg ->
+                                    val detailIndex = selectedSegmentIndices.getOrNull(index)
+                                        ?: liveSegs.indexOf(detailSeg).coerceAtLeast(0)
                                     Text(
-                                        stringResource(R.string.arguments_label),
-                                        style = ChatType.meta,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        segmentDetailTitle(detailSeg, liveSegs, detailIndex),
+                                        style = ChatType.detailTitle,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        modifier = Modifier.padding(top = if (index == 0) 0.dp else 18.dp, bottom = 8.dp)
                                     )
-                                    Spacer(modifier = Modifier.height(4.dp))
-                                    JsonOrPlainView(args)
-                                    Spacer(modifier = Modifier.height(16.dp))
+                                    if (detailSeg.type == "tool") {
+                                        ToolDetailContent(detailSeg)
+                                    } else if (detailSeg.type == "transcription" && detailSeg.content.isBlank()) {
+                                        Text(
+                                            text = "Image transcription is empty.",
+                                            style = ChatType.body,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+                                        )
+                                    } else {
+                                        SelectionContainer {
+                                            RecomposeSafeMarkdown(
+                                                content = detailSeg.content,
+                                                isStreaming = isStreaming && index == selectedSegs.lastIndex
+                                            ) { text ->
+                                                val markdownParser = remember(text) { MarkdownParser(markdownFlavour) }
+                                                val referenceLinkHandler = remember(text) { ReferenceLinkHandlerImpl() }
+                                                Markdown(
+                                                    content = text.escapeForMarkdown(),
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    colors = customMarkdownColors,
+                                                    typography = thoughtTypography,
+                                                    padding = thoughtMarkdownPadding,
+                                                    components = customMarkdownComponents,
+                                                    flavour = markdownFlavour,
+                                                    parser = markdownParser,
+                                                    referenceLinkHandler = referenceLinkHandler,
+                                                    animations = markdownAnimations { this }
+                                                )
+                                            }
+                                        }
+                                    }
+                                    if (index < selectedSegs.lastIndex) {
+                                        HorizontalDivider(
+                                            modifier = Modifier.padding(top = 18.dp),
+                                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
+                                        )
+                                    }
                                 }
-
-                                Text(
-                                    stringResource(R.string.result_label),
-                                    style = ChatType.meta,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                Spacer(modifier = Modifier.height(4.dp))
-                                val result = seg.toolResult
-                                if (result != null && result.isNotEmpty()) {
-                                    JsonOrPlainView(result)
-                                } else {
-                                    Text(
-                                        text = stringResource(R.string.tool_calling_ellipsis),
-                                        style = ChatType.meta,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
+                            } else if (seg.type == "tool") {
+                                ToolDetailContent(seg)
                             } else if (seg.type == "transcription" && seg.content.isBlank()) {
                                 Text(
                                     text = "Image transcription is empty.",
@@ -1925,6 +2007,425 @@ fun MessageItem(
                 }
             }
         }
+        }
+    }
+}
+
+@Composable
+private fun ToolDetailContent(seg: MessageSegment) {
+    val args = seg.toolArgs
+    if (!args.isNullOrBlank() && args != "{}") {
+        Text(
+            stringResource(R.string.arguments_label),
+            style = ChatType.meta,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+        JsonOrPlainView(args)
+        Spacer(modifier = Modifier.height(16.dp))
+    }
+
+    Text(
+        stringResource(R.string.result_label),
+        style = ChatType.meta,
+        color = MaterialTheme.colorScheme.onSurfaceVariant
+    )
+    Spacer(modifier = Modifier.height(4.dp))
+    val result = seg.toolResult
+    if (result != null && result.isNotEmpty()) {
+        JsonOrPlainView(result)
+    } else {
+        Text(
+            text = stringResource(R.string.tool_calling_ellipsis),
+            style = ChatType.meta,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
+
+@Composable
+private fun segmentDetailTitle(
+    seg: MessageSegment,
+    detailSegments: List<MessageSegment>,
+    detailIndex: Int
+): String {
+    return when (seg.type) {
+        "tool" -> toolDisplayName(seg.toolName)
+        "transcription" -> transcriptionLabel(detailSegments, detailIndex)
+        else -> stringResource(R.string.tool_thinking)
+    }
+}
+
+@Composable
+private fun thoughtDurationTitle(thoughtMs: Long, toolCount: Int): String {
+    val seconds = (thoughtMs / 1000).toInt()
+    return if (toolCount > 0) {
+        if (seconds >= 60) {
+            stringResource(R.string.thought_for_minutes_called_tools, seconds / 60, seconds % 60, toolCount)
+        } else {
+            stringResource(R.string.thought_for_seconds_called_tools, seconds, toolCount)
+        }
+    } else {
+        if (seconds >= 60) {
+            stringResource(R.string.thought_for_minutes, seconds / 60, seconds % 60)
+        } else {
+            stringResource(R.string.thought_for_seconds, seconds)
+        }
+    }
+}
+
+@Composable
+private fun compactSegmentTitle(
+    segs: List<MessageSegment>,
+    message: ChatMessage,
+    useLiveStatus: Boolean
+): String {
+    val lastSeg = segs.lastOrNull() ?: return ""
+    val isLastTool = lastSeg.type == "tool"
+    val isToolInProgress = isLastTool && lastSeg.toolResult == null
+    val isThinking = useLiveStatus && message.status == MessageStatus.THINKING
+    val isToolCalling = useLiveStatus && message.status == MessageStatus.TOOL_CALLING
+    val isTranscribing = useLiveStatus && message.status == MessageStatus.TRANSCRIBING
+    val toolCount = segs.count { it.type == "tool" && it.toolResult != null }
+    val thoughtMs = thoughtDurationMs(segs)
+    val hasThought = thoughtMs != null && thoughtMs > 0
+    return when {
+        isThinking -> message.thoughtTitle ?: stringResource(R.string.thinking_ellipsis)
+        isTranscribing -> message.thoughtTitle ?: stringResource(R.string.transcription_ellipsis)
+        isToolCalling || isToolInProgress -> toolDisplayName(lastSeg.toolName)
+        hasThought -> thoughtDurationTitle(thoughtMs!!, toolCount)
+        toolCount > 0 -> stringResource(R.string.called_n_tools, toolCount)
+        message.thoughtTitle != null -> message.thoughtTitle
+        segs.any { it.type == "transcription" } -> "Image Transcription"
+        else -> stringResource(R.string.thinking_complete)
+    }
+}
+
+@Composable
+private fun CompactSegmentBlock(
+    segs: List<MessageSegment>,
+    segmentIndices: List<Int>,
+    message: ChatMessage,
+    isStreaming: Boolean,
+    useLiveStatus: Boolean,
+    expandedStates: SnapshotStateMap<String, Boolean>,
+    expansionKey: String,
+    modifier: Modifier = Modifier,
+    topPaddingExtra: Dp = 0.dp,
+    bottomPaddingExtra: Dp = 6.dp,
+    onSegmentClick: (Int) -> Unit,
+    onBlockHeightChanged: (Int) -> Unit = {}
+) {
+    if (segs.isEmpty()) return
+    val isExpanded by remember(expansionKey) {
+        derivedStateOf { expandedStates[expansionKey] ?: false }
+    }
+    var contentMaxHeightPx by remember(expansionKey) { mutableIntStateOf(0) }
+    LaunchedEffect(isStreaming, expansionKey) {
+        if (isStreaming) {
+            contentMaxHeightPx = 0
+        }
+    }
+
+    val lastSeg = segs.last()
+    val isLastTool = lastSeg.type == "tool"
+    val isToolInProgress = isLastTool && lastSeg.toolResult == null
+    val isThinking = useLiveStatus && message.status == MessageStatus.THINKING
+    val isToolCalling = useLiveStatus && message.status == MessageStatus.TOOL_CALLING
+    val isTranscribing = useLiveStatus && message.status == MessageStatus.TRANSCRIBING
+    val toolCount = segs.count { it.type == "tool" && it.toolResult != null }
+    val thoughtMs = thoughtDurationMs(segs)
+    val hasThought = thoughtMs != null && thoughtMs > 0
+    val collapsedTitle = compactSegmentTitle(segs, message, useLiveStatus)
+    val mergedBottomPadding by animateDpAsState(
+        targetValue = if (isExpanded) 12.dp else 4.dp,
+        animationSpec = tween(500),
+        label = "compactSegmentPad"
+    )
+
+    Surface(
+        tonalElevation = 2.dp,
+        shape = RoundedCornerShape(18.dp),
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(top = 8.dp + topPaddingExtra, bottom = mergedBottomPadding + bottomPaddingExtra)
+            .noOpBringIntoView()
+            .onSizeChanged { onBlockHeightChanged(it.height) }
+    ) {
+        Column {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(18.dp))
+                    .clickable { expandedStates[expansionKey] = !isExpanded }
+                    .padding(10.dp)
+            ) {
+                if (isToolCalling || isToolInProgress) {
+                    Icon(Icons.Default.Build, null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f))
+                } else if (!isThinking && !hasThought && toolCount > 0) {
+                    Icon(Icons.Default.Build, null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f))
+                } else if (isTranscribing || collapsedTitle == "Image Transcription") {
+                    Icon(Icons.Filled.Image, null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f))
+                } else {
+                    Icon(androidx.compose.ui.res.painterResource(id = com.newoether.agora.R.drawable.neurology_24), null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f))
+                }
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    collapsedTitle,
+                    style = ChatType.thoughtTitle,
+                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f),
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
+                )
+                Icon(
+                    if (isExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                    null,
+                    modifier = Modifier.size(16.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                )
+            }
+            AnimatedVisibility(
+                visible = isExpanded,
+                enter = fadeIn(tween(400)) + expandVertically(tween(400)),
+                exit = fadeOut(tween(400)) + shrinkVertically(tween(400))
+            ) {
+                Column(
+                    modifier = Modifier
+                        .then(
+                            if (contentMaxHeightPx > 0)
+                                Modifier.heightIn(min = with(LocalDensity.current) { contentMaxHeightPx.toDp() })
+                            else Modifier
+                        )
+                        .onSizeChanged { size ->
+                            if (isStreaming) {
+                                contentMaxHeightPx = maxOf(contentMaxHeightPx, size.height)
+                            }
+                        }
+                ) {
+                    Spacer(modifier = Modifier.height(2.dp))
+                    segs.forEachIndexed { idx, seg ->
+                        if ((seg.type == "thought" && seg.content.isNotBlank()) || seg.type == "transcription") {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(18.dp))
+                                    .clickable { onSegmentClick(segmentIndices.getOrElse(idx) { idx }) }
+                                    .padding(horizontal = 10.dp, vertical = 8.dp)
+                            ) {
+                                Text(
+                                    if (seg.type == "transcription") transcriptionLabel(segs, idx) else stringResource(R.string.tool_thinking),
+                                    style = ChatType.meta,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                                if (seg.content.isNotBlank()) {
+                                    val flat = seg.content.replace('\n', ' ')
+                                    val preview = if (isStreaming && useLiveStatus && idx == segs.lastIndex) {
+                                        if (flat.length > 60) "…${flat.takeLast(60)}" else flat
+                                    } else flat
+                                    Text(
+                                        text = preview,
+                                        style = ChatType.metaNormal,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                } else {
+                                    Text(
+                                        text = "Image transcription is empty.",
+                                        style = ChatType.metaNormal,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                                    )
+                                }
+                            }
+                        } else if (seg.type == "tool") {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(18.dp))
+                                    .clickable { onSegmentClick(segmentIndices.getOrElse(idx) { idx }) }
+                                    .padding(horizontal = 10.dp, vertical = 8.dp)
+                            ) {
+                                Text(
+                                    toolDisplayName(seg.toolName),
+                                    style = ChatType.meta,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                                Text(
+                                    text = toolSummary(seg),
+                                    style = ChatType.metaNormal,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                                )
+                            }
+                        }
+                        if (idx < segs.lastIndex) {
+                            HorizontalDivider(
+                                modifier = Modifier.padding(vertical = 2.dp),
+                                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.2f)
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TimelineSegmentsContent(
+    segments: List<MessageSegment>,
+    detailSegments: List<MessageSegment>,
+    message: ChatMessage,
+    isStreaming: Boolean,
+    groupAdjacentBlocks: Boolean,
+    expandedStates: SnapshotStateMap<String, Boolean>,
+    renderContext: ChatMarkdownRenderContext,
+    onSegmentClick: (List<Int>) -> Unit
+) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        var detailIndex = 0
+        var index = 0
+        var groupedBlockIndex = 0
+        while (index < segments.size) {
+            val seg = segments[index]
+            when (seg.type) {
+                "answer" -> {
+                    if (seg.content.isNotBlank()) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = if (index == 0) 0.dp else 6.dp)
+                        ) {
+                            RecomposeSafeMarkdown(
+                                content = seg.content,
+                                isStreaming = isStreaming && index == segments.lastIndex,
+                                modifier = Modifier.fillMaxWidth()
+                            ) { text ->
+                                MarkdownTextContent(text = text, renderContext = renderContext)
+                            }
+                        }
+                    }
+                    index++
+                }
+                "thought", "tool", "transcription" -> {
+                    if (groupAdjacentBlocks) {
+                        val blockSegments = mutableListOf<MessageSegment>()
+                        val blockDetailIndices = mutableListOf<Int>()
+                        var blockEnd = index
+                        while (blockEnd < segments.size && segments[blockEnd].type != "answer") {
+                            blockSegments.add(segments[blockEnd])
+                            blockDetailIndices.add(detailIndex)
+                            detailIndex++
+                            blockEnd++
+                        }
+                        CompactSegmentBlock(
+                            segs = blockSegments,
+                            segmentIndices = blockDetailIndices,
+                            message = message,
+                            isStreaming = isStreaming,
+                            useLiveStatus = isStreaming && blockDetailIndices.lastOrNull() == detailSegments.lastIndex,
+                            expandedStates = expandedStates,
+                            expansionKey = "${message.id}:group:${blockDetailIndices.firstOrNull() ?: index}",
+                            topPaddingExtra = if (groupedBlockIndex > 0) 8.dp else 0.dp,
+                            bottomPaddingExtra = 0.dp,
+                            onSegmentClick = { detailIndex -> onSegmentClick(listOf(detailIndex)) }
+                        )
+                        groupedBlockIndex++
+                        index = blockEnd
+                    } else {
+                        val currentDetailIndex = detailIndex
+                        detailIndex++
+                        TimelineInfoSegmentCard(
+                            seg = seg,
+                            detailSegments = detailSegments,
+                            detailIndex = currentDetailIndex,
+                            isStreaming = isStreaming && index == segments.lastIndex,
+                            onClick = { onSegmentClick(listOf(currentDetailIndex)) }
+                        )
+                        index++
+                    }
+                }
+                else -> {
+                    index++
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TimelineInfoSegmentCard(
+    seg: MessageSegment,
+    detailSegments: List<MessageSegment>,
+    detailIndex: Int,
+    isStreaming: Boolean,
+    onClick: () -> Unit
+) {
+    Surface(
+        tonalElevation = 2.dp,
+        shape = RoundedCornerShape(18.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 8.dp, bottom = 6.dp)
+            .clip(RoundedCornerShape(18.dp))
+            .clickable { onClick() }
+            .noOpBringIntoView()
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 9.dp)
+        ) {
+            val isTool = seg.type == "tool"
+            val isTranscription = seg.type == "transcription"
+            if (isTool) {
+                Icon(Icons.Default.Build, null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f))
+            } else if (isTranscription) {
+                Icon(Icons.Filled.Image, null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f))
+            } else {
+                Icon(androidx.compose.ui.res.painterResource(id = com.newoether.agora.R.drawable.neurology_24), null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f))
+            }
+            Spacer(modifier = Modifier.width(8.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = when (seg.type) {
+                        "tool" -> toolDisplayName(seg.toolName)
+                        "transcription" -> transcriptionLabel(detailSegments, detailIndex)
+                        else -> stringResource(R.string.tool_thinking)
+                    },
+                    style = ChatType.meta,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                val summary = when (seg.type) {
+                    "tool" -> toolSummary(seg)
+                    "transcription" -> seg.content.takeIf { it.isNotBlank() } ?: "Image transcription is empty."
+                    else -> {
+                        val flat = seg.content.replace('\n', ' ')
+                        if (isStreaming && flat.length > 60) "…${flat.takeLast(60)}" else flat
+                    }
+                }
+                if (summary.isNotBlank()) {
+                    Text(
+                        text = summary,
+                        style = ChatType.metaNormal,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+            Icon(
+                Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                null,
+                modifier = Modifier.size(16.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+            )
         }
     }
 }

@@ -561,10 +561,42 @@ class GenerationManager(
         return applyUserTemplateToMessages(messages, prepend, postpend)
     }
 
-    private fun buildLiveSegments(flushed: List<MessageSegment>, buf: StringBuilder, signature: String? = null): List<MessageSegment>? {
+    private fun appendMergedSegment(target: MutableList<MessageSegment>, segment: MessageSegment) {
+        val last = target.lastOrNull()
+        if (last != null && last.type == segment.type && (segment.type == "answer" || segment.type == "thought")) {
+            target[target.lastIndex] = last.copy(
+                content = last.content + segment.content,
+                signature = segment.signature ?: last.signature,
+                durationMs = mergeDurationMs(last.durationMs, segment.durationMs)
+            )
+        } else {
+            target.add(segment)
+        }
+    }
+
+    private fun mergeDurationMs(first: Long?, second: Long?): Long? {
+        val merged = (first ?: 0L) + (second ?: 0L)
+        return merged.takeIf { it > 0L }
+    }
+
+    private fun buildLiveSegments(
+        flushed: List<MessageSegment>,
+        answerBuf: StringBuilder,
+        thoughtBuf: StringBuilder,
+        signature: String? = null,
+        thoughtDurationMs: Long? = null
+    ): List<MessageSegment>? {
         val result = flushed.toMutableList()
-        if (buf.isNotEmpty()) {
-            result.add(MessageSegment(type = "thought", content = buf.toString(), signature = signature))
+        if (answerBuf.isNotEmpty()) {
+            appendMergedSegment(result, MessageSegment(type = "answer", content = answerBuf.toString()))
+        }
+        if (thoughtBuf.isNotEmpty()) {
+            appendMergedSegment(result, MessageSegment(
+                type = "thought",
+                content = thoughtBuf.toString(),
+                signature = signature,
+                durationMs = thoughtDurationMs
+            ))
         }
         return result.ifEmpty { null }
     }
@@ -723,15 +755,33 @@ class GenerationManager(
         var totalThoughtTimeMs: Long? = null
         var cumulativeThoughtMs: Long = 0
         var currentThoughtStartMs: Long? = null
+        var currentThoughtDurationMs: Long = 0
         var currentStatus = MessageStatus.SENDING
         var retryText: String? = null
-        val segments = mutableListOf<MessageSegment>()
+        val segments = mutableListOf(MessageSegment(type = "answer"))
         val generatedImages = mutableListOf<String>()
+        var currentAnswerBuf = StringBuilder()
         var currentThoughtBuf = StringBuilder()
         var currentThoughtSignature: String? = null
         val placeholder = chatDao.getMessagesForConversation(conversationId).first().find { it.id == modelMessageId }
         val parentId = placeholder?.parentId
         var toolPath = emptyList<ChatMessage>()
+
+        fun liveThoughtDurationMs(): Long? {
+            val liveElapsed = currentThoughtStartMs?.let { System.currentTimeMillis() - it } ?: 0L
+            return (currentThoughtDurationMs + liveElapsed).takeIf { it > 0L }
+        }
+
+        fun finishCurrentThoughtTiming() {
+            val startedAt = currentThoughtStartMs ?: return
+            val elapsed = System.currentTimeMillis() - startedAt
+            if (elapsed > 0L) {
+                cumulativeThoughtMs += elapsed
+                currentThoughtDurationMs += elapsed
+                totalThoughtTimeMs = cumulativeThoughtMs
+            }
+            currentThoughtStartMs = null
+        }
 
         try {
             // Stage 1: Image Transcription
@@ -776,32 +826,52 @@ class GenerationManager(
                 timestamp = startTime, thoughtTimeMs = totalThoughtTimeMs,
                 modelName = modelName, toolCall = toolCallData,
                 images = generatedImages.toList(),
-                segments = buildLiveSegments(segments, currentThoughtBuf, currentThoughtSignature),
+                segments = buildLiveSegments(
+                    segments,
+                    currentAnswerBuf,
+                    currentThoughtBuf,
+                    currentThoughtSignature,
+                    liveThoughtDurationMs()
+                ),
                 retryText = retryText
             )
+
+            fun flushAnswerSegment() {
+                if (currentAnswerBuf.isNotEmpty()) {
+                    appendMergedSegment(segments, MessageSegment(type = "answer", content = currentAnswerBuf.toString()))
+                    currentAnswerBuf = StringBuilder()
+                }
+            }
+
+            fun flushThoughtSegment() {
+                finishCurrentThoughtTiming()
+                if (currentThoughtBuf.isNotEmpty()) {
+                    appendMergedSegment(segments, MessageSegment(
+                        type = "thought",
+                        content = currentThoughtBuf.toString(),
+                        signature = currentThoughtSignature,
+                        durationMs = currentThoughtDurationMs.takeIf { it > 0L }
+                    ))
+                    currentThoughtBuf = StringBuilder()
+                    currentThoughtSignature = null
+                }
+                currentThoughtDurationMs = 0L
+            }
 
             suspend fun handleStreamEvent(event: StreamEvent) {
                 when (event) {
                     is StreamEvent.TextChunk -> {
+                        val answerText = if (currentStatus == MessageStatus.THINKING) event.text.trimStart() else event.text
                         if (currentStatus == MessageStatus.THINKING) {
-                            if (currentThoughtStartMs != null) {
-                                cumulativeThoughtMs += System.currentTimeMillis() - currentThoughtStartMs!!
-                                currentThoughtStartMs = null
-                            }
-                            totalThoughtTimeMs = cumulativeThoughtMs
-                            if (currentThoughtBuf.isNotEmpty()) {
-                                segments.add(MessageSegment(type = "thought", content = currentThoughtBuf.toString(), signature = currentThoughtSignature))
-                                currentThoughtBuf = StringBuilder()
-                                currentThoughtSignature = null
-                            }
-                            totalText += event.text.trimStart()
-                        } else {
-                            totalText += event.text
+                            flushThoughtSegment()
                         }
+                        totalText += answerText
+                        currentAnswerBuf.append(answerText)
                         currentStatus = MessageStatus.SENDING
                         retryText = null
                     }
                     is StreamEvent.ThoughtChunk -> {
+                        flushAnswerSegment()
                         currentStatus = MessageStatus.THINKING
                         retryText = null
                         if (currentThoughtStartMs == null) {
@@ -831,6 +901,7 @@ class GenerationManager(
                         onStreamUpdate(modelMessage())
                     }
                     is StreamEvent.Error -> {
+                        flushThoughtSegment()
                         retryText = null
                         if (toolCallData == null && toolCallDataList.isEmpty()) {
                             totalText = event.message
@@ -838,18 +909,10 @@ class GenerationManager(
                         }
                     }
                     is StreamEvent.ToolCallRequest -> {
-                        if (currentThoughtBuf.isNotEmpty()) {
-                            segments.add(MessageSegment(type = "thought", content = currentThoughtBuf.toString(), signature = currentThoughtSignature))
-                            currentThoughtBuf = StringBuilder()
-                            currentThoughtSignature = null
-                        }
-                        if (currentThoughtStartMs != null) {
-                            cumulativeThoughtMs += System.currentTimeMillis() - currentThoughtStartMs!!
-                            currentThoughtStartMs = null
-                        }
-                        totalThoughtTimeMs = cumulativeThoughtMs
+                        flushAnswerSegment()
+                        flushThoughtSegment()
                         val ts = MessageSegment(type = "tool", toolName = event.name, toolArgs = event.arguments, toolResult = null, toolCallId = event.id, signature = event.signature)
-                        segments.add(ts)
+                        appendMergedSegment(segments, ts)
                         currentStatus = MessageStatus.TOOL_CALLING
                         onStreamUpdate(modelMessage())
                         lastEmitMs = System.currentTimeMillis()
@@ -869,18 +932,10 @@ class GenerationManager(
                         lastEmitMs = System.currentTimeMillis()
                     }
                     is StreamEvent.ToolCallsRequest -> {
-                        if (currentThoughtBuf.isNotEmpty()) {
-                            segments.add(MessageSegment(type = "thought", content = currentThoughtBuf.toString(), signature = currentThoughtSignature))
-                            currentThoughtBuf = StringBuilder()
-                            currentThoughtSignature = null
-                        }
-                        if (currentThoughtStartMs != null) {
-                            cumulativeThoughtMs += System.currentTimeMillis() - currentThoughtStartMs!!
-                            currentThoughtStartMs = null
-                        }
-                        totalThoughtTimeMs = cumulativeThoughtMs
+                        flushAnswerSegment()
+                        flushThoughtSegment()
                         event.calls.forEach { call ->
-                            segments.add(MessageSegment(type = "tool", toolName = call.name, toolArgs = call.arguments, toolResult = null, toolCallId = call.id, signature = call.signature))
+                            appendMergedSegment(segments, MessageSegment(type = "tool", toolName = call.name, toolArgs = call.arguments, toolResult = null, toolCallId = call.id, signature = call.signature))
                         }
                         currentStatus = MessageStatus.TOOL_CALLING
                         onStreamUpdate(modelMessage())
@@ -916,6 +971,7 @@ class GenerationManager(
             provider.generateResponse(apiPath, providerConfig).collect { event ->
                 handleStreamEvent(event)
             }
+            finishCurrentThoughtTiming()
             // Always emit final state after collection completes
             if (generationJob?.isCancelled != true) {
                 onStreamUpdate(modelMessage())
@@ -984,6 +1040,7 @@ class GenerationManager(
                 provider.generateResponse(apiToolPath, providerConfig).collect { event ->
                     handleStreamEvent(event)
                 }
+                finishCurrentThoughtTiming()
                 // Always emit final state after tool round completes
                 onStreamUpdate(modelMessage())
             }
@@ -1031,7 +1088,14 @@ class GenerationManager(
                     if (isLatestPersist()) {
                         val conversationExists = chatDao.getConversation(conversationId) != null
                         if (conversationExists) {
-                            val finalSegments = buildLiveSegments(segments, currentThoughtBuf, currentThoughtSignature)
+                            finishCurrentThoughtTiming()
+                            val finalSegments = buildLiveSegments(
+                                segments,
+                                currentAnswerBuf,
+                                currentThoughtBuf,
+                                currentThoughtSignature,
+                                currentThoughtDurationMs.takeIf { it > 0L }
+                            )
                                 ?: segments.toList().ifEmpty { null }
                             val segmentsJson = finalSegments?.let { Json.encodeToString(it) }
                             val effectiveParentId = parentId

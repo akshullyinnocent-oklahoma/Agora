@@ -79,6 +79,7 @@ class SettingsRepository(
     val dynamicColor: Flow<Boolean> = settingsManager.dynamicColor
     val blurEffectsEnabled: Flow<Boolean> = settingsManager.blurEffectsEnabled
     val hapticsEnabled: Flow<Boolean> = settingsManager.hapticsEnabled
+    val toolCallDisplayMode: Flow<String> = settingsManager.toolCallDisplayMode
     val schemeStyle: Flow<String> = settingsManager.schemeStyle
     val searchContextWindow: Flow<Int> = settingsManager.searchContextWindow
     val searchMatchLimit: Flow<Int> = settingsManager.searchMatchLimit

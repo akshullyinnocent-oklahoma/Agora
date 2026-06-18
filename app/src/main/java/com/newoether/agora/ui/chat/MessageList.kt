@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.dp
 import com.newoether.agora.model.ChatMessage
 import com.newoether.agora.model.MessageStatus
 import com.newoether.agora.model.Participant
+import com.newoether.agora.model.ToolCallDisplayModes
 import com.newoether.agora.util.Constants
 
 @Composable
@@ -36,6 +37,7 @@ fun MessageList(
     isLoading: Boolean = false,
     isSwitching: Boolean = false,
     visualizeContextRollout: Boolean = false,
+    toolCallDisplayMode: String = ToolCallDisplayModes.DEFAULT,
     maxContextWindow: Int = 20,
     modelAliases: Map<String, String> = emptyMap(),
     bottomBarHeight: androidx.compose.ui.unit.Dp = 0.dp,
@@ -120,6 +122,7 @@ fun MessageList(
                     isInContext = isInContext,
                     modelAliases = modelAliases,
                     visualizeContextRollout = visualizeContextRollout,
+                    toolCallDisplayMode = toolCallDisplayMode,
                     onStartEdit = { editingMessageId = message.id },
                     onCancelEdit = { editingMessageId = null },
                     branchIndex = branchIndex,

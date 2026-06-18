@@ -7,9 +7,11 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.SettingsBrightness
@@ -22,8 +24,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.newoether.agora.R
+import com.newoether.agora.model.ToolCallDisplayModes
 import com.newoether.agora.ui.theme.ColorSchemePreset
 import com.newoether.agora.ui.theme.SchemeStyle
 import com.newoether.agora.ui.theme.colorSchemeForPreset
@@ -38,6 +43,7 @@ fun SettingsAppearancePage(viewModel: ChatViewModel, onBack: () -> Unit) {
     val dynamicColor by viewModel.dynamicColor.collectAsState()
     val blurEffectsEnabled by viewModel.blurEffectsEnabled.collectAsState()
     val hapticsEnabled by viewModel.hapticsEnabled.collectAsState()
+    val toolCallDisplayMode by viewModel.toolCallDisplayMode.collectAsState()
     val showDocFab by viewModel.showDocumentationFab.collectAsState()
 
     val isDynamicAvailable = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
@@ -125,6 +131,69 @@ fun SettingsAppearancePage(viewModel: ChatViewModel, onBack: () -> Unit) {
                             )
                         },
                         modifier = Modifier.clickable { viewModel.setBlurEffectsEnabled(!blurEffectsEnabled) }
+                    )
+                })
+            )
+
+            SettingsGroup(
+                title = stringResource(R.string.message_display),
+                items = listOf({
+                    var expanded by remember { mutableStateOf(false) }
+                    val normalizedToolCallDisplayMode = ToolCallDisplayModes.normalize(toolCallDisplayMode)
+                    val selectedLabel = when (normalizedToolCallDisplayMode) {
+                        ToolCallDisplayModes.GROUPED_TIMELINE -> stringResource(R.string.tool_call_display_mode_grouped_timeline)
+                        ToolCallDisplayModes.COMPACT -> stringResource(R.string.tool_call_display_mode_compact)
+                        else -> stringResource(R.string.tool_call_display_mode_timeline)
+                    }
+                    val selectedDescription = when (normalizedToolCallDisplayMode) {
+                        ToolCallDisplayModes.GROUPED_TIMELINE -> stringResource(R.string.tool_call_display_mode_grouped_timeline_desc)
+                        ToolCallDisplayModes.COMPACT -> stringResource(R.string.tool_call_display_mode_compact_desc)
+                        else -> stringResource(R.string.tool_call_display_mode_timeline_desc)
+                    }
+                    val options = listOf(
+                        ToolCallDisplayModes.TIMELINE to stringResource(R.string.tool_call_display_mode_timeline),
+                        ToolCallDisplayModes.GROUPED_TIMELINE to stringResource(R.string.tool_call_display_mode_grouped_timeline),
+                        ToolCallDisplayModes.COMPACT to stringResource(R.string.tool_call_display_mode_compact)
+                    )
+                    SettingsItem(
+                        headlineContent = { Text(stringResource(R.string.tool_call_display_mode)) },
+                        supportingContent = { Text(selectedDescription) },
+                        trailingContent = {
+                            Box {
+                                Text(
+                                    selectedLabel,
+                                    style = MaterialTheme.typography.labelLarge,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.width(96.dp),
+                                    textAlign = TextAlign.Center,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                DropdownMenu(
+                                    containerColor = MaterialTheme.colorScheme.surfaceContainer,
+                                    tonalElevation = 16.dp,
+                                    expanded = expanded,
+                                    onDismissRequest = { expanded = false },
+                                    shape = RoundedCornerShape(12.dp)
+                                ) {
+                                    options.forEach { (mode, label) ->
+                                        DropdownMenuItem(
+                                            text = { Text(label) },
+                                            leadingIcon = {
+                                                if (normalizedToolCallDisplayMode == mode) {
+                                                    Icon(Icons.Default.Check, null, tint = MaterialTheme.colorScheme.primary)
+                                                }
+                                            },
+                                            onClick = {
+                                                viewModel.setToolCallDisplayMode(mode)
+                                                expanded = false
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+                        },
+                        modifier = Modifier.clickable { expanded = true }
                     )
                 })
             )
