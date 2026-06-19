@@ -418,7 +418,8 @@ class AnthropicProvider : LlmProvider {
 
     private fun buildNormalMessage(msg: ChatMessage): AnthropicMessage {
         val parts = mutableListOf<AnthropicContentPart>()
-        for (imagePath in msg.images) {
+        val imagePaths = if (msg.participant == Participant.USER) msg.images else emptyList()
+        for (imagePath in imagePaths) {
             val encoded = com.newoether.agora.api.util.encodeImageToBase64(imagePath)
             if (encoded != null) {
                 val (mimeType, base64) = encoded

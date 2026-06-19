@@ -9,6 +9,7 @@ import com.newoether.agora.data.BuiltInPrompts
 import com.newoether.agora.data.local.ChatDao
 import com.newoether.agora.data.local.MessageEntity
 import com.newoether.agora.model.AttachmentMeta
+import com.newoether.agora.model.AttachmentItem
 import com.newoether.agora.model.ChatMessage
 import com.newoether.agora.model.MessageSegment
 import com.newoether.agora.model.MessageStatus
@@ -23,6 +24,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import java.io.File
 
 /**
  * Handles image/video/PDF transcription as a pre-processing stage before
@@ -44,8 +46,8 @@ class TranscriptionManager(
 
     /**
      * Collect all images in the message path that need transcription.
-     * Skips images that already have a transcription (unless they're in
-     * the latest user message — re-transcribe on every send).
+     * User attachments in the latest user message are re-transcribed on every
+     * send; assistant-generated images are cached after the first transcription.
      */
     suspend fun collectTargets(
         conversationId: String,
@@ -62,28 +64,67 @@ class TranscriptionManager(
         val latestUserMsg = pathMessages.lastOrNull { it.participant == Participant.USER }
         val targets = mutableListOf<TranscriptionTarget>()
         for (msg in pathMessages) {
-            if (msg.participant != Participant.USER) continue
             if (msg.images.isEmpty()) continue
-            val meta = msg.attachmentMeta?.let {
-                try { Json.decodeFromString<AttachmentMeta>(it) } catch (_: Exception) { null }
-            } ?: continue
-            val isLatest = msg.id == latestUserMsg?.id
-            meta.items.forEachIndexed { index, item ->
-                val imageIndex = item.imageIndex
-                val imageType = item.type
-                if (imageIndex == null || (imageType != "image" && imageType != "pdf" && imageType != "video")) return@forEachIndexed
-                val count = when (imageType) {
-                    "pdf" -> item.pageCount ?: 1
-                    "video" -> item.pageCount ?: 1
-                    else -> 1
-                }
-                for (i in 0 until count) {
-                    val offset = imageIndex + i
-                    if (offset !in msg.images.indices) break
-                    val imagePath = msg.images[offset]
-                    if (isLatest || item.transcription.isNullOrEmpty()) {
-                        targets.add(TranscriptionTarget(msg.id, imagePath, index))
+
+            if (msg.participant == Participant.USER) {
+                val meta = msg.attachmentMeta?.let {
+                    try { Json.decodeFromString<AttachmentMeta>(it) } catch (_: Exception) { null }
+                } ?: continue
+                val isLatest = msg.id == latestUserMsg?.id
+                meta.items.forEachIndexed { index, item ->
+                    val imageIndex = item.imageIndex
+                    val imageType = item.type
+                    if (imageIndex == null || (imageType != "image" && imageType != "pdf" && imageType != "video")) return@forEachIndexed
+                    val count = when (imageType) {
+                        "pdf" -> item.pageCount ?: 1
+                        "video" -> item.pageCount ?: 1
+                        else -> 1
                     }
+                    for (i in 0 until count) {
+                        val offset = imageIndex + i
+                        if (offset !in msg.images.indices) break
+                        val imagePath = msg.images[offset]
+                        if (isLatest || item.transcription.isNullOrEmpty()) {
+                            targets.add(TranscriptionTarget(msg.id, imagePath, index))
+                        }
+                    }
+                }
+                continue
+            }
+
+            if (msg.participant == Participant.MODEL) {
+                val meta = msg.attachmentMeta?.let {
+                    try { Json.decodeFromString<AttachmentMeta>(it) } catch (_: Exception) { null }
+                } ?: AttachmentMeta()
+                val items = meta.items.toMutableList()
+                var changed = false
+                msg.images.forEachIndexed { imageIndex, imagePath ->
+                    val existingIndex = items.indexOfFirst { it.type == "image" && it.imageIndex == imageIndex }
+                    val itemIndex = if (existingIndex >= 0) {
+                        existingIndex
+                    } else {
+                        items.add(
+                            AttachmentItem(
+                                type = "image",
+                                fileName = File(imagePath).name,
+                                mimeType = if (imagePath.endsWith(".png", true)) "image/png" else "image/jpeg",
+                                imageIndex = imageIndex
+                            )
+                        )
+                        changed = true
+                        items.lastIndex
+                    }
+                    if (items[itemIndex].transcription.isNullOrEmpty()) {
+                        targets.add(TranscriptionTarget(msg.id, imagePath, itemIndex))
+                    }
+                }
+                if (changed) {
+                    chatDao.upsertMessage(msg.copy(
+                        attachmentMeta = Json.encodeToString(
+                            AttachmentMeta.serializer(),
+                            AttachmentMeta(items = items)
+                        )
+                    ))
                 }
             }
         }

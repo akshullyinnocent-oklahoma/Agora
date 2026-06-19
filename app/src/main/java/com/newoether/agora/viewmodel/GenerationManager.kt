@@ -19,6 +19,7 @@ import com.newoether.agora.service.AgoraForegroundService
 import com.newoether.agora.service.AppForegroundTracker
 import com.newoether.agora.api.EmbeddingClient
 import com.newoether.agora.api.LlamaEngine
+import com.newoether.agora.api.util.projectAssistantImagesToLatestUserMessage
 import com.newoether.agora.data.EmbeddingIndexer
 import com.newoether.agora.util.Constants
 import com.newoether.agora.util.SearchResultFormatter
@@ -664,8 +665,8 @@ class GenerationManager(
                 ToolCallData(s.toolName ?: "", s.toolArgs ?: "{}", s.toolResult ?: "", s.toolCallId)
             }
             val meta = it.attachmentMeta?.let { json -> try { Json.decodeFromString<com.newoether.agora.model.AttachmentMeta>(json) } catch (_: Exception) { null } }
-            val combinedText = if (meta != null && it.participant == Participant.USER) {
-                val attachmentText = meta.items.mapNotNull { item ->
+            val attachmentText = if (meta != null) {
+                meta.items.mapNotNull { item ->
                     val content = item.textContent
                     val transcription = item.transcription
                     val includeTranscription = ctx.imageTranscriptionEnabled && transcription != null && transcription.isNotBlank()
@@ -681,8 +682,8 @@ class GenerationManager(
                         else -> null
                     }
                 }.joinToString("")
-                it.text + attachmentText
-            } else it.text
+            } else ""
+            val combinedText = if (attachmentText.isNotBlank()) it.text + attachmentText else it.text
             val hasTranscription = ctx.imageTranscriptionEnabled && meta != null && meta.items.any { item -> !item.transcription.isNullOrBlank() }
             val effectiveImages = if (hasTranscription) emptyList() else it.images
             ChatMessage(id = it.id, parentId = it.parentId, text = combinedText, images = effectiveImages, thoughts = it.thoughts, thoughtTitle = it.thoughtTitle, tokenCount = it.tokenCount, status = it.status, participant = it.participant, timestamp = it.timestamp, thoughtTimeMs = it.thoughtTimeMs, segments = segs, toolCall = toolCall)
@@ -973,7 +974,8 @@ class GenerationManager(
                 }
             }
 
-            val apiPath = applyUserTemplate(currentPath, config.userPrepend, config.userPostpend)
+            val projectedPath = projectAssistantImagesToLatestUserMessage(currentPath, providerConfig.includeImages)
+            val apiPath = applyUserTemplate(projectedPath, config.userPrepend, config.userPostpend)
             provider.generateResponse(apiPath, providerConfig).collect { event ->
                 handleStreamEvent(event)
             }
@@ -1042,7 +1044,8 @@ class GenerationManager(
 
                 lastEmitMs = 0L
 
-                val apiToolPath = applyUserTemplate(toolPath, config.userPrepend, config.userPostpend)
+                val projectedToolPath = projectAssistantImagesToLatestUserMessage(toolPath, providerConfig.includeImages)
+                val apiToolPath = applyUserTemplate(projectedToolPath, config.userPrepend, config.userPostpend)
                 provider.generateResponse(apiToolPath, providerConfig).collect { event ->
                     handleStreamEvent(event)
                 }

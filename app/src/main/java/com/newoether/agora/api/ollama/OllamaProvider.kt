@@ -140,7 +140,7 @@ class OllamaProvider : LlmProvider {
                 return@flatMap entries
             }
 
-            val images = if (config.includeImages) msg.images.mapNotNull { imagePath ->
+            val images = if (config.includeImages && msg.participant == Participant.USER) msg.images.mapNotNull { imagePath ->
                 try {
                     val file = File(imagePath)
                     if (file.exists()) {

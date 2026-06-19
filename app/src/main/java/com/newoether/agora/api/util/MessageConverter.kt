@@ -118,7 +118,7 @@ fun convertToOpenAiMessages(
             parts.add(OpenAiContentPart(type = "text", text = msg.text))
         }
 
-        if (includeImages) {
+        if (includeImages && msg.participant == Participant.USER) {
             for (imagePath in msg.images) {
                 val encoded = encodeImageToBase64(imagePath)
                 if (encoded != null) {
