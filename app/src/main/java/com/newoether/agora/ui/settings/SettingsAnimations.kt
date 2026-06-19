@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -54,63 +55,80 @@ internal fun <T> GuardedAnimatedContent(
     forward: Boolean,
     content: @Composable (T) -> Unit
 ) {
-    val enterSlideProgress = remember { Animatable(1f) }
-    val enterAlpha = remember { Animatable(1f) }
-    val enterScale = remember { Animatable(1f) }
-    val outgoingSlideProgress = remember { Animatable(0f) }
-    val outgoingAlpha = remember { Animatable(0f) }
-    val outgoingScale = remember { Animatable(ScaleTo) }
-    var visibleTarget by remember { mutableStateOf(targetState) }
-    var outgoingPage by remember { mutableStateOf<OutgoingSettingsPage<T>?>(null) }
+    val pageSlots = remember {
+        mutableStateListOf(
+            SettingsTransitionSlot(
+                id = 0,
+                state = targetState,
+                initialRole = SettingsTransitionRole.Target,
+                enterSlideProgress = Animatable(1f),
+                exitSlideProgress = Animatable(0f),
+                alpha = Animatable(1f),
+                scale = Animatable(1f)
+            )
+        )
+    }
+    var nextPageId by remember { mutableStateOf(1) }
     var activeForward by remember { mutableStateOf(forward) }
 
     LaunchedEffect(targetState) {
-        if (targetState != visibleTarget) {
-            outgoingPage = OutgoingSettingsPage(visibleTarget)
+        val currentTarget = pageSlots.lastOrNull { it.role == SettingsTransitionRole.Target }
+            ?: return@LaunchedEffect
+        if (targetState != currentTarget.state) {
+            pageSlots.removeAll { it.role == SettingsTransitionRole.Outgoing }
+            currentTarget.role = SettingsTransitionRole.Outgoing
             activeForward = forward
-            enterSlideProgress.snapTo(0f)
-            enterAlpha.snapTo(0f)
-            enterScale.snapTo(ScaleFrom)
-            outgoingSlideProgress.snapTo(0f)
-            outgoingAlpha.snapTo(1f)
-            outgoingScale.snapTo(1f)
-            visibleTarget = targetState
+
+            val newTarget = SettingsTransitionSlot(
+                id = nextPageId,
+                state = targetState,
+                initialRole = SettingsTransitionRole.Target,
+                enterSlideProgress = Animatable(0f),
+                exitSlideProgress = Animatable(0f),
+                alpha = Animatable(0f),
+                scale = Animatable(ScaleFrom)
+            )
+            nextPageId += 1
+            pageSlots.add(newTarget)
+
             listOf(
-                launch { enterSlideProgress.animateTo(1f, animationSpec = settingsSpring()) },
-                launch { enterAlpha.animateTo(1f, animationSpec = tween(FadeDuration)) },
-                launch { enterScale.animateTo(1f, animationSpec = settingsSpring()) },
-                launch { outgoingSlideProgress.animateTo(1f, animationSpec = settingsSpring()) },
-                launch { outgoingAlpha.animateTo(0f, animationSpec = settingsSpring()) },
-                launch { outgoingScale.animateTo(ScaleTo, animationSpec = settingsSpring()) }
+                launch { newTarget.enterSlideProgress.animateTo(1f, animationSpec = settingsSpring()) },
+                launch { newTarget.alpha.animateTo(1f, animationSpec = tween(FadeDuration)) },
+                launch { newTarget.scale.animateTo(1f, animationSpec = settingsSpring()) },
+                launch { currentTarget.exitSlideProgress.animateTo(1f, animationSpec = settingsSpring()) },
+                launch { currentTarget.alpha.animateTo(0f, animationSpec = settingsSpring()) },
+                launch { currentTarget.scale.animateTo(ScaleTo, animationSpec = settingsSpring()) }
             ).joinAll()
-            outgoingPage = null
-            enterSlideProgress.snapTo(1f)
-            enterAlpha.snapTo(1f)
-            enterScale.snapTo(1f)
-            outgoingSlideProgress.snapTo(0f)
-            outgoingAlpha.snapTo(0f)
-            outgoingScale.snapTo(ScaleTo)
+            pageSlots.remove(currentTarget)
+            newTarget.enterSlideProgress.snapTo(1f)
+            newTarget.exitSlideProgress.snapTo(0f)
+            newTarget.alpha.snapTo(1f)
+            newTarget.scale.snapTo(1f)
         }
     }
 
-    val activeOutgoingPage = outgoingPage
-    val isTransitioning = activeOutgoingPage != null
+    val isTransitioning = pageSlots.any { it.role == SettingsTransitionRole.Outgoing }
 
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val widthPx = with(LocalDensity.current) { maxWidth.roundToPx() }
-        val targetOffset = targetOffsetPx(activeForward, enterSlideProgress.value, widthPx)
-        val outgoingOffset = outgoingOffsetPx(activeForward, outgoingSlideProgress.value, widthPx)
 
-        if (activeOutgoingPage != null) {
-            key("outgoing", activeOutgoingPage.state) {
+        pageSlots.forEach { slot ->
+            val isOutgoing = slot.role == SettingsTransitionRole.Outgoing
+            val offset = if (isOutgoing) {
+                outgoingOffsetPx(activeForward, slot.exitSlideProgress.value, widthPx)
+            } else {
+                targetOffsetPx(activeForward, slot.enterSlideProgress.value, widthPx)
+            }
+
+            key(slot.id) {
                 SettingsTransitionPage(
-                    offsetX = outgoingOffset,
-                    alpha = outgoingAlpha.value.coerceIn(0f, 1f),
-                    scale = outgoingScale.value,
-                    zIndex = 0f,
-                    consumeInput = true
+                    offsetX = offset,
+                    alpha = slot.alpha.value.coerceIn(0f, 1f),
+                    scale = slot.scale.value,
+                    zIndex = if (isOutgoing) 0f else 1f,
+                    consumeInput = isOutgoing
                 ) {
-                    content(activeOutgoingPage.state)
+                    content(slot.state)
                 }
             }
         }
@@ -123,22 +141,25 @@ internal fun <T> GuardedAnimatedContent(
                     .consumePointerInput()
             )
         }
-
-        key("target", visibleTarget) {
-            SettingsTransitionPage(
-                offsetX = targetOffset,
-                alpha = enterAlpha.value.coerceIn(0f, 1f),
-                scale = enterScale.value,
-                zIndex = 1f,
-                consumeInput = false
-            ) {
-                content(visibleTarget)
-            }
-        }
     }
 }
 
-private data class OutgoingSettingsPage<T>(val state: T)
+private enum class SettingsTransitionRole {
+    Target,
+    Outgoing
+}
+
+private class SettingsTransitionSlot<T>(
+    val id: Int,
+    val state: T,
+    initialRole: SettingsTransitionRole,
+    val enterSlideProgress: Animatable<Float, AnimationVector1D>,
+    val exitSlideProgress: Animatable<Float, AnimationVector1D>,
+    val alpha: Animatable<Float, AnimationVector1D>,
+    val scale: Animatable<Float, AnimationVector1D>
+) {
+    var role by mutableStateOf(initialRole)
+}
 
 @Composable
 private fun SettingsTransitionPage(
