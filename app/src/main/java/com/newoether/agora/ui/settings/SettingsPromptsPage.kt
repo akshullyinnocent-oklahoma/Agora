@@ -173,6 +173,16 @@ private fun PromptList(
         onBack = onBack
     ) {
             val promptItems: List<@Composable () -> Unit> = buildList {
+                if (systemPrompts.isEmpty()) {
+                    add {
+                        SettingsItem(
+                            headlineContent = { Text(stringResource(R.string.prompts_empty_title), color = MaterialTheme.colorScheme.onSurfaceVariant) },
+                            supportingContent = { Text(stringResource(R.string.prompts_empty_desc), color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)) },
+                            leadingContent = { Icon(Icons.Default.Psychology, null, tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)) },
+                            modifier = Modifier.heightIn(min = 64.dp)
+                        )
+                    }
+                }
                 systemPrompts.forEach { entry ->
                     add {
                         var showMenu by remember { mutableStateOf(false) }

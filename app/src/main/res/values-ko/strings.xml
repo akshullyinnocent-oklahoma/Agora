@@ -242,6 +242,8 @@
     <string name="prompts_duplicate">복제</string>
     <string name="prompts_duplicate_title">%1$s 사본</string>
     <string name="prompts_empty_preview">빈 프롬프트</string>
+    <string name="prompts_empty_title">시스템 프롬프트 없음</string>
+    <string name="prompts_empty_desc">맞춤형 페르소나와 지침 생성</string>
     <string name="prompts_delete_title">시스템 지침을 삭제하시겠습니까?</string>
     <string name="prompts_delete_text">\'%1$s\'을(를) 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.</string>
     <string name="template_title_required">제목이 필요합니다</string>

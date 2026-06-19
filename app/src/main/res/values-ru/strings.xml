@@ -242,6 +242,8 @@
     <string name="prompts_duplicate">Дублировать</string>
     <string name="prompts_duplicate_title">Копия %1$s</string>
     <string name="prompts_empty_preview">Пустой промпт</string>
+    <string name="prompts_empty_title">Нет системных инструкций</string>
+    <string name="prompts_empty_desc">Создайте свои личности и инструкции</string>
     <string name="prompts_delete_title">Удалить системную инструкцию?</string>
     <string name="prompts_delete_text">Вы уверены, что хотите удалить \'%1$s\'? Это действие нельзя отменить.</string>
     <string name="template_title_required">Требуется заголовок</string>

@@ -242,6 +242,8 @@
     <string name="prompts_duplicate">Duplizieren</string>
     <string name="prompts_duplicate_title">%1$s Kopie</string>
     <string name="prompts_empty_preview">Leerer Prompt</string>
+    <string name="prompts_empty_title">Keine Systemanweisungen</string>
+    <string name="prompts_empty_desc">Erstelle eigene Persönlichkeiten und Anweisungen</string>
     <string name="prompts_delete_title">System-Anweisung löschen?</string>
     <string name="prompts_delete_text">Möchtest du \'%1$s\' wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.</string>
     <string name="template_title_required">Titel ist erforderlich</string>

@@ -168,6 +168,8 @@
     <string name="prompts_duplicate">复制</string>
     <string name="prompts_duplicate_title">%1$s 副本</string>
     <string name="prompts_empty_preview">空指令</string>
+    <string name="prompts_empty_title">暂无系统指令</string>
+    <string name="prompts_empty_desc">创建自定义人格和指令</string>
     <string name="prompts_delete_title">删除系统指令？</string>
     <string name="prompts_delete_text">确定要删除 \'%1$s\' 吗？此操作无法撤销。</string>
     <string name="template_title_required">标题不能为空</string>

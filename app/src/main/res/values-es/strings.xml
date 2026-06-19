@@ -242,6 +242,8 @@
     <string name="prompts_duplicate">Duplicar</string>
     <string name="prompts_duplicate_title">Copia de %1$s</string>
     <string name="prompts_empty_preview">Instrucción vacía</string>
+    <string name="prompts_empty_title">Sin instrucciones del sistema</string>
+    <string name="prompts_empty_desc">Crea personalidades e instrucciones personalizadas</string>
     <string name="prompts_delete_title">¿Eliminar instrucción del sistema?</string>
     <string name="prompts_delete_text">¿Seguro que quieres eliminar \'%1$s\'? Esta acción no se puede deshacer.</string>
     <string name="template_title_required">El título es obligatorio</string>

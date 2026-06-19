@@ -242,6 +242,8 @@
     <string name="prompts_duplicate">複製</string>
     <string name="prompts_duplicate_title">%1$s のコピー</string>
     <string name="prompts_empty_preview">空のプロンプト</string>
+    <string name="prompts_empty_title">システムプロンプトがありません</string>
+    <string name="prompts_empty_desc">カスタム人格や指示を作成</string>
     <string name="prompts_delete_title">システム指示を削除しますか?</string>
     <string name="prompts_delete_text">\'%1$s\' を削除してもよろしいですか? この操作は取り消せません。</string>
     <string name="template_title_required">タイトルは必須です</string>

@@ -242,6 +242,8 @@
     <string name="prompts_duplicate">تكرار</string>
     <string name="prompts_duplicate_title">نسخة من %1$s</string>
     <string name="prompts_empty_preview">موجّه فارغ</string>
+    <string name="prompts_empty_title">لا توجد تعليمات نظام</string>
+    <string name="prompts_empty_desc">أنشئ شخصيات وتعليمات مخصصة</string>
     <string name="prompts_delete_title">حذف تعليمات النظام؟</string>
     <string name="prompts_delete_text">هل أنت متأكد أنك تريد حذف \'%1$s\'؟ لا يمكن التراجع عن هذا الإجراء.</string>
     <string name="template_title_required">العنوان مطلوب</string>

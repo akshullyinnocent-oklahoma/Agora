@@ -167,6 +167,8 @@
     <string name="prompts_duplicate">複製</string>
     <string name="prompts_duplicate_title">%1$s 副本</string>
     <string name="prompts_empty_preview">空指令</string>
+    <string name="prompts_empty_title">尚無系統指令</string>
+    <string name="prompts_empty_desc">建立自訂人格與指令</string>
     <string name="prompts_delete_title">刪除系統指令？</string>
     <string name="prompts_delete_text">確定要刪除 \'%1$s\' 嗎？此操作無法復原。</string>
     <string name="template_title_required">標題不能為空</string>
