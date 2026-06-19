@@ -7,6 +7,5 @@
 * Blur effects performance toggle
 * Robust LaTeX inline math with CJK support
 * Settings spring+scale+fade transitions
-* Keep settings subpages alive until return animations finish
 * Optimized streaming markdown/LaTeX
 * Fixes: NPE crash, negative padding, touch, IME

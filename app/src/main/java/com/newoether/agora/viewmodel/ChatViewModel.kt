@@ -246,6 +246,12 @@ class ChatViewModel(
     private val generationScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var generationJob: Job? = null
     private val sendGate = java.util.concurrent.atomic.AtomicBoolean(false)
+    @Volatile private var stopFinalizationJob: Job? = null
+
+    private data class StopFinalizationState(
+        val conversationId: String?,
+        val messages: List<ChatMessage>
+    )
 
     // ── Generation ownership ──────────────────────────────────────────────
     // Two independent ownership signals make the generation lifecycle race-free:
@@ -1825,26 +1831,36 @@ class ChatViewModel(
     }
 
     fun stopGeneration() {
+        stopGenerationInternal(releaseSendGate = true)
+    }
+
+    private fun stopGenerationForReplacement(): Job? {
+        return stopGenerationInternal(releaseSendGate = false)
+    }
+
+    private fun stopGenerationInternal(releaseSendGate: Boolean): Job? {
+        val previousJob = generationJob
         com.newoether.agora.api.HttpClient.activeStreamHandle?.cancel()
-        generationJob?.cancel()
+        previousJob?.cancel()
         // Advance the UI-ownership token and commit the terminal UI state as one
         // atomic step under genLock. Any callback from the cancelled generation that
         // is mid-flight on the IO thread is serialized by the same lock, so it either
         // ran before this (and we overwrite it with STOPPED) or runs after (and is
         // gated out by the advanced token). Either way "Thinking…" can never resurface.
+        var stoppedConversationId: String? = null
         val stoppedMsg = synchronized(genLock) {
             uiGenToken += 1
+            stoppedConversationId = _generatingInConversationId.value ?: _currentConversationId.value
             _isLoading.value = false
             val s = _streamingMessage.value?.copy(status = MessageStatus.STOPPED)
             _streamingMessage.value = s
             _generatingInConversationId.value = null
             s
         }
-        // Reflect STOPPED in the in-memory list immediately for instant feedback. The
-        // cancelled generation's own finally block durably persists STOPPED (plus its
-        // full accumulated text) to the DB as it unwinds — persistId is NOT advanced
-        // here, so that write is permitted. Callers that start a new generation join()
-        // that job first, guaranteeing the DB row is terminal before any overlay swap.
+        // Reflect STOPPED in memory immediately, then persist that terminal state via
+        // a short DB-only job. The cancelled provider may still unwind later, but it
+        // no longer blocks the user from sending the next message.
+        val fallbackStoppedMessages = mutableListOf<ChatMessage>()
         if (stoppedMsg != null) {
             _allMessages.update { it.map { m -> if (m.id == stoppedMsg.id) stoppedMsg else m } }
         } else {
@@ -1852,10 +1868,79 @@ class ChatViewModel(
             _allMessages.update { it.map { m ->
                 if (m.participant == Participant.MODEL &&
                     (m.status == MessageStatus.SENDING || m.status == MessageStatus.THINKING || m.status == MessageStatus.TOOL_CALLING || m.status == MessageStatus.TRANSCRIBING)
-                ) m.copy(status = MessageStatus.STOPPED) else m
+                ) {
+                    val stopped = m.copy(status = MessageStatus.STOPPED)
+                    fallbackStoppedMessages.add(stopped)
+                    stopped
+                } else m
             } }
         }
+        val stoppedMessages = stoppedMsg?.let { listOf(it) } ?: fallbackStoppedMessages
+        val finalizationJob = launchStopFinalization(StopFinalizationState(stoppedConversationId, stoppedMessages))
+        if (releaseSendGate) sendGate.set(false)
         AgoraForegroundService.stop(getApplication())
+        return finalizationJob ?: currentStopFinalizationJob()
+    }
+
+    private fun currentStopFinalizationJob(): Job? {
+        return synchronized(genLock) { stopFinalizationJob?.takeUnless { it.isCompleted } }
+    }
+
+    private fun launchStopFinalization(state: StopFinalizationState): Job? {
+        val conversationId = state.conversationId ?: return currentStopFinalizationJob()
+        val messages = state.messages.distinctBy { it.id }
+        if (messages.isEmpty()) return currentStopFinalizationJob()
+
+        val job = viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val conversationExists = chatDao.getConversation(conversationId) != null
+                if (!conversationExists) return@launch
+                for (message in messages) {
+                    chatDao.upsertMessage(message.toStoppedEntity(conversationId))
+                    if (message.text.isNotBlank() && autoCacheEnabled.value &&
+                        (modelSearchMethod.value == "rag" || manualSearchMethod.value == "rag")
+                    ) {
+                        indexMessageForRag(message.id, message.text)
+                    }
+                }
+            } catch (e: Exception) {
+                DebugLog.e("AgoraVM", "Failed to persist stopped generation", e)
+            }
+        }
+        synchronized(genLock) { stopFinalizationJob = job }
+        return job
+    }
+
+    private fun ChatMessage.toStoppedEntity(conversationId: String): MessageEntity {
+        val toolJson = segments?.let { Json.encodeToString(it) } ?: toolCall?.let {
+            Json.encodeToString(listOf(
+                MessageSegment(
+                    type = "tool",
+                    toolName = it.toolName,
+                    toolArgs = it.arguments,
+                    toolResult = it.result,
+                    signature = it.signature,
+                    toolCallId = it.toolCallId
+                )
+            ))
+        }
+        return MessageEntity(
+            id = id,
+            conversationId = conversationId,
+            parentId = parentId,
+            text = text,
+            images = images,
+            thoughts = thoughts,
+            thoughtTitle = thoughtTitle,
+            tokenCount = tokenCount,
+            status = MessageStatus.STOPPED,
+            participant = participant,
+            timestamp = timestamp,
+            thoughtTimeMs = thoughtTimeMs,
+            modelName = modelName,
+            toolCallJson = toolJson,
+            attachmentMeta = attachmentMeta?.let { Json.encodeToString(it) }
+        )
     }
 
     fun regenerate(messageId: String) {
@@ -1869,10 +1954,9 @@ class ChatViewModel(
             return
         }
 
-        stopGeneration()
+        val stopFinalization = stopGenerationForReplacement()
         // Capture ownership on the UI thread, immediately after stopGeneration advanced
         // the token, so no concurrent stop can slip in before we record it.
-        val prevJob = generationJob
         val myUiToken = synchronized(genLock) { uiGenToken }
 
         // Compute IDs and set placeholder on the calling thread before launching IO work,
@@ -1903,9 +1987,9 @@ class ChatViewModel(
         _isLoading.value = true
 
         generationJob = generationScope.launch {
-            // Wait for the previous generation to fully unwind (and durably persist its
-            // own terminal state) before claiming persist ownership for this one.
-            prevJob?.join()
+            // Wait only for the short STOPPED DB finalization. The cancelled provider
+            // may still be unwinding, but it no longer owns the next generation path.
+            stopFinalization?.join()
             val myPersistId = persistId.incrementAndGet()
             try {
                 val userMessage = _allMessages.value.find { it.id == parentId } ?: return@launch
@@ -2009,11 +2093,10 @@ class ChatViewModel(
             return
         }
 
-        stopGeneration()
-        val prevJob = generationJob
+        val stopFinalization = stopGenerationForReplacement()
         val myUiToken = synchronized(genLock) { uiGenToken }
         generationJob = generationScope.launch {
-            prevJob?.join()
+            stopFinalization?.join()
             val myPersistId = persistId.incrementAndGet()
             try {
             val messageToEdit = _allMessages.value.find { it.id == messageId } ?: return@launch
@@ -2159,21 +2242,18 @@ class ChatViewModel(
                 return false
             }
         }
-        stopGeneration()
+        val stopFinalization = stopGenerationForReplacement()
         // Set loading immediately so UI shows sending state during attachment processing
         _isLoading.value = true
         // Capture ownership on the UI thread right after stopGeneration advanced the token.
-        val prevJob = generationJob
         val myUiToken = synchronized(genLock) { uiGenToken }
 
         committed = true
         generationJob = generationScope.launch {
             try {
-            // Wait for the previous generation to durably finalize its message (STOPPED +
-            // full text) BEFORE inserting new messages, so the prior bubble can never flash
-            // a stale "generating" status when its streaming overlay is replaced. Only then
-            // claim persist ownership for this generation.
-            prevJob?.join()
+            // Wait only for the short STOPPED DB finalization. The cancelled provider
+            // may still be unwinding, but it no longer owns the next generation path.
+            stopFinalization?.join()
             val myPersistId = persistId.incrementAndGet()
             val app = getApplication<Application>()
             // mediaUris: URIs that need processImages (images, video content:// URIs)
