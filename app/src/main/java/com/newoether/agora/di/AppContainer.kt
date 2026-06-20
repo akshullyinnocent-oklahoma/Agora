@@ -7,7 +7,6 @@ import com.newoether.agora.data.SettingsManager
 import com.newoether.agora.data.local.ChatDao
 import com.newoether.agora.data.local.ChatDatabase
 import com.newoether.agora.data.repository.ConversationRepository
-import com.newoether.agora.data.repository.MemoryRepository
 import com.newoether.agora.data.repository.SettingsRepository
 import com.newoether.agora.data.AutoBackupManager
 import com.newoether.agora.sandbox.SandboxManagerFactory
@@ -47,9 +46,6 @@ class AppContainer(private val appContext: Context) {
     }
     val settingsRepository: SettingsRepository by lazy {
         SettingsRepository(settingsManager, appScope)
-    }
-    val memoryRepository: MemoryRepository by lazy {
-        MemoryRepository(memoryManager)
     }
 
     // ── Sandbox (flavor-specific) ─────────────────────────────
@@ -91,6 +87,6 @@ class AppContainer(private val appContext: Context) {
     fun chatViewModelFactory(): ChatViewModelFactory =
         ChatViewModelFactory(
             application, settingsManager, chatDao, memoryManager, appContext, sandboxManagerFactory,
-            autoBackupManager, conversationRepository, settingsRepository, memoryRepository
+            autoBackupManager, conversationRepository, settingsRepository
         )
 }

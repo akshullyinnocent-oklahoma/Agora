@@ -85,8 +85,7 @@ class ChatViewModel(
     // direct construction (e.g. tests) working.
     private val injectedAutoBackupManager: com.newoether.agora.data.AutoBackupManager? = null,
     private val conversationRepository: com.newoether.agora.data.repository.ConversationRepository? = null,
-    private val settingsRepository: com.newoether.agora.data.repository.SettingsRepository? = null,
-    private val memoryRepository: com.newoether.agora.data.repository.MemoryRepository? = null
+    private val settingsRepository: com.newoether.agora.data.repository.SettingsRepository? = null
 ) : AndroidViewModel(application) {
 
     /**
@@ -1129,7 +1128,7 @@ class ChatViewModel(
         val keys = settings.apiKeys.value
         val match = keys.find { it.provider.equals(targetProvider, ignoreCase = true) }
         if (match != null) {
-            val baseUrl = settings.providerBaseUrls.value[match.provider] ?: resolveDefaultBaseUrlForProvider(match.provider)
+            val baseUrl = settings.providerBaseUrls.value[match.provider] ?: ProviderDefaults.embeddingBaseUrl(match.provider)
             return EmbeddingKeyInfo(match.provider, match.key, baseUrl)
         }
         return null
@@ -1140,34 +1139,23 @@ class ChatViewModel(
         val keys = settings.apiKeys.value
         val match = keys.find { it.provider.equals(targetProvider, ignoreCase = true) }
         if (match != null) {
-            val baseUrl = settings.providerBaseUrls.value[match.provider] ?: resolveDefaultBaseUrlForProvider(match.provider)
+            val baseUrl = settings.providerBaseUrls.value[match.provider] ?: ProviderDefaults.embeddingBaseUrl(match.provider)
             return EmbeddingKeyInfo(match.provider, match.key, baseUrl)
         }
         val fallbackKeys = listOf("OpenAI", "DeepSeek", "Qwen", "Open Router", "Mistral", "OpenRouter")
         for (fk in fallbackKeys) {
             val entry = keys.find { it.provider.equals(fk, ignoreCase = true) }
             if (entry != null) {
-                val baseUrl = settings.providerBaseUrls.value[entry.provider] ?: resolveDefaultBaseUrlForProvider(entry.provider)
+                val baseUrl = settings.providerBaseUrls.value[entry.provider] ?: ProviderDefaults.embeddingBaseUrl(entry.provider)
                 return EmbeddingKeyInfo(entry.provider, entry.key, baseUrl)
             }
         }
         val first = keys.firstOrNull() ?: return null
-        return EmbeddingKeyInfo(first.provider, first.key, resolveDefaultBaseUrlForProvider(first.provider))
-    }
-
-    private fun resolveDefaultBaseUrlForProvider(provider: String): String {
-        return when (provider.lowercase()) {
-            "openai" -> "https://api.openai.com/v1"
-            "mistral" -> "https://api.mistral.ai/v1"
-            "deepseek" -> "https://api.deepseek.com/v1"
-            "qwen" -> "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"
-            "open router", "openrouter" -> "https://openrouter.ai/api/v1"
-            else -> "https://api.openai.com/v1"
-        }
+        return EmbeddingKeyInfo(first.provider, first.key, ProviderDefaults.embeddingBaseUrl(first.provider))
     }
 
     private fun resolveEmbeddingBaseUrl(): String {
-        return settings.providerBaseUrls.value["OpenAI"] ?: "https://api.openai.com/v1"
+        return settings.providerBaseUrls.value["OpenAI"] ?: ProviderDefaults.OPENAI_BASE_URL
     }
 
     fun indexMessageForRag(messageId: String, text: String) {

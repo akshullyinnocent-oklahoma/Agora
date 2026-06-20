@@ -2,6 +2,7 @@ package com.newoether.agora.tool
 
 import android.app.Application
 import com.newoether.agora.api.HttpClient
+import com.newoether.agora.api.ProviderDefaults
 import com.newoether.agora.api.ToolDefinition
 import com.newoether.agora.api.ToolFunction
 import com.newoether.agora.api.ToolParameters
@@ -68,7 +69,7 @@ class ImageGenToolProvider(private val app: Application) : ToolProvider {
 
         val apiKey = ctx.imageGenApiKey
         if (apiKey.isBlank()) return err("no_api_key", null)
-        val baseUrl = ctx.imageGenBaseUrl.ifBlank { "https://api.openai.com/v1" }.trimEnd('/')
+        val baseUrl = ctx.imageGenBaseUrl.ifBlank { ProviderDefaults.OPENAI_BASE_URL }.trimEnd('/')
         val model = ctx.imageGenModel.ifBlank { "gpt-image-1" }
 
         return withContext(Dispatchers.IO) {

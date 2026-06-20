@@ -2,6 +2,7 @@ package com.newoether.agora.tool
 
 import com.newoether.agora.api.EmbeddingClient
 import com.newoether.agora.api.LlamaEngine
+import com.newoether.agora.api.ProviderDefaults
 import com.newoether.agora.api.ToolDefinition
 import com.newoether.agora.api.ToolFunction
 import com.newoether.agora.api.ToolParameters
@@ -402,7 +403,7 @@ class RagToolProvider(
                 text = query,
                 apiKey = apiKey,
                 model = config.remoteModelName,
-                baseUrl = config.remoteBaseUrl.ifBlank { "https://api.openai.com/v1" }
+                baseUrl = config.remoteBaseUrl.ifBlank { ProviderDefaults.OPENAI_BASE_URL }
             )
         }
         if (queryEmbedding == null) {
