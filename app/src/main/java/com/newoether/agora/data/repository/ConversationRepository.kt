@@ -60,7 +60,7 @@ class ConversationRepository(
         val stringKeyMap = selections.mapKeys { it.key ?: "null" }
         val json = Json.encodeToString(stringKeyMap)
         if (conversation.selectedBranchesJson != json) {
-            chatDao.upsertConversation(conversation.copy(selectedBranchesJson = json))
+            chatDao.upsertConversation(conversation.copy(selectedBranchesJson = json, lastUpdated = System.currentTimeMillis()))
         }
     }
 

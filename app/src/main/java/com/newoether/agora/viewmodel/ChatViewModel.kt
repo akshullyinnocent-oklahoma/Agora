@@ -98,6 +98,16 @@ class ChatViewModel(
         settingsRepository
             ?: com.newoether.agora.data.repository.SettingsRepository(settingsManager, viewModelScope)
 
+    /**
+     * Conversation/message persistence behind the repository layer. Revived from the
+     * previously-unused [ConversationRepository]; CRUD, cascade-delete, branch-selection
+     * and stuck-message logic live there instead of being hand-rolled against [chatDao].
+     * (Embedding writes / bulk import-export still go direct until later phases.)
+     */
+    private val convRepo: com.newoether.agora.data.repository.ConversationRepository =
+        conversationRepository
+            ?: com.newoether.agora.data.repository.ConversationRepository(chatDao)
+
     private val localProvider = LocalProvider(appContext, settingsManager)
 
     private val builtInProviders = mapOf(
@@ -140,8 +150,8 @@ class ChatViewModel(
             val models = settingsManager.embeddingModels.first()
             val activeId = settingsManager.activeEmbeddingModelId.first()
             val active = models.find { it.id == activeId } ?: return@launch
-            val total = chatDao.getAllMessagesForIndexing().count { it.text.isNotBlank() }
-            val cached = chatDao.getEmbeddingCountByModel(active.id)
+            val total = convRepo.getAllMessagesForIndexing().count { it.text.isNotBlank() }
+            val cached = convRepo.getEmbeddingCountByModel(active.id)
             val notCached = (total - cached).coerceAtLeast(0)
             if (notCached > 0 && !_cachingProgress.value.containsKey(active.id)) {
                 _snackbarMessage.emit(SnackbarEvent(
@@ -152,7 +162,7 @@ class ChatViewModel(
         }
         // Clean up orphaned embeddings (messages that no longer exist)
         viewModelScope.launch(Dispatchers.IO) {
-            chatDao.deleteOrphanedEmbeddings()
+            convRepo.deleteOrphanedEmbeddings()
         }
         // Sweep orphaned PDF render files (pdf_* / pdf_preview_*) left in filesDir by a
         // process death while the page-select dialog was open. At startup nothing is
@@ -160,7 +170,7 @@ class ChatViewModel(
         // message's images is junk and gets deleted.
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                val referenced = chatDao.getAllMessagesList()
+                val referenced = convRepo.getAllMessagesList()
                     .asSequence()
                     .flatMap { it.images.asSequence() }
                     .map { it.removePrefix("file://") }
@@ -388,9 +398,9 @@ class ChatViewModel(
         viewModelScope.launch(Dispatchers.IO) { refreshCacheCounts() }
     }
     private suspend fun refreshCacheCounts() {
-        val total = chatDao.getIndexableMessageCount()
+        val total = convRepo.getIndexableMessageCount()
         val counts = settings.embeddingModels.value.associate { model ->
-            val cached = chatDao.getEmbeddingCountByModel(model.id).coerceAtMost(total)
+            val cached = convRepo.getEmbeddingCountByModel(model.id).coerceAtMost(total)
             model.id to (cached to total)
         }
         _cacheCounts.value = counts
@@ -431,10 +441,8 @@ class ChatViewModel(
 
     // ── Auto Backup ───────────────────────────────────────────
 
-        val conversations: StateFlow<List<ChatConversation>> = chatDao.getAllConversations()
-            .map { entities ->
-                entities.map { ChatConversation(id = it.id, title = it.title, systemPromptId = it.systemPromptId, modelId = it.modelId) }
-            }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+        val conversations: StateFlow<List<ChatConversation>> = convRepo.getAllConversations()
+            .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
     private val _currentConversationId = MutableStateFlow<String?>(null)
     val currentConversationId: StateFlow<String?> = _currentConversationId.asStateFlow()
 
@@ -640,16 +648,16 @@ class ChatViewModel(
                 if (id != null) {
                     // Fix stuck sending states when loading conversation — skip if currently generating
                     if (!_isLoading.value) {
-                        val stuckMessages = chatDao.getMessagesForConversation(id).first()
+                        val stuckMessages = convRepo.getMessagesForConversation(id).first()
                             .filter { it.status == MessageStatus.SENDING || it.status == MessageStatus.THINKING || it.status == MessageStatus.TOOL_CALLING || it.status == MessageStatus.TRANSCRIBING }
 
                         stuckMessages.forEach { msg ->
-                            chatDao.upsertMessage(msg.copy(status = MessageStatus.STOPPED))
+                            convRepo.upsertMessage(msg.copy(status = MessageStatus.STOPPED))
                         }
                     }
 
                     // Restore selected branches
-                    val conversation = chatDao.getConversation(id)
+                    val conversation = convRepo.getConversation(id)
                     if (conversation?.selectedBranchesJson != null) {
                         try {
                             val map = Json.decodeFromString<Map<String, String>>(conversation.selectedBranchesJson)
@@ -662,7 +670,7 @@ class ChatViewModel(
                         _selectedChildren.value = emptyMap()
                     }
 
-                    chatDao.getMessagesForConversation(id).collect { entities ->
+                    convRepo.getMessagesForConversation(id).collect { entities ->
                         val mapped = entities.map {
                             ChatMessage(
                                 id = it.id,
@@ -730,12 +738,7 @@ class ChatViewModel(
     }
 
     private suspend fun persistSelectedChildren(conversationId: String, childrenMap: Map<String?, String>) {
-        val conversation = chatDao.getConversation(conversationId) ?: return
-        val stringKeyMap = childrenMap.mapKeys { it.key ?: "null" }
-        val json = Json.encodeToString(stringKeyMap)
-        if (conversation.selectedBranchesJson != json) {
-            chatDao.upsertConversation(conversation.copy(selectedBranchesJson = json, lastUpdated = System.currentTimeMillis()))
-        }
+        convRepo.saveBranchSelections(conversationId, childrenMap)
     }
 
     // ── Custom providers ──────────────────────────────────────
@@ -870,8 +873,8 @@ class ChatViewModel(
         viewModelScope.launch(Dispatchers.IO) {
             settingsManager.setActiveEmbeddingModelId(id)
             val model = settings.embeddingModels.value.find { it.id == id } ?: return@launch
-            val total = chatDao.getAllMessagesForIndexing().count { it.text.isNotBlank() }
-            val cached = chatDao.getEmbeddingCountByModel(id)
+            val total = convRepo.getAllMessagesForIndexing().count { it.text.isNotBlank() }
+            val cached = convRepo.getEmbeddingCountByModel(id)
             val notCached = (total - cached).coerceAtLeast(0)
             if (notCached > 0) {
                 if (cachingProgress.value.containsKey(id)) {
@@ -907,7 +910,7 @@ class ChatViewModel(
                 if (recache) {
                     chatDao.deleteEmbeddingsByModel(modelId)
                 }
-                val allMessages = chatDao.getAllMessagesForIndexing().filter { it.text.isNotBlank() }
+                val allMessages = convRepo.getAllMessagesForIndexing().filter { it.text.isNotBlank() }
                 val total = allMessages.size
                 if (total == 0) {
                     if (!silent) _snackbarMessage.emit(SnackbarEvent(appContext.getString(R.string.no_messages_to_cache)))
@@ -992,7 +995,7 @@ class ChatViewModel(
                         ) { cacheMessagesForModel(modelId) })
                     }
                 }
-                chatDao.deleteOrphanedEmbeddings()
+                convRepo.deleteOrphanedEmbeddings()
                 refreshCacheCounts()
             }
         }
@@ -1196,7 +1199,7 @@ class ChatViewModel(
             }
         }
     }
-    suspend fun searchMessages(query: String, limit: Int = 20) = chatDao.searchMessages(query, limit)
+    suspend fun searchMessages(query: String, limit: Int = 20) = convRepo.searchMessages(query, limit)
     // ── Auto Backup ───────────────────────────────────────────
     fun setAutoBackupEnabled(enabled: Boolean) {
         viewModelScope.launch(Dispatchers.IO) {
@@ -1442,7 +1445,7 @@ class ChatViewModel(
             clearMessageHeights()
             _branchSwitchTrigger.value = null
             _currentConversationId.value = id
-            val conversation = chatDao.getConversation(id)
+            val conversation = convRepo.getConversation(id)
             _currentActiveModel.value = conversation?.modelId
             triggerScrollToMessage()
         }
@@ -1450,9 +1453,9 @@ class ChatViewModel(
 
     fun renameConversation(id: String, newTitle: String) {
         viewModelScope.launch {
-            val existing = chatDao.getConversation(id)
+            val existing = convRepo.getConversation(id)
             if (existing != null) {
-                chatDao.upsertConversation(existing.copy(title = newTitle))
+                convRepo.upsertConversation(existing.copy(title = newTitle))
             }
         }
     }
@@ -1460,7 +1463,7 @@ class ChatViewModel(
     fun generateTitle(conversationId: String) {
         viewModelScope.launch {
             _snackbarMessage.emit(SnackbarEvent(appContext.getString(R.string.snackbar_generating_title)))
-            val conversation = chatDao.getConversation(conversationId) ?: return@launch
+            val conversation = convRepo.getConversation(conversationId) ?: return@launch
             val path = messages.value
             val firstUserMsg = path.firstOrNull { it.participant == Participant.USER } ?: return@launch
             val firstModelMsg = path
@@ -1538,9 +1541,9 @@ class ChatViewModel(
 
     fun setConversationSystemPrompt(id: String, promptId: String?) {
         viewModelScope.launch {
-            val existing = chatDao.getConversation(id)
+            val existing = convRepo.getConversation(id)
             if (existing != null) {
-                chatDao.upsertConversation(existing.copy(systemPromptId = promptId))
+                convRepo.upsertConversation(existing.copy(systemPromptId = promptId))
             }
         }
     }
@@ -1549,9 +1552,9 @@ class ChatViewModel(
         _currentActiveModel.value = model
         _currentConversationId.value?.let { id ->
             viewModelScope.launch {
-                val existing = chatDao.getConversation(id)
+                val existing = convRepo.getConversation(id)
                 if (existing != null) {
-                    chatDao.upsertConversation(existing.copy(modelId = model))
+                    convRepo.upsertConversation(existing.copy(modelId = model))
                 }
             }
         }
@@ -1563,7 +1566,7 @@ class ChatViewModel(
         }
         viewModelScope.launch(Dispatchers.IO) {
             // Delete attachment files for all messages in this conversation
-            val allMsgs = chatDao.getMessagesForConversation(id).first()
+            val allMsgs = convRepo.getMessagesForConversation(id).first()
             for (msg in allMsgs) {
                 for (imagePath in msg.images) {
                     try { java.io.File(imagePath).delete() } catch (_: Exception) {}
@@ -1582,9 +1585,7 @@ class ChatViewModel(
                     } catch (_: Exception) {}
                 }
             }
-            chatDao.deleteEmbeddingsByConversation(id)
-            chatDao.deleteMessagesByConversation(id)
-            chatDao.deleteConversation(id)
+            convRepo.deleteConversation(id)
             if (_currentConversationId.value == id) createNewChat()
         }
     }
@@ -1630,11 +1631,11 @@ class ChatViewModel(
 
             // Delete embeddings for all cascaded messages
             for (id in staleIds) {
-                chatDao.deleteEmbedding(id)
+                convRepo.deleteEmbedding(id)
             }
 
             // DB delete
-            chatDao.deleteMessagesByIds(staleIds.toList())
+            convRepo.deleteMessagesByIds(staleIds.toList())
 
             // Update _allMessages
             _allMessages.update { it.filter { m -> m.id !in staleIds } }
@@ -1734,10 +1735,10 @@ class ChatViewModel(
 
         val job = viewModelScope.launch(Dispatchers.IO) {
             try {
-                val conversationExists = chatDao.getConversation(conversationId) != null
+                val conversationExists = convRepo.getConversation(conversationId) != null
                 if (!conversationExists) return@launch
                 for (message in messages) {
-                    chatDao.upsertMessage(message.toStoppedEntity(conversationId))
+                    convRepo.upsertMessage(message.toStoppedEntity(conversationId))
                     if (message.text.isNotBlank() && settings.autoCacheEnabled.value &&
                         (settings.modelSearchMethod.value == "rag" || settings.manualSearchMethod.value == "rag")
                     ) {
@@ -1846,26 +1847,26 @@ class ChatViewModel(
                         .forEach { staleIds.add(it.id); queue.add(it.id) }
                 }
                 if (staleIds.isNotEmpty()) {
-                    chatDao.deleteMessagesByIds(staleIds)
+                    convRepo.deleteMessagesByIds(staleIds)
                     _allMessages.update { it.filter { m -> m.id !in staleIds } }
                 }
-                chatDao.deleteEmbedding(modelMessageId)
-                chatDao.upsertMessage(MessageEntity(
+                convRepo.deleteEmbedding(modelMessageId)
+                convRepo.upsertMessage(MessageEntity(
                     id = modelMessageId, conversationId = currentId, parentId = parentId,
                     text = "", thoughts = null, thoughtTitle = null, status = MessageStatus.SENDING, participant = Participant.MODEL, timestamp = startTime,
                     modelName = currentActiveModel.value, toolCallJson = null
                 ))
                 } else {
                     // New branch — old message and its tool calls stay as a selectable branch
-                    chatDao.upsertMessage(MessageEntity(
+                    convRepo.upsertMessage(MessageEntity(
                         id = modelMessageId, conversationId = currentId, parentId = parentId,
                         text = "", thoughts = null, status = MessageStatus.SENDING, participant = Participant.MODEL, timestamp = startTime,
                         modelName = currentActiveModel.value
                     ))
                 }
                 persistSelectedChildren(currentId, selectedAfterRegenerate)
-                chatDao.getConversation(currentId)?.let { conv ->
-                    chatDao.upsertConversation(conv.copy(lastUpdated = System.currentTimeMillis()))
+                convRepo.getConversation(currentId)?.let { conv ->
+                    convRepo.upsertConversation(conv.copy(lastUpdated = System.currentTimeMillis()))
                 }
             val resolved = buildEffectiveSystemPrompt(currentId)
             val effectiveSettings = buildEffectiveConversationSettings(currentId)
@@ -1942,7 +1943,7 @@ class ChatViewModel(
             try {
             val messageToEdit = _allMessages.value.find { it.id == messageId } ?: return@launch
             val newUserMessageId = UUID.randomUUID().toString()
-            chatDao.upsertMessage(MessageEntity(
+            convRepo.upsertMessage(MessageEntity(
                 id = newUserMessageId, conversationId = currentId, parentId = messageToEdit.parentId,
                 text = newText, thoughts = null, status = MessageStatus.SUCCESS, participant = Participant.USER, timestamp = System.currentTimeMillis()
             ))
@@ -1953,13 +1954,13 @@ class ChatViewModel(
             persistSelectedChildren(currentId, selectedAfterUserEdit)
             val modelMessageId = UUID.randomUUID().toString()
             val startTime = System.currentTimeMillis() + 1
-            chatDao.upsertMessage(MessageEntity(
+            convRepo.upsertMessage(MessageEntity(
                 id = modelMessageId, conversationId = currentId, parentId = newUserMessageId,
                 text = "", thoughts = null, status = MessageStatus.SENDING, participant = Participant.MODEL, timestamp = startTime,
                 modelName = currentActiveModel.value
             ))
-            chatDao.getConversation(currentId)?.let { conv ->
-                chatDao.upsertConversation(conv.copy(lastUpdated = System.currentTimeMillis()))
+            convRepo.getConversation(currentId)?.let { conv ->
+                convRepo.upsertConversation(conv.copy(lastUpdated = System.currentTimeMillis()))
             }
             // Set _streamingMessage BEFORE _allMessages so the combine never
             // evaluates with stale _allMessages data but no streaming overlay.
@@ -2010,7 +2011,7 @@ class ChatViewModel(
     )
 
     private suspend fun buildEffectiveSystemPrompt(currentId: String): ResolvedPrompt {
-        val conversation = chatDao.getConversation(currentId)
+        val conversation = convRepo.getConversation(currentId)
         val targetPromptId = conversation?.systemPromptId ?: settings.activeSystemPromptId.value
         val entry = settings.systemPrompts.value.find { it.id == targetPromptId }
         val activeMemory = memoryManager.getActiveMemory()
@@ -2270,14 +2271,14 @@ class ChatViewModel(
             val wasNewChat = _isNewChatMode.value
             if (wasNewChat) {
                 val newId = UUID.randomUUID().toString()
-                chatDao.upsertConversation(ChatEntity(id = newId, title = appContext.getString(R.string.new_chat), modelId = currentActiveModel.value, systemPromptId = _pendingSystemPromptId.value))
+                convRepo.upsertConversation(ChatEntity(id = newId, title = appContext.getString(R.string.new_chat), modelId = currentActiveModel.value, systemPromptId = _pendingSystemPromptId.value))
                 _currentConversationId.value = newId
                 _isNewChatMode.value = false
                 currentId = newId
             }
             if (currentId == null) {
                 val newId = UUID.randomUUID().toString()
-                chatDao.upsertConversation(ChatEntity(id = newId, title = appContext.getString(R.string.new_chat), modelId = currentActiveModel.value, systemPromptId = _pendingSystemPromptId.value))
+                convRepo.upsertConversation(ChatEntity(id = newId, title = appContext.getString(R.string.new_chat), modelId = currentActiveModel.value, systemPromptId = _pendingSystemPromptId.value))
                 _currentConversationId.value = newId
                 _isNewChatMode.value = false
                 currentId = newId
@@ -2291,7 +2292,7 @@ class ChatViewModel(
             val currentPath = messages.value
             val lastMessageId = currentPath.lastOrNull()?.id
             val userMessageId = UUID.randomUUID().toString()
-            chatDao.upsertMessage(MessageEntity(
+            convRepo.upsertMessage(MessageEntity(
                 id = userMessageId, conversationId = currentId, parentId = lastMessageId,
                 text = finalText, images = allImages, thoughts = null, status = MessageStatus.SUCCESS, participant = Participant.USER, timestamp = System.currentTimeMillis(),
                 attachmentMeta = attachmentMeta?.let { kotlinx.serialization.json.Json.encodeToString(it) }
@@ -2299,13 +2300,13 @@ class ChatViewModel(
             settingsManager.incrementMessagesSent()
             val modelMessageId = UUID.randomUUID().toString()
             val startTime = System.currentTimeMillis() + 1
-            chatDao.upsertMessage(MessageEntity(
+            convRepo.upsertMessage(MessageEntity(
                 id = modelMessageId, conversationId = currentId, parentId = userMessageId,
                 text = "", thoughts = null, status = MessageStatus.SENDING, participant = Participant.MODEL, timestamp = startTime,
                 modelName = currentActiveModel.value
             ))
-            chatDao.getConversation(currentId)?.let { conv ->
-                chatDao.upsertConversation(conv.copy(lastUpdated = System.currentTimeMillis()))
+            convRepo.getConversation(currentId)?.let { conv ->
+                convRepo.upsertConversation(conv.copy(lastUpdated = System.currentTimeMillis()))
             }
             // Set _streamingMessage BEFORE _allMessages, so when the combine
             // re-evaluates on the _allMessages change, _streamingMessage is already
@@ -2494,7 +2495,7 @@ class ChatViewModel(
 
     fun refreshDataCounts() {
         viewModelScope.launch(Dispatchers.IO) {
-            _conversationCount.value = chatDao.getAllConversationsList().size
+            _conversationCount.value = convRepo.getAllConversationsList().size
             _memoryCount.value = memoryManager.listFiles().size +
                 (if (memoryManager.getActiveMemory().isNotEmpty()) 1 else 0)
             _systemPromptCount.value = settingsManager.systemPrompts.first().size
@@ -2660,17 +2661,17 @@ class ChatViewModel(
 
                 if (strategy == com.newoether.agora.ui.settings.ImportStrategy.REPLACE) {
                     chatDao.deleteAllConversations()
-                    chatEntities.forEach { chatDao.upsertConversation(it) }
-                    messageEntities.forEach { chatDao.upsertMessage(it) }
+                    chatEntities.forEach { convRepo.upsertConversation(it) }
+                    messageEntities.forEach { convRepo.upsertMessage(it) }
                     _claudeImportProgress.value = 0.8f
                     _claudeImportResult.value = ClaudeChatImporter.ImportResult(chatEntities.size, messageEntities.size)
                 } else {
-                    val existingConvIds = chatDao.getAllConversationsList().map { it.id }.toSet()
+                    val existingConvIds = convRepo.getAllConversationsList().map { it.id }.toSet()
                     val existingMsgIds = chatDao.findExistingMessageIds(messageEntities.map { it.id }).toSet()
                     val newCh = chatEntities.filterNot { it.id in existingConvIds }
                     val newMsgs = messageEntities.filterNot { it.id in existingMsgIds }
-                    newCh.forEach { chatDao.upsertConversation(it) }
-                    newMsgs.forEach { chatDao.upsertMessage(it) }
+                    newCh.forEach { convRepo.upsertConversation(it) }
+                    newMsgs.forEach { convRepo.upsertMessage(it) }
                     _claudeImportProgress.value = 0.8f
                     _claudeImportResult.value = ClaudeChatImporter.ImportResult(newCh.size, newMsgs.size)
                 }
@@ -2768,18 +2769,18 @@ class ChatViewModel(
                 val thoughtsCount = importData.messages.count { it.thoughts != null && it.thoughts.isNotBlank() }
                 if (strategy == com.newoether.agora.ui.settings.ImportStrategy.REPLACE) {
                     chatDao.deleteAllConversations()
-                    chatEntities.forEach { chatDao.upsertConversation(it) }
-                    messageEntities.forEach { chatDao.upsertMessage(it) }
+                    chatEntities.forEach { convRepo.upsertConversation(it) }
+                    messageEntities.forEach { convRepo.upsertMessage(it) }
                     _gptImportProgress.value = 0.8f
                     _gptImportResult.value = GptChatImporter.ImportResult(chatEntities.size, messageEntities.size, thoughtsCount)
                 } else {
-                    val existingConvIds = chatDao.getAllConversationsList().map { it.id }.toSet()
+                    val existingConvIds = convRepo.getAllConversationsList().map { it.id }.toSet()
                     val existingMsgIds = chatDao.findExistingMessageIds(messageEntities.map { it.id }).toSet()
                     val newCh = chatEntities.filterNot { it.id in existingConvIds }
                     val newMsgs = messageEntities.filterNot { it.id in existingMsgIds }
                     val newThoughtsCount = newMsgs.count { it.thoughts != null && it.thoughts.isNotBlank() }
-                    newCh.forEach { chatDao.upsertConversation(it) }
-                    newMsgs.forEach { chatDao.upsertMessage(it) }
+                    newCh.forEach { convRepo.upsertConversation(it) }
+                    newMsgs.forEach { convRepo.upsertMessage(it) }
                     _gptImportProgress.value = 0.8f
                     _gptImportResult.value = GptChatImporter.ImportResult(newCh.size, newMsgs.size, newThoughtsCount)
                 }
