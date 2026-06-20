@@ -1,4 +1,4 @@
-package com.newoether.agora.ui.chat
+package com.newoether.agora.ui.chat.message
 
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.res.stringResource

@@ -1,4 +1,4 @@
-package com.newoether.agora.ui.chat
+package com.newoether.agora.ui.chat.bottombar
 
 import android.net.Uri
 import android.os.Build
@@ -75,6 +75,10 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import com.newoether.agora.R
+import com.newoether.agora.ui.chat.FileThumbnail
+import com.newoether.agora.ui.chat.PdfPageSelectDialog
+import com.newoether.agora.ui.chat.VideoSliceDialog
+import com.newoether.agora.ui.chat.readFileContent
 import com.newoether.agora.ui.common.LocalAgoraHaptics
 import com.newoether.agora.ui.common.ThinkingControlPanel
 import com.newoether.agora.ui.common.thinkingControlShortLabel

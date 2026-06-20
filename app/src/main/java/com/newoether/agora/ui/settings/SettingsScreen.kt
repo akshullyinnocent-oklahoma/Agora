@@ -35,6 +35,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.annotation.StringRes
 import com.newoether.agora.R
+import com.newoether.agora.ui.settings.datacontrol.SettingsDataControlPage
 import com.newoether.agora.viewmodel.ChatViewModel
 
 @Composable

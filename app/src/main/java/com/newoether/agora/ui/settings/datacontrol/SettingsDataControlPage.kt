@@ -1,4 +1,4 @@
-package com.newoether.agora.ui.settings
+package com.newoether.agora.ui.settings.datacontrol
 
 import android.content.Intent
 import android.net.Uri
@@ -25,6 +25,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import com.newoether.agora.R
+import com.newoether.agora.ui.settings.CollapsingSettingsScaffold
+import com.newoether.agora.ui.settings.DocumentationFab
+import com.newoether.agora.ui.settings.SettingsGroup
+import com.newoether.agora.ui.settings.SettingsItem
 import com.newoether.agora.data.DataExporter
 import com.newoether.agora.data.DataImporter
 import com.newoether.agora.viewmodel.ChatViewModel

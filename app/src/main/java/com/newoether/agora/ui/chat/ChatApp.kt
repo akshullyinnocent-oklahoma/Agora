@@ -56,6 +56,8 @@ import com.newoether.agora.ui.theme.ChatType
 import com.newoether.agora.util.gradientBlur
 import com.newoether.agora.model.ChatMessage
 import com.newoether.agora.model.Participant
+import com.newoether.agora.ui.chat.bottombar.ChatBottomBar
+import com.newoether.agora.ui.chat.message.hasActiveAnswerSegment
 import com.newoether.agora.ui.components.AnimatedBlobBackground
 import com.newoether.agora.ui.components.TypewriterText
 import com.newoether.agora.ui.common.LocalAgoraHaptics

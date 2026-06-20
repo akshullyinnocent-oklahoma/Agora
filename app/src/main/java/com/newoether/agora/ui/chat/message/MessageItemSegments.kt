@@ -1,4 +1,4 @@
-package com.newoether.agora.ui.chat
+package com.newoether.agora.ui.chat.message
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween

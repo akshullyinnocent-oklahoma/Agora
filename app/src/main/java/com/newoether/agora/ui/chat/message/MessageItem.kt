@@ -1,4 +1,4 @@
-package com.newoether.agora.ui.chat
+package com.newoether.agora.ui.chat.message
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -108,6 +108,10 @@ import com.newoether.agora.model.MessageSegment
 import com.newoether.agora.model.MessageStatus
 import com.newoether.agora.model.Participant
 import com.newoether.agora.model.ToolCallDisplayModes
+import com.newoether.agora.ui.chat.AttachmentThumbnailItem
+import com.newoether.agora.ui.chat.ThumbnailClickHandlers
+import com.newoether.agora.ui.chat.findMetaForIndex
+import com.newoether.agora.ui.chat.resolveAttachmentType
 import com.newoether.agora.ui.common.LocalAgoraHaptics
 import com.newoether.agora.ui.theme.MonoFamily
 import com.newoether.agora.ui.theme.ChatType

@@ -1,4 +1,4 @@
-package com.newoether.agora.ui.chat
+package com.newoether.agora.ui.chat.bottombar
 
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.layout.padding

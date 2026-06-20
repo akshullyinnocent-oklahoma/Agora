@@ -1,4 +1,4 @@
-package com.newoether.agora.ui.settings
+package com.newoether.agora.ui.settings.datacontrol
 
 import android.content.Intent
 import android.net.Uri
@@ -18,6 +18,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.newoether.agora.R
+import com.newoether.agora.ui.settings.SettingsGroup
+import com.newoether.agora.ui.settings.SettingsItem
 import com.newoether.agora.viewmodel.ChatViewModel
 
 private fun categoryLabelRes(key: String): Int = when (key) {

@@ -1,4 +1,4 @@
-package com.newoether.agora.ui.chat
+package com.newoether.agora.ui.chat.bottombar
 
 import android.content.Context
 import android.net.Uri
@@ -12,6 +12,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import com.newoether.agora.model.SelectedAttachment
+import com.newoether.agora.ui.chat.VideoSliceDialog
 import com.newoether.agora.ui.common.AgoraHaptics
 import com.newoether.agora.ui.common.LocalAgoraHaptics
 import com.newoether.agora.util.FileValidator
