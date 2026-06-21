@@ -1,6 +1,5 @@
 package com.newoether.agora.data.repository
 
-import com.newoether.agora.api.LlmProvider
 import com.newoether.agora.api.openai.CustomOpenAiProvider
 import com.newoether.agora.data.ApiKeyEntry
 import com.newoether.agora.data.BuiltInPrompts
