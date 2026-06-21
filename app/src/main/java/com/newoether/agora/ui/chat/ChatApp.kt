@@ -482,117 +482,20 @@ fun ChatApp(
                 containerColor = Color.Transparent,
                 contentWindowInsets = WindowInsets(0, 0, 0, 0),
                 topBar = {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .defaultMinSize(minHeight = 180.dp)
-                            .background(
-                                Brush.verticalGradient(
-                                    0.0f to MaterialTheme.colorScheme.background.copy(alpha = 0.98f),
-                                    0.6f to MaterialTheme.colorScheme.background.copy(alpha = 0.80f),
-                                    1.0f to Color.Transparent
-                                )
-                            )
-                    ) {
-                        Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .statusBarsPadding()
-                                    .padding(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 8.dp)
-                                    .height(52.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                // Resolve the active conversation's title; null in new-chat mode OR
-                                // before the conversation/title has loaded. Both the brand TEXT and the
-                                // brand font SIZE are gated on this single value, so the title never
-                                // changes size before the text swaps (no transient "Agora at 17sp").
-                                val resolvedTitle = if (isNewChatMode) null
-                                    else conversations.find { it.id == currentConversationId }?.title?.takeIf { it.isNotBlank() }
-                                val showBrandTitle = resolvedTitle == null
-
-                                // Title capsule: menu + title
-                                Surface(
-                                    shape = RoundedCornerShape(50),
-                                    color = MaterialTheme.colorScheme.surface,
-                                    tonalElevation = 4.dp,
-                                    shadowElevation = 4.dp,
-                                    modifier = Modifier.fillMaxHeight().widthIn(max = 260.dp)
-                                ) {
-                                    Row(
-                                        modifier = Modifier.fillMaxHeight(),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Spacer(modifier = Modifier.width(5.dp))
-                                        IconButton(
-                                            onClick = { haptics.action(); focusManager.clearFocus(); scope.launch { drawerState.open() } },
-                                            modifier = Modifier.size(44.dp)
-                                        ) {
-                                            Icon(Icons.Default.Menu, contentDescription = stringResource(R.string.menu), modifier = Modifier.size(26.dp))
-                                        }
-                                        Spacer(modifier = Modifier.width(5.dp))
-                                        if (showBrandTitle) {
-                                            Text(
-                                                text = stringResource(R.string.app_name),
-                                                style = ChatType.brandTitle,
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis,
-                                                modifier = Modifier.widthIn(max = 180.dp)
-                                            )
-                                        } else {
-                                            Column(modifier = Modifier.widthIn(max = 180.dp)) {
-                                                Text(
-                                                    text = resolvedTitle,
-                                                    // Single-line (no token subtitle) uses a slightly-smaller-than-brand
-                                                    // solo size; with the token subtitle stacked below, the compact size.
-                                                    style = if (totalTokens > 0) ChatType.conversationTitle else ChatType.conversationTitleSolo,
-                                                    maxLines = 1,
-                                                    overflow = TextOverflow.Ellipsis
-                                                )
-                                                if (totalTokens > 0) {
-                                                    Text(
-                                                        text = stringResource(R.string.total_tokens, totalTokens),
-                                                        style = ChatType.micro,
-                                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                                                        maxLines = 1
-                                                    )
-                                                }
-                                            }
-                                        }
-                                        Spacer(modifier = Modifier.width(20.dp))
-                                    }
-                                }
-
-                                Spacer(modifier = Modifier.weight(1f))
-
-                                // Actions capsule: system prompt + new chat
-                                Surface(
-                                    shape = RoundedCornerShape(50),
-                                    color = MaterialTheme.colorScheme.surface,
-                                    tonalElevation = 4.dp,
-                                    shadowElevation = 4.dp,
-                                    modifier = Modifier.fillMaxHeight()
-                                ) {
-                                    Row(
-                                        modifier = Modifier.fillMaxHeight(),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Spacer(modifier = Modifier.width(5.dp))
-                                        IconButton(onClick = { haptics.action(); showPromptDialog = true }, modifier = Modifier.size(44.dp)) {
-                                            Icon(Icons.Default.Psychology, contentDescription = stringResource(R.string.system_prompt), modifier = Modifier.size(26.dp))
-                                        }
-                                        IconButton(onClick = {
-                                            haptics.action()
-                                            isExpanded = false
-                                            viewModel.createNewChat()
-                                            inputFocusRequester.requestFocus()
-                                        }, modifier = Modifier.size(44.dp)) {
-                                            Icon(Icons.Default.Add, contentDescription = stringResource(R.string.new_chat), modifier = Modifier.size(26.dp))
-                                        }
-                                        Spacer(modifier = Modifier.width(5.dp))
-                                    }
-                                }
-                            }
-                        }
+                    ChatTopBar(
+                        isNewChatMode = isNewChatMode,
+                        conversations = conversations,
+                        currentConversationId = currentConversationId,
+                        totalTokens = totalTokens,
+                        onOpenDrawer = { haptics.action(); focusManager.clearFocus(); scope.launch { drawerState.open() } },
+                        onSystemPromptClick = { haptics.action(); showPromptDialog = true },
+                        onNewChat = {
+                            haptics.action()
+                            isExpanded = false
+                            viewModel.createNewChat()
+                            inputFocusRequester.requestFocus()
+                        },
+                    )
                 }
             ) { padding ->
                 Box(modifier = Modifier.fillMaxSize()) {
