@@ -966,22 +966,48 @@ class ChatViewModel(
      */
     fun deleteMessage(messageId: String): Int {
         val currentId = _currentConversationId.value ?: return 0
-        stopGeneration()
 
-        val allMsgs = _allMessages.value
-        val targetMsg = allMsgs.find { it.id == messageId } ?: return 0
+        // Synchronous snapshot for dialog count return — must stay on the calling thread.
+        val snapshot = _allMessages.value
+        val targetMsg = snapshot.find { it.id == messageId } ?: return 0
 
-        // BFS walk to collect all descendant IDs (including hidden tool_/result_ messages)
-        val staleIds = linkedSetOf(messageId)
+        val previewIds = linkedSetOf(messageId)
         val queue = mutableListOf(messageId)
         while (queue.isNotEmpty()) {
             val pid = queue.removeAt(0)
-            allMsgs.filter { it.parentId == pid }.forEach {
-                if (staleIds.add(it.id)) queue.add(it.id)
+            snapshot.filter { it.parentId == pid }.forEach {
+                if (previewIds.add(it.id)) queue.add(it.id)
             }
         }
 
+        // P1: Only stop generation if deleting within the currently-generating conversation.
+        // P0: Use stopForReplacement() + join() to prevent the STOPPED-upsert race
+        //     that can resurrect deleted messages (the only write path that was missing it).
+        val stopFinalization = if (_generatingInConversationId.value == currentId) {
+            session.stopForReplacement()
+        } else {
+            null
+        }
+
         viewModelScope.launch(Dispatchers.IO) {
+            // Wait for STOPPED DB finalization to complete before deleting.
+            // Without this join, a concurrent upsertMessage from stop finalization
+            // could resurrect the deleted row as a zombie/orphan after our DELETE.
+            stopFinalization?.join()
+
+            // Recompute staleIds from the latest _allMessages after join(),
+            // in case the message tree changed during finalization.
+            val allMsgs = _allMessages.value
+            if (allMsgs.none { it.id == messageId }) return@launch  // already deleted during wait
+            val staleIds = linkedSetOf(messageId)
+            val queue = mutableListOf(messageId)
+            while (queue.isNotEmpty()) {
+                val pid = queue.removeAt(0)
+                allMsgs.filter { it.parentId == pid }.forEach {
+                    if (staleIds.add(it.id)) queue.add(it.id)
+                }
+            }
+
             val staleList = allMsgs.filter { it.id in staleIds }
             convRepo.deleteMessageFiles(staleList)
 
@@ -1025,7 +1051,7 @@ class ChatViewModel(
             if (changed) _selectedChildren.value = newSelected
         }
 
-        return staleIds.size
+        return previewIds.size
     }
 
     fun stopGeneration() = session.stop()
