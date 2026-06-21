@@ -534,7 +534,12 @@ fun ChatApp(
                                 allMessages = allMessages,
                                 modifier = messageListModifier,
                                 state = listState,
-                                isLoading = isLoading && generatingInConversationId == currentConversationId,
+                                // Global generation gate: while ANY generation is in
+                                // progress, all per-message actions (edit / delete /
+                                // regenerate / branch-switch) are disabled. Bound to the
+                                // global isLoading so there is no per-conversation timing
+                                // window (generatingInConversationId is set asynchronously).
+                                isLoading = isLoading,
                                 isSwitching = isSwitching,
                                 visualizeContextRollout = visualizeContextRollout,
                                 toolCallDisplayMode = toolCallDisplayMode,

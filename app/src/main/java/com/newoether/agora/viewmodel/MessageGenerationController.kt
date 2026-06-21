@@ -333,6 +333,10 @@ class MessageGenerationController(
 
         val stopFinalization = session.stopForReplacement()
         val myUiToken = session.captureUiToken()
+        // Set loading synchronously on the calling thread (like sendMessage/regenerate)
+        // so the global generation gate disables all per-message actions immediately,
+        // with no window during stopFinalization.join() + DB setup.
+        isLoading.value = true
         session.generationJob = session.scope.launch {
             stopFinalization?.join()
             val myPersistId = session.nextPersistId()
