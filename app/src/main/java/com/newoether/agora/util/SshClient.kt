@@ -268,7 +268,8 @@ class SshClient(
         // Try server-side grep via exec channel first
         return try {
             val grepCmd = buildString {
-                append("grep -rn ")
+                // -I skips binary files (matches the local-fallback NUL heuristic below).
+                append("grep -rnI ")
                 if (fileGlob.isNotBlank()) append("--include='$fileGlob' ")
                 append("-- ")
                 append(escapeBash(pattern))
@@ -312,6 +313,8 @@ class SshClient(
             for (file in files) {
                 try {
                     val content = fileRead(file, 0, maxReadSize)
+                    // Skip binary files (NUL-byte heuristic), as grep -I would.
+                    if (content.contains('\u0000')) continue
                     content.lines().forEachIndexed { index, line ->
                         if (pattern.containsMatchIn(line)) {
                             allMatches.add(GrepMatch(

@@ -1143,8 +1143,13 @@ class ChatViewModel(
     ) {
         val resolved = buildEffectiveSystemPrompt(currentId)
         val effectiveSettings = buildEffectiveConversationSettings(currentId)
+        // Re-resolve the key against on-disk settings here (the suspend convergence
+        // point for all entry paths). The synchronous [activeKey] resolved by the
+        // callers can be blank if DataStore had not finished loading when Send was
+        // tapped, which would build the request with an empty key → 401.
+        val freshKey = settings.awaitActiveKey(providerName)?.takeIf { it.isNotBlank() } ?: activeKey
         val (config, genCtx) = buildGenerationPair(
-            providerName, modelId, activeKey,
+            providerName, modelId, freshKey,
             resolved.systemPrompt, resolved.userPrepend, resolved.userPostpend,
             effectiveSettings, currentId
         )

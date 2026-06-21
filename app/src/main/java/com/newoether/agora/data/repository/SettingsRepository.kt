@@ -351,6 +351,20 @@ class SettingsRepository(
     fun resolveActiveKey(provider: String): String? =
         apiKeys.value.find { it.id == activeApiKeyIds.value[provider] }?.key
 
+    /**
+     * Like [resolveActiveKey] but awaits the on-disk DataStore values instead of
+     * reading the eagerly-shared `.value`, which may still be the empty default
+     * during the startup window before DataStore loads. Use this on the request-
+     * build path: reading `.value` there races the load and yields a blank key →
+     * an empty `Authorization` header → intermittent 401s on providers that are
+     * considered configured by base-URL alone (custom / OpenAI-compatible / Ollama).
+     */
+    suspend fun awaitActiveKey(provider: String): String? {
+        val activeIds = settingsManager.activeApiKeyIds.first()
+        val keys = settingsManager.apiKeys.first()
+        return keys.find { it.id == activeIds[provider] }?.key
+    }
+
     // ── Suspending DataStore access ───────────────────────────
     //
     // The StateFlows above are eagerly-shared with a default initial value, so at app

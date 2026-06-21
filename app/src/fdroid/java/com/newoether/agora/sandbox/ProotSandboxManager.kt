@@ -402,7 +402,11 @@ class ProotSandboxManager(private val context: Context) : SandboxManager {
                 try {
                     val resolved = if (file.startsWith("/")) resolvePath(file) else resolvePath("/$file")
                     if (!resolved.exists() || resolved.length() > 500_000L) continue
-                    resolved.readText(Charsets.UTF_8).lines().forEachIndexed { i, line ->
+                    val text = resolved.readText(Charsets.UTF_8)
+                    // Skip binary files: a NUL byte in the content is the standard
+                    // heuristic grep itself uses to avoid emitting garbage matches.
+                    if (text.contains('\u0000')) continue
+                    text.lines().forEachIndexed { i, line ->
                         if (regex.containsMatchIn(line)) matches.add(SandboxManager.GrepMatch(path = file, line = i + 1, content = line.take(500)))
                     }
                 } catch (_: Throwable) {}

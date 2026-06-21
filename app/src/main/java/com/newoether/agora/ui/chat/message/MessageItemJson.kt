@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -34,36 +35,58 @@ private fun JsonNodeView(json: JsonElement, depth: Int = 0) {
     }
 }
 
+// A long or multi-line string value (e.g. a grep match's `content`, or a deep
+// file `path`) would, when squeezed to the right of its key chip through several
+// nested indents, wrap into a thin column hugging the screen's right edge. Such
+// values are instead rendered on their own full-width line below the key.
+private fun isBlockString(value: JsonElement): Boolean =
+    value is JsonPrimitive && value.isString &&
+        (value.content.length > 40 || value.content.contains('\n'))
+
+@Composable
+private fun KeyChip(label: String, color: androidx.compose.ui.graphics.Color) {
+    Surface(
+        shape = RoundedCornerShape(4.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerHighest
+    ) {
+        Text(
+            text = label,
+            style = ChatType.meta,
+            color = color,
+            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+        )
+    }
+}
+
 @Composable
 private fun JsonObjectView(obj: kotlinx.serialization.json.JsonObject, depth: Int) {
-    Column {
+    Column(modifier = Modifier.fillMaxWidth()) {
         obj.entries.forEach { (key, value) ->
-            Column(modifier = Modifier.padding(vertical = 1.dp)) {
-                Row(verticalAlignment = Alignment.Top) {
-                    Surface(
-                        shape = RoundedCornerShape(4.dp),
-                        color = MaterialTheme.colorScheme.surfaceContainerHighest
-                    ) {
-                        Text(
-                            text = key,
-                            style = ChatType.meta,
-                            color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                        )
+            val blockString = isBlockString(value)
+            Column(modifier = Modifier.fillMaxWidth().padding(vertical = 1.dp)) {
+                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
+                    KeyChip(key, MaterialTheme.colorScheme.primary)
+                    if (!blockString) {
+                        Spacer(Modifier.width(8.dp))
+                        when (value) {
+                            is JsonPrimitive -> JsonPrimitiveView(value, modifier = Modifier.weight(1f))
+                            is kotlinx.serialization.json.JsonNull -> JsonNullView()
+                            is kotlinx.serialization.json.JsonObject -> Text(
+                                "{…}", style = ChatType.thoughtBody,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            is kotlinx.serialization.json.JsonArray -> Text(
+                                "[…]", style = ChatType.thoughtBody,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
-                    Spacer(Modifier.width(8.dp))
-                    when (value) {
-                        is JsonPrimitive -> JsonPrimitiveView(value)
-                        is kotlinx.serialization.json.JsonNull -> JsonNullView()
-                        is kotlinx.serialization.json.JsonObject -> Text(
-                            "{…}", style = ChatType.thoughtBody,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        is kotlinx.serialization.json.JsonArray -> Text(
-                            "[…]", style = ChatType.thoughtBody,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
+                }
+                if (blockString && value is JsonPrimitive) {
+                    JsonPrimitiveView(
+                        value,
+                        modifier = Modifier.fillMaxWidth().padding(top = 2.dp)
+                    )
                 }
                 when (value) {
                     is kotlinx.serialization.json.JsonObject -> {
@@ -102,26 +125,21 @@ private fun JsonArrayView(arr: kotlinx.serialization.json.JsonArray, depth: Int)
             Text("]", style = ChatType.thoughtBody, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     } else {
-        Column {
+        Column(modifier = Modifier.fillMaxWidth()) {
             arr.forEachIndexed { i, item ->
-                Row(verticalAlignment = Alignment.Top, modifier = Modifier.padding(vertical = 1.dp)) {
-                    Surface(
-                        shape = RoundedCornerShape(4.dp),
-                        color = MaterialTheme.colorScheme.surfaceContainerHighest
-                    ) {
-                        Text(
-                            text = "$i",
-                            style = ChatType.meta,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                        )
-                    }
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 1.dp),
+                    verticalAlignment = Alignment.Top
+                ) {
+                    KeyChip("$i", MaterialTheme.colorScheme.onSurfaceVariant)
                     Spacer(Modifier.width(8.dp))
                     when (item) {
-                        is JsonPrimitive -> JsonPrimitiveView(item)
+                        is JsonPrimitive -> JsonPrimitiveView(item, modifier = Modifier.weight(1f))
                         is kotlinx.serialization.json.JsonNull -> JsonNullView()
-                        is kotlinx.serialization.json.JsonObject -> JsonObjectView(item, depth)
-                        is kotlinx.serialization.json.JsonArray -> JsonArrayView(item, depth)
+                        is kotlinx.serialization.json.JsonObject ->
+                            Box(Modifier.weight(1f)) { JsonObjectView(item, depth) }
+                        is kotlinx.serialization.json.JsonArray ->
+                            Box(Modifier.weight(1f)) { JsonArrayView(item, depth) }
                     }
                 }
             }
@@ -130,7 +148,11 @@ private fun JsonArrayView(arr: kotlinx.serialization.json.JsonArray, depth: Int)
 }
 
 @Composable
-private fun JsonPrimitiveView(primitive: JsonPrimitive, inline: Boolean = false) {
+private fun JsonPrimitiveView(
+    primitive: JsonPrimitive,
+    modifier: Modifier = Modifier,
+    inline: Boolean = false
+) {
     val color = when {
         primitive.isString -> MaterialTheme.colorScheme.onSurface
         else -> MaterialTheme.colorScheme.tertiary
@@ -143,7 +165,8 @@ private fun JsonPrimitiveView(primitive: JsonPrimitive, inline: Boolean = false)
     Text(
         text = primitive.content,
         style = style,
-        color = color
+        color = color,
+        modifier = modifier
     )
 }
 

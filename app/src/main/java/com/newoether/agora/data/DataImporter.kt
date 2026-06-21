@@ -14,12 +14,16 @@ import com.newoether.agora.util.DebugLog
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.decodeFromStream
 import kotlinx.serialization.json.jsonObject
-import java.util.UUID
+import java.io.Closeable
 import java.io.File
+import java.io.InputStream
+import java.util.UUID
 import java.util.zip.ZipFile
 
 class DataImporter(
@@ -78,99 +82,115 @@ class DataImporter(
         }
     }
 
-    private fun readAllEntries(uri: Uri): Map<String, ByteArray> {
-        val entries = mutableMapOf<String, ByteArray>()
-        // Copy SAF content to temp file so we can use ZipFile (more reliable than ZipInputStream)
-        val tmpFile = File(context.cacheDir, "agora_import_tmp.zip")
-        try {
-            context.contentResolver.openInputStream(uri)?.use { input ->
-                tmpFile.outputStream().use { out -> input.copyTo(out) }
-            }
-            ZipFile(tmpFile).use { zip ->
-                val manifestEntry = zip.getEntry("manifest.json")
-                if (manifestEntry != null) {
-                    entries["manifest.json"] = zip.getInputStream(manifestEntry).readBytes()
-                }
-                // Read other entries lazily - just get names for now
-                val enum = zip.entries()
-                while (enum.hasMoreElements()) {
-                    val e = enum.nextElement()
-                    if (!e.isDirectory && e.name != "manifest.json") {
-                        entries[e.name] = zip.getInputStream(e).readBytes()
-                    }
-                }
-            }
-        } catch (_: Exception) {
-            // Fall through: entries will be empty
-        } finally {
-            tmpFile.delete()
+    /**
+     * On-demand, memory-bounded reader over a backup ZIP. Entries are decoded
+     * only when requested and one at a time, so large image/video blobs never
+     * accumulate in memory (the previous implementation buffered *every* entry
+     * into a `Map<String, ByteArray>` up front — a real OOM risk for backups with
+     * many media attachments). The SAF stream is first copied to a temp file
+     * because [ZipFile] needs random access; [close] disposes both.
+     */
+    private class Archive private constructor(
+        private val zip: ZipFile,
+        private val tmp: File
+    ) : Closeable {
+        fun has(name: String): Boolean = zip.getEntry(name) != null
+        fun bytes(name: String): ByteArray? =
+            zip.getEntry(name)?.let { e -> zip.getInputStream(e).use { it.readBytes() } }
+        /** Map-style accessor so existing `archive["x"]` call sites read unchanged. */
+        operator fun get(name: String): ByteArray? = bytes(name)
+        fun stream(name: String): InputStream? = zip.getEntry(name)?.let { zip.getInputStream(it) }
+        fun names(): List<String> =
+            zip.entries().asSequence().filterNot { it.isDirectory }.map { it.name }.toList()
+
+        override fun close() {
+            try { zip.close() } finally { tmp.delete() }
         }
-        return entries
+
+        companion object {
+            fun open(context: Context, uri: Uri): Archive? {
+                // Copy SAF content to a temp file so we can use ZipFile (random access,
+                // more reliable than ZipInputStream).
+                val tmp = File(context.cacheDir, "agora_import_tmp.zip")
+                return try {
+                    context.contentResolver.openInputStream(uri)?.use { input ->
+                        tmp.outputStream().use { out -> input.copyTo(out) }
+                    } ?: run { tmp.delete(); return null }
+                    Archive(ZipFile(tmp), tmp)
+                } catch (_: Exception) {
+                    tmp.delete()
+                    null
+                }
+            }
+        }
     }
 
     suspend fun readManifest(uri: Uri): ImportManifest? {
         return withContext(Dispatchers.IO) {
-            val entries = readAllEntries(uri)
-            if (entries.isEmpty()) return@withContext null
-            val manifestJson = entries["manifest.json"]?.decodeToString() ?: return@withContext null
-            try {
-                importJson.decodeFromString<ImportManifest>(manifestJson)
-            } catch (_: Exception) {
-                null
+            Archive.open(context, uri)?.use { archive ->
+                val manifestJson = archive["manifest.json"]?.decodeToString() ?: return@use null
+                try {
+                    importJson.decodeFromString<ImportManifest>(manifestJson)
+                } catch (_: Exception) {
+                    null
+                }
             }
         }
     }
 
+    @OptIn(ExperimentalSerializationApi::class)
     suspend fun preview(uri: Uri): ImportPreview {
         return withContext(Dispatchers.IO) {
-            val entries = readAllEntries(uri)
-            val manifestJson = entries["manifest.json"]?.decodeToString() ?: return@withContext ImportPreview(
-                ImportManifest(version = 0)
-            )
-            val manifest = try {
-                importJson.decodeFromString<ImportManifest>(manifestJson)
-            } catch (_: Exception) {
-                return@withContext ImportPreview(ImportManifest(version = 0))
+            val empty = ImportPreview(ImportManifest(version = 0))
+            val archive = Archive.open(context, uri) ?: return@withContext empty
+            archive.use {
+                val manifestJson = archive["manifest.json"]?.decodeToString() ?: return@use empty
+                val manifest = try {
+                    importJson.decodeFromString<ImportManifest>(manifestJson)
+                } catch (_: Exception) {
+                    return@use empty
+                }
+
+                var conversationCount = 0
+                var systemPromptCount = 0
+                val memoryCount = archive.names().count { it.startsWith("memories/") }
+                val settingsPresent = archive.has("settings.json")
+                val apiKeysPresent = archive.has("api_keys.json")
+
+                archive.stream("conversations.json")?.use { stream ->
+                    try {
+                        conversationCount = importJson.decodeFromStream<ExportConversations>(stream).conversations.size
+                    } catch (e: Exception) { DebugLog.e("DataImporter", "Failed to parse conversations.json", e) }
+                }
+
+                archive["system_prompts.json"]?.let { json ->
+                    try {
+                        val data = importJson.decodeFromString<List<SystemPromptEntry>>(json.decodeToString())
+                        systemPromptCount = data.size
+                    } catch (e: Exception) { DebugLog.e("DataImporter", "Failed to parse system_prompts.json", e) }
+                }
+
+                ImportPreview(
+                    manifest = manifest,
+                    conversationCount = conversationCount,
+                    memoryCount = memoryCount,
+                    systemPromptCount = systemPromptCount,
+                    settingsPresent = settingsPresent,
+                    apiKeysPresent = apiKeysPresent
+                )
             }
-
-            var conversationCount = 0
-            var systemPromptCount = 0
-            val memoryCount = entries.keys.count { it.startsWith("memories/") }
-            val settingsPresent = entries.containsKey("settings.json")
-            val apiKeysPresent = entries.containsKey("api_keys.json")
-
-            entries["conversations.json"]?.let { json ->
-                try {
-                    val data = importJson.decodeFromString<ExportConversations>(json.decodeToString())
-                    conversationCount = data.conversations.size
-                } catch (e: Exception) { DebugLog.e("DataImporter", "Failed to parse conversations.json", e) }
-            }
-
-            entries["system_prompts.json"]?.let { json ->
-                try {
-                    val data = importJson.decodeFromString<List<SystemPromptEntry>>(json.decodeToString())
-                    systemPromptCount = data.size
-                } catch (e: Exception) { DebugLog.e("DataImporter", "Failed to parse system_prompts.json", e) }
-            }
-
-            ImportPreview(
-                manifest = manifest,
-                conversationCount = conversationCount,
-                memoryCount = memoryCount,
-                systemPromptCount = systemPromptCount,
-                settingsPresent = settingsPresent,
-                apiKeysPresent = apiKeysPresent
-            )
         }
     }
 
+    @OptIn(ExperimentalSerializationApi::class)
     suspend fun import(
         uri: Uri,
         decisions: Map<DataExporter.ExportCategory, DataImporter.ImportStrategy>,
         onProgress: (Float) -> Unit = {}
     ): ImportResult {
         return withContext(Dispatchers.IO) {
-            val entries = readAllEntries(uri)
+            val archive = Archive.open(context, uri)
+                ?: return@withContext ImportResult(errors = listOf("Could not open backup archive"))
             val errors = mutableListOf<String>()
             var conversationsImported = 0
             var memoriesImported = 0
@@ -188,8 +208,8 @@ class DataImporter(
             if (convDecision != null && convDecision != ImportStrategy.SKIP) {
                 val videoCleanupList = mutableListOf<java.io.File>()
                 try {
-                    entries["conversations.json"]?.decodeToString()?.let { json ->
-                        val data = importJson.decodeFromString<ExportConversations>(json)
+                    archive.stream("conversations.json")?.use { stream ->
+                        val data = importJson.decodeFromStream<ExportConversations>(stream)
                         val convEntities = data.conversations.map { c ->
                             ChatEntity(c.id, c.title, c.lastUpdated, c.selectedBranchesJson, c.systemPromptId, c.modelId)
                         }
@@ -203,9 +223,10 @@ class DataImporter(
                         // Restore image files from ZIP to app storage
                         val imagesDir = java.io.File(context.filesDir, "images")
                         imagesDir.mkdirs()
-                        val imageEntries = entries.filter { it.key.startsWith("images/") }
                         val restoredImages = mutableMapOf<String, MutableList<String>>() // messageId -> file paths
-                        for ((path, bytes) in imageEntries) {
+                        for (path in archive.names()) {
+                            if (!path.startsWith("images/")) continue
+                            val bytes = archive.bytes(path) ?: continue
                             // path format: images/<messageId>/<index>
                             val parts = path.removePrefix("images/").split("/")
                             if (parts.size == 2) {
@@ -223,9 +244,10 @@ class DataImporter(
                         }
 
                         // Restore video files from ZIP to app storage
-                        val videoEntries = entries.filter { it.key.startsWith("videos/") }
                         val restoredVideos = mutableMapOf<String, String>() // messageId -> local file path
-                        for ((path, bytes) in videoEntries) {
+                        for (path in archive.names()) {
+                            if (!path.startsWith("videos/")) continue
+                            val bytes = archive.bytes(path) ?: continue
                             // path format: videos/<messageId>/<index>
                             val parts = path.removePrefix("videos/").split("/")
                             if (parts.size == 2 && bytes.isNotEmpty()) {
@@ -284,7 +306,7 @@ class DataImporter(
             val memDecision = decisions[DataExporter.ExportCategory.MEMORIES]
             if (memDecision != null && memDecision != ImportStrategy.SKIP) {
                 try {
-                    val memEntries = entries.filter { it.key.startsWith("memories/") }
+                    val memNames = archive.names().filter { it.startsWith("memories/") }
                     if (memDecision == ImportStrategy.REPLACE) {
                         for (file in memoryManager.listFiles()) {
                             memoryManager.deleteFile(file.name)
@@ -295,8 +317,8 @@ class DataImporter(
                         }
                     }
                     val existingNames = memoryManager.listFiles().map { it.name }.toSet()
-                    for ((path, content) in memEntries) {
-                        val text = content.decodeToString()
+                    for (path in memNames) {
+                        val text = archive.bytes(path)?.decodeToString() ?: continue
                         if (path == "memories/active_memory.md" && text.isNotBlank()) {
                             if (memDecision == ImportStrategy.REPLACE || memoryManager.getActiveMemory().isEmpty()) {
                                 memoryManager.updateActiveMemory(text, "replace")
@@ -328,7 +350,7 @@ class DataImporter(
             val promptsDecision = decisions[DataExporter.ExportCategory.SYSTEM_PROMPTS]
             if (promptsDecision != null && promptsDecision != ImportStrategy.SKIP) {
                 try {
-                    entries["system_prompts.json"]?.decodeToString()?.let { json ->
+                    archive["system_prompts.json"]?.decodeToString()?.let { json ->
                         val prompts = importJson.decodeFromString<List<SystemPromptEntry>>(json)
                         if (promptsDecision == ImportStrategy.REPLACE) {
                             settingsManager.saveSystemPrompts(prompts)
@@ -355,7 +377,7 @@ class DataImporter(
             val settingsDecision = decisions[DataExporter.ExportCategory.SETTINGS]
             if (settingsDecision != null && settingsDecision != ImportStrategy.SKIP) {
                 try {
-                    entries["settings.json"]?.decodeToString()?.let { json ->
+                    archive["settings.json"]?.decodeToString()?.let { json ->
                         val s = importJson.decodeFromString<ExportSettings>(json)
                         settingsManager.saveSelectedModel(s.selectedModel)
                         for ((provider, models) in s.availableModels) {
@@ -400,7 +422,7 @@ class DataImporter(
                     }
 
                     // Restore extra settings if present (hoisted — independent of settings.json)
-                    entries["extra_settings.json"]?.decodeToString()?.let { json ->
+                    archive["extra_settings.json"]?.decodeToString()?.let { json ->
                         try {
                             val obj = Json.parseToJsonElement(json).jsonObject
                             ExportExtraSettings.restoreFromJsonObject(obj, settingsManager)
@@ -416,7 +438,7 @@ class DataImporter(
             val keysDecision = decisions[DataExporter.ExportCategory.API_KEYS]
             if (keysDecision != null && keysDecision != ImportStrategy.SKIP) {
                 try {
-                    entries["api_keys.json"]?.decodeToString()?.let { json ->
+                    archive["api_keys.json"]?.decodeToString()?.let { json ->
                         val data = importJson.decodeFromString<ExportApiKeys>(json)
                         if (keysDecision == ImportStrategy.REPLACE) {
                             settingsManager.saveApiKeys(data.apiKeys)
@@ -475,6 +497,7 @@ class DataImporter(
                 step()
             }
 
+            archive.close()
             onProgress(1f)
             ImportResult(
                 conversationsImported = conversationsImported,
