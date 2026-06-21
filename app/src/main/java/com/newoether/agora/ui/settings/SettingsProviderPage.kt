@@ -24,6 +24,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.newoether.agora.R
 import com.newoether.agora.ui.components.providerIcon
+import com.newoether.agora.util.Constants
 import com.newoether.agora.viewmodel.ChatViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -59,14 +60,14 @@ fun SettingsProviderPage(viewModel: ChatViewModel, onBack: () -> Unit) {
                     onBack = { selectedProvider = null }
                 )
             } else {
-                val builtInNames = listOf("Google", "OpenAI", "Anthropic", "DeepSeek", "Qwen", "Ollama", "Open Router")
+                val builtInNames = listOf(Constants.PROVIDER_GOOGLE, Constants.PROVIDER_OPENAI, Constants.PROVIDER_ANTHROPIC, Constants.PROVIDER_DEEPSEEK, Constants.PROVIDER_QWEN, Constants.PROVIDER_OLLAMA, Constants.PROVIDER_OPEN_ROUTER)
 
                 @Composable
                 fun isConfigured(name: String): Boolean = when (name) {
-                    "Local" -> localChatModels.isNotEmpty()
+                    Constants.PROVIDER_LOCAL -> localChatModels.isNotEmpty()
                     else -> {
                         val isCustom = customProviders.any { it.name == name }
-                        if (isCustom || name == "Ollama") !providerBaseUrls[name].isNullOrBlank()
+                        if (isCustom || name == Constants.PROVIDER_OLLAMA) !providerBaseUrls[name].isNullOrBlank()
                         else apiKeys.any { it.provider == name }
                     }
                 }
@@ -85,7 +86,7 @@ fun SettingsProviderPage(viewModel: ChatViewModel, onBack: () -> Unit) {
                                     supportingContent = {
                                         Text(
                                             when {
-                                                name == "Ollama" -> providerBaseUrls[name]?.takeIf { it.isNotBlank() } ?: stringResource(R.string.not_configured)
+                                                name == Constants.PROVIDER_OLLAMA -> providerBaseUrls[name]?.takeIf { it.isNotBlank() } ?: stringResource(R.string.not_configured)
                                                 isConfigured(name) -> stringResource(R.string.provider_keys_summary, apiKeys.count { it.provider == name })
                                                 else -> stringResource(R.string.not_configured)
                                             }
@@ -144,7 +145,7 @@ fun SettingsProviderPage(viewModel: ChatViewModel, onBack: () -> Unit) {
                                 supportingContent = { Text(if (localConfigured) stringResource(R.string.provider_local_models_summary, localChatModels.size) else stringResource(R.string.not_configured)) },
                                 leadingContent = { Icon(Icons.Default.AutoAwesome, null, tint = if (localConfigured) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)) },
                                 trailingContent = { Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)) },
-                                modifier = Modifier.clickable { selectedProvider = "Local" }
+                                modifier = Modifier.clickable { selectedProvider = Constants.PROVIDER_LOCAL }
                             )
                         })
 

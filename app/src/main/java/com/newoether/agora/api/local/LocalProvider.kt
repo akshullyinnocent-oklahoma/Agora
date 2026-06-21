@@ -30,7 +30,7 @@ class LocalProvider(
         private const val CONTEXT_EXCEEDED_PREFIX = "LOCAL_CONTEXT_EXCEEDED:"
     }
 
-    override val name: String = "Local"
+    override val name: String = Constants.PROVIDER_LOCAL
     override val defaultBaseUrl: String = ""
 
     private var currentEngine: LlamaChatEngine? = null

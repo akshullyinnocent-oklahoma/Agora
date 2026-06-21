@@ -37,6 +37,7 @@ import com.newoether.agora.model.ChatMessage
 import com.newoether.agora.model.MessageSegment
 import com.newoether.agora.model.MessageStatus
 import com.newoether.agora.model.ModelId
+import com.newoether.agora.model.apiModelName
 import com.newoether.agora.model.Participant
 import com.newoether.agora.model.SelectedAttachment
 import com.newoether.agora.model.ToolCallData
@@ -187,12 +188,12 @@ class ChatViewModel(
                 }?.forEach { f ->
                     if (f.absolutePath !in referenced) runCatching { f.delete() }
                 }
-            } catch (_: Exception) {}
+            } catch (e: Exception) { DebugLog.d("ChatViewModel", "PDF thumbnail cleanup error", e) }
         }
         // ── Auto Backup ──────────────────────────────────────────
         try { AutoBackupWorker.schedule(getApplication()) } catch (_: Exception) {}
         viewModelScope.launch(Dispatchers.IO) {
-            try { autoBackupManager.checkAndBackup() } catch (_: Exception) {}
+            try { autoBackupManager.checkAndBackup() } catch (e: Exception) { DebugLog.e("ChatViewModel", "Auto backup check failed", e) }
         }
         // Sync local chat models into available models
         viewModelScope.launch {
@@ -204,7 +205,7 @@ class ChatViewModel(
                 val aliases = currentAliases.toMutableMap()
                 models.forEach { aliases["Local:${it.modelId}"] = it.alias }
                 if (localIds != lastLocalIds) {
-                    settings.saveAvailableModels("Local", localIds)
+                    settings.saveAvailableModels(Constants.PROVIDER_LOCAL, localIds)
                     lastLocalIds = localIds
                 }
                 if (aliases != lastAliases) {
@@ -231,7 +232,7 @@ class ChatViewModel(
             sandboxFactory = sandboxFactory
         ).also { gm ->
             gm.onMessagePersisted = { messageId, text ->
-                if (settings.autoCacheEnabled.value && (settings.modelSearchMethod.value == "rag" || settings.manualSearchMethod.value == "rag")) {
+                if (settings.autoCacheEnabled.value && (settings.modelSearchMethod.value == Constants.SEARCH_METHOD_RAG || settings.manualSearchMethod.value == Constants.SEARCH_METHOD_RAG)) {
                     indexMessageForRag(messageId, text)
                 }
             }
@@ -557,7 +558,7 @@ class ChatViewModel(
     private fun resolveTranscriptionApiKey(): String {
         val model = settings.imageTranscriptionModel.value ?: return ""
         val providerName = getProviderForModel(model)
-        if (providerName == "Local") return ""
+        if (providerName == Constants.PROVIDER_LOCAL) return ""
         return settings.resolveActiveKey(providerName) ?: ""
     }
 
@@ -568,12 +569,12 @@ class ChatViewModel(
 
     // Image generation reuses the selected model's provider credentials (mirrors transcription).
     private fun resolveImageGenModelId(): String =
-        settings.imageGenModel.value?.let { ModelId.parse(it).modelName.removePrefix("models/") } ?: ""
+        settings.imageGenModel.value?.let { ModelId.parse(it).apiModelName } ?: ""
 
     private fun resolveImageGenApiKey(): String {
         val model = settings.imageGenModel.value ?: return ""
         val providerName = getProviderForModel(model)
-        if (providerName == "Local") return ""
+        if (providerName == Constants.PROVIDER_LOCAL) return ""
         return settings.resolveActiveKey(providerName) ?: ""
     }
 
@@ -649,7 +650,7 @@ class ChatViewModel(
             val deleteTiers = AUTO_DELETE_TIERS_HOURS
             val deleteHours = settings.autoDeletePeriodHours.value
             if (deleteHours <= hours) {
-                val nextDelete = deleteTiers.firstOrNull { it > hours } ?: 8760
+                val nextDelete = deleteTiers.firstOrNull { it > hours } ?: AUTO_DELETE_TIERS_HOURS.last()
                 settings.saveAutoDeletePeriodHours(nextDelete)
             }
         }
@@ -668,7 +669,7 @@ class ChatViewModel(
             val backupHours = settings.autoBackupPeriodHours.value
             val deleteTiers = AUTO_DELETE_TIERS_HOURS
             // Find the smallest valid delete tier that is > backupHours, and >= the requested hours
-            val minValid = deleteTiers.firstOrNull { it > backupHours } ?: 8760
+            val minValid = deleteTiers.firstOrNull { it > backupHours } ?: AUTO_DELETE_TIERS_HOURS.last()
             settings.saveAutoDeletePeriodHours(maxOf(hours, minValid))
         }
     }
@@ -895,7 +896,7 @@ class ChatViewModel(
             var title = ""
             try {
                 // Serialize with embedding to avoid dual model load OOM
-                if (providerName == "Local") {
+                if (providerName == Constants.PROVIDER_LOCAL) {
                     LlamaEngine.modelMutex.withLock {
                         withContext(Dispatchers.IO) {
                             provider.generateResponse(titlePrompt, config).collect { event ->
@@ -1404,7 +1405,7 @@ class ChatViewModel(
                                 textContent = content
                             }
                         }
-                    } catch (_: Exception) {}
+                    } catch (e: Exception) { DebugLog.e("ChatViewModel", "Failed to read attachment content: ${att.fileName}", e) }
                     metaItems.add(AttachmentItem(
                         originalUri = att.uri, type = "file",
                         fileName = att.fileName, mimeType = att.mimeType,
@@ -1489,8 +1490,8 @@ class ChatViewModel(
             return false
         }
         val (providerName, activeKey) = resolveProviderKey(modelId) ?: return false
-        if (providerName == "Local") {
-            val localModelId = modelId.substringAfter("Local:")
+        if (providerName == Constants.PROVIDER_LOCAL) {
+            val localModelId = modelId.substringAfter("${Constants.PROVIDER_LOCAL}:")
             val config = settings.localChatModels.value.find { it.modelId == localModelId }
             if (config == null || !java.io.File(config.localFilePath).exists()) {
                 emitSnackbar(getApplication<Application>().getString(R.string.local_model_not_found))
@@ -1615,30 +1616,18 @@ class ChatViewModel(
             providerRegistry.ensureCustomProvidersRegistered()
 
             val message = try {
-                providerRegistry.all.forEach { (name, providerInstance) ->
-                    if (name == "Local") return@forEach
+                providerRegistry.all.forEach { (name, _) ->
+                    if (name == Constants.PROVIDER_LOCAL) return@forEach
 
                     try {
-                        val activeKey = settings.resolveActiveKey(name) ?: ""
-                        val isCustomProvider = !providerRegistry.isBuiltIn(name)
-                        val currentBaseUrl = if (isCustomProvider) {
-                            settings.providerBaseUrls.value[name]?.takeIf { it.isNotBlank() } ?: providerInstance.defaultBaseUrl
-                        } else {
-                            settings.providerBaseUrls.value[name]
-                        }
-
-                        if (!providerRegistry.isConfigured(name, activeKey)) {
+                        if (!providerRegistry.isConfigured(name, settings.resolveActiveKey(name) ?: "")) {
                             skippedCount++
                             settings.saveAvailableModels(name, emptyList())
                             return@forEach
                         }
 
-                        val rawModels = withTimeout(10_000L) {
-                            providerInstance.fetchModels(activeKey, currentBaseUrl)
-                        }
-                        if (rawModels.isNotEmpty()) {
-                            val prefixedModels = rawModels.map { "$name:${it.removePrefix("models/")}" }
-                            settings.saveAvailableModels(name, prefixedModels)
+                        val models = providerRegistry.fetchModelsForProvider(name)
+                        if (models.isNotEmpty()) {
                             successProviders.add(name)
                         } else {
                             failedProviders.add(name)

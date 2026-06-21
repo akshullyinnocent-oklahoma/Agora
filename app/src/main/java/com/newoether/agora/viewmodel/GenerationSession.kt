@@ -9,6 +9,7 @@ import com.newoether.agora.model.MessageSegment
 import com.newoether.agora.model.MessageStatus
 import com.newoether.agora.model.Participant
 import com.newoether.agora.service.AgoraForegroundService
+import com.newoether.agora.util.Constants
 import com.newoether.agora.util.DebugLog
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -181,7 +182,7 @@ class GenerationSession(
                 for (message in messages) {
                     convRepo.upsertMessage(message.toStoppedEntity(conversationId))
                     if (message.text.isNotBlank() && settings.autoCacheEnabled.value &&
-                        (settings.modelSearchMethod.value == "rag" || settings.manualSearchMethod.value == "rag")
+                        (settings.modelSearchMethod.value == Constants.SEARCH_METHOD_RAG || settings.manualSearchMethod.value == Constants.SEARCH_METHOD_RAG)
                     ) {
                         onIndexMessageForRag(message.id, message.text)
                     }

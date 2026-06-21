@@ -25,6 +25,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.newoether.agora.R
 import com.newoether.agora.api.ProviderDefaults
+import com.newoether.agora.util.Constants
 import com.newoether.agora.viewmodel.ChatViewModel
 import kotlinx.coroutines.launch
 import java.io.File
@@ -33,7 +34,7 @@ private data class SearchMethodOption(val key: String, @androidx.annotation.Stri
 
 private val searchMethods = listOf(
     SearchMethodOption("keyword", R.string.search_method_keyword),
-    SearchMethodOption("rag", R.string.search_method_rag)
+    SearchMethodOption(Constants.SEARCH_METHOD_RAG, R.string.search_method_rag)
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -63,11 +64,11 @@ fun SettingsSearchPage(viewModel: ChatViewModel, onBack: () -> Unit) {
     var renameText by remember { mutableStateOf("") }
     // Embedding provider presets
     val embeddingProviders = listOf(
-        EmbeddingProviderPreset("OpenAI", ProviderDefaults.embeddingBaseUrl("OpenAI"), listOf("text-embedding-3-small", "text-embedding-3-large", "text-embedding-ada-002")),
+        EmbeddingProviderPreset(Constants.PROVIDER_OPENAI, ProviderDefaults.embeddingBaseUrl(Constants.PROVIDER_OPENAI), listOf("text-embedding-3-small", "text-embedding-3-large", "text-embedding-ada-002")),
         EmbeddingProviderPreset("Mistral", ProviderDefaults.embeddingBaseUrl("Mistral"), listOf("mistral-embed")),
         EmbeddingProviderPreset("Voyage AI", ProviderDefaults.embeddingBaseUrl("Voyage AI"), listOf("voyage-3-large", "voyage-3-lite", "voyage-code-3")),
         EmbeddingProviderPreset("SiliconFlow", ProviderDefaults.embeddingBaseUrl("SiliconFlow"), listOf("BAAI/bge-m3", "BAAI/bge-large-en-v1.5")),
-        EmbeddingProviderPreset("Ollama", ProviderDefaults.embeddingBaseUrl("Ollama"), emptyList()),
+        EmbeddingProviderPreset(Constants.PROVIDER_OLLAMA, ProviderDefaults.embeddingBaseUrl(Constants.PROVIDER_OLLAMA), emptyList()),
         EmbeddingProviderPreset("Custom", "", emptyList())
     )
     val remoteState = rememberRemoteEmbeddingDialogState(embeddingProviders.size)
@@ -148,7 +149,7 @@ fun SettingsSearchPage(viewModel: ChatViewModel, onBack: () -> Unit) {
                                     ) {
                                         val noEmbedding = embeddingModels.isEmpty()
                                         searchMethods.forEach { method ->
-                                            val ragDisabled = method.key == "rag" && noEmbedding
+                                            val ragDisabled = method.key == Constants.SEARCH_METHOD_RAG && noEmbedding
                                             DropdownMenuItem(
                                                 text = { Text(stringResource(method.labelRes), color = if (ragDisabled) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f) else MaterialTheme.colorScheme.onSurface) },
                                                 leadingIcon = {
@@ -193,7 +194,7 @@ fun SettingsSearchPage(viewModel: ChatViewModel, onBack: () -> Unit) {
                                     ) {
                                         val noEmbedding = embeddingModels.isEmpty()
                                         searchMethods.forEach { method ->
-                                            val ragDisabled = method.key == "rag" && noEmbedding
+                                            val ragDisabled = method.key == Constants.SEARCH_METHOD_RAG && noEmbedding
                                             DropdownMenuItem(
                                                 text = { Text(stringResource(method.labelRes), color = if (ragDisabled) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f) else MaterialTheme.colorScheme.onSurface) },
                                                 leadingIcon = {
@@ -323,7 +324,7 @@ fun SettingsSearchPage(viewModel: ChatViewModel, onBack: () -> Unit) {
                             TextButton(onClick = {
                                 remoteState.prepareForNew(
                                     embeddingProviders[0],
-                                    viewModel.resolveEmbeddingKeyForProviderExact("OpenAI")?.key ?: ""
+                                    viewModel.resolveEmbeddingKeyForProviderExact(Constants.PROVIDER_OPENAI)?.key ?: ""
                                 )
                                 showRemoteDialog = true
                             }) { Text(stringResource(R.string.add_remote_model)) }

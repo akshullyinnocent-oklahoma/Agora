@@ -2,7 +2,7 @@ package com.newoether.agora.api.openai
 
 import com.newoether.agora.api.*
 import com.newoether.agora.model.ThinkingLevels
-
+import com.newoether.agora.util.Constants
 import com.newoether.agora.api.util.StreamingThinkTagParser
 
 private val BOLD_TITLE_REGEX = Regex("\\*\\*(.*?)\\*\\*")
@@ -14,7 +14,7 @@ private fun extractThoughtTitle(text: String): String? =
         ?: HEADING_TITLE_REGEX.find(text)?.groupValues?.get(1)
 
 class OpenRouterProvider : BaseOpenAiProvider() {
-    override val name: String = "Open Router"
+    override val name: String = Constants.PROVIDER_OPEN_ROUTER
     override val defaultBaseUrl: String = "https://openrouter.ai/api/v1"
 
     override fun customizeRequest(request: OpenAiChatRequest, config: ProviderConfig): OpenAiChatRequest {

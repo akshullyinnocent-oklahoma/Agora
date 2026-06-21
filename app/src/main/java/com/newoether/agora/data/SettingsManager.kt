@@ -28,7 +28,7 @@ data class ApiKeyEntry(
     val id: String = UUID.randomUUID().toString(),
     val name: String,
     val key: String,
-    val provider: String = "Google"
+    val provider: String = Constants.PROVIDER_GOOGLE
 )
 
 @Serializable

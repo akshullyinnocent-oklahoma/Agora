@@ -23,6 +23,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.newoether.agora.R
 import com.newoether.agora.ui.components.providerIcon
+import com.newoether.agora.model.apiModelName
+import com.newoether.agora.util.Constants
 import com.newoether.agora.viewmodel.ChatViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -55,11 +57,11 @@ fun SettingsTranscriptionPage(viewModel: ChatViewModel, onBack: () -> Unit) {
                     val displayName = transcriptionModel?.let {
                         val parsed = com.newoether.agora.model.ModelId.parse(it)
                         val alias = modelAliases[it]
-                        alias ?: parsed.modelName.removePrefix("models/")
+                        alias ?: parsed.apiModelName
                     } ?: stringResource(R.string.transcription_no_model)
                     val selectedProvider = transcriptionModel?.let { com.newoether.agora.model.ModelId.parse(it).providerName }
                     val selectedIconRes = selectedProvider?.let { providerIcon(it) } ?: 0
-                    val isSelectedLocal = selectedProvider.equals("Local", ignoreCase = true)
+                    val isSelectedLocal = selectedProvider.equals(Constants.PROVIDER_LOCAL, ignoreCase = true)
                     SettingsItem(
                         headlineContent = {
                             Text(
@@ -100,11 +102,11 @@ fun SettingsTranscriptionPage(viewModel: ChatViewModel, onBack: () -> Unit) {
                         for (model in sorted) {
                             val alias = modelAliases[model]
                             val parsedModel = com.newoether.agora.model.ModelId.parse(model)
-                            val displayName = alias ?: parsedModel.modelName.removePrefix("models/")
+                            val displayName = alias ?: parsedModel.apiModelName
                             val providerName = parsedModel.providerName
                             add {
                                 val iconRes = providerIcon(providerName)
-                                val isLocal = providerName.equals("Local", ignoreCase = true)
+                                val isLocal = providerName.equals(Constants.PROVIDER_LOCAL, ignoreCase = true)
                                 SettingsItem(
                                     headlineContent = { Text(displayName) },
                                     supportingContent = { Text(providerName, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)) },
@@ -237,7 +239,7 @@ fun SettingsTranscriptionPage(viewModel: ChatViewModel, onBack: () -> Unit) {
                     items(enabledModelsList) { model ->
                         val alias = modelAliases[model]
                         val dialogParsed = com.newoether.agora.model.ModelId.parse(model)
-                        val displayName = alias ?: dialogParsed.modelName.removePrefix("models/")
+                        val displayName = alias ?: dialogParsed.apiModelName
                         SettingsItem(
                             headlineContent = { Text(displayName, fontWeight = if (transcriptionModel == model) FontWeight.Bold else FontWeight.Normal) },
                             supportingContent = { Text(dialogParsed.providerName, style = MaterialTheme.typography.bodySmall) },
@@ -271,7 +273,7 @@ fun SettingsTranscriptionPage(viewModel: ChatViewModel, onBack: () -> Unit) {
                     items(availableList) { model ->
                         val alias = modelAliases[model]
                         val addParsed = com.newoether.agora.model.ModelId.parse(model)
-                        val displayName = alias ?: addParsed.modelName.removePrefix("models/")
+                        val displayName = alias ?: addParsed.apiModelName
                         val checked = model in selected
                         SettingsItem(
                             headlineContent = { Text(displayName) },

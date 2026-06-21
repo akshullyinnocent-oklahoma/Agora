@@ -2,6 +2,7 @@ package com.newoether.agora.ui.chat.bottombar
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import com.newoether.agora.model.apiModelName
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -283,9 +284,9 @@ fun ChatBottomBar(
                 var lastToolsDismissTime by remember { mutableLongStateOf(0L) }
 
                 val parsed = com.newoether.agora.model.ModelId.parse(selectedModel)
-                val modelId = parsed.modelName.removePrefix("models/")
+                val modelId = parsed.apiModelName
                 val provider = parsed.providerName
-                
+
                 val displayText = when {
                     isModelValid -> modelAliases[selectedModel] ?: ("$modelId ($provider)")
                     enabledModels.isNotEmpty() -> stringResource(R.string.select_model)
@@ -344,7 +345,7 @@ fun ChatBottomBar(
                                 DropdownMenuItem(
                                     text = {
                                         val parsed = com.newoether.agora.model.ModelId.parse(model)
-                                        val modelId = parsed.modelName.removePrefix("models/")
+                                        val modelId = parsed.apiModelName
                                         val provider = parsed.providerName
                                         Text(modelAliases[model] ?: ("$modelId ($provider)"))
                                     },

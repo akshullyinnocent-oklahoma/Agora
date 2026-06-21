@@ -2,6 +2,7 @@ package com.newoether.agora.ui.chat.bottombar
 
 import android.net.Uri
 import android.os.Build
+import com.newoether.agora.util.DebugLog
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -78,7 +79,7 @@ internal fun AttachmentPreviewRow(
                                 Uri.parse(uriStr), android.util.Size(128, 128), null
                             )
                         }
-                    } catch (_: Exception) {}
+                    } catch (e: Exception) { DebugLog.e("AttachmentPreview", "Failed to load video thumbnail", e) }
                 }
             }
 

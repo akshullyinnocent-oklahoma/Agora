@@ -13,6 +13,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import com.newoether.agora.model.SelectedAttachment
 import com.newoether.agora.ui.chat.VideoSliceDialog
+import com.newoether.agora.util.DebugLog
 import com.newoether.agora.ui.common.AgoraHaptics
 import com.newoether.agora.ui.common.LocalAgoraHaptics
 import com.newoether.agora.util.FileValidator
@@ -154,7 +155,7 @@ class ChatComposerState(
                 // Removed mid-extraction: drop the partial frame files instead of orphaning them.
                 paths.forEach { runCatching { java.io.File(it).delete() } }
                 throw c
-            } catch (_: Exception) {}
+            } catch (e: Exception) { DebugLog.e("ChatComposer", "Video frame extraction failed", e) }
             processingStates = processingStates - videoUri
             paths
         }

@@ -1,5 +1,7 @@
 package com.newoether.agora.api
 
+import com.newoether.agora.util.Constants
+
 /**
  * Single source of truth for default API base URLs.
  *
@@ -12,6 +14,15 @@ package com.newoether.agora.api
  */
 object ProviderDefaults {
     const val OPENAI_BASE_URL = "https://api.openai.com/v1"
+
+    /** Providers whose embedding APIs follow the OpenAI compatibility contract. */
+    fun isOpenAiCompatibleEmbedding(name: String): Boolean =
+        name == Constants.PROVIDER_OPENAI || name == Constants.PROVIDER_DEEPSEEK ||
+        name == Constants.PROVIDER_QWEN || name == Constants.PROVIDER_OPEN_ROUTER
+
+    /** Resolves the base URL for OpenAI-compatible embedding, falling back to the default. */
+    fun openAiCompatibleBaseUrl(baseUrls: Map<String, String>): String =
+        baseUrls[Constants.PROVIDER_OPENAI] ?: OPENAI_BASE_URL
 
     fun embeddingBaseUrl(provider: String): String = when (provider.lowercase()) {
         "openai" -> OPENAI_BASE_URL

@@ -32,7 +32,9 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.newoether.agora.R
+import com.newoether.agora.model.apiModelName
 import com.newoether.agora.ui.components.providerIcon
+import com.newoether.agora.util.Constants
 import com.newoether.agora.util.noOpBringIntoView
 import com.newoether.agora.viewmodel.ChatViewModel
 
@@ -88,11 +90,10 @@ fun SettingsModelsPage(viewModel: ChatViewModel, onBack: () -> Unit) {
             item(key = "default_model") {
                 val activeAlias = modelAliases[selectedModel]
                 val activeParsed = com.newoether.agora.model.ModelId.parse(selectedModel)
-                val cleanId = activeParsed.modelName
                 val providerName = activeParsed.providerName
-                val activeDisplayName = activeAlias ?: cleanId.removePrefix("models/")
+                val activeDisplayName = activeAlias ?: activeParsed.apiModelName
                 val activeIconRes = providerIcon(providerName)
-                val isActiveLocal = providerName.equals("Local", ignoreCase = true)
+                val isActiveLocal = providerName.equals(Constants.PROVIDER_LOCAL, ignoreCase = true)
                 val hasEnabledModels = enabledModels.isNotEmpty()
 
                 CardSurface(shape = FullRounded) {
@@ -164,7 +165,7 @@ fun SettingsModelsPage(viewModel: ChatViewModel, onBack: () -> Unit) {
 
                     CardSurface(shape = headerShape, addTopGap = true) {
                         val headerIconRes = providerIcon(name)
-                        val isLocalHeader = name.equals("Local", ignoreCase = true)
+                        val isLocalHeader = name.equals(Constants.PROVIDER_LOCAL, ignoreCase = true)
                         SettingsItem(
                             headlineContent = { Text(name) },
                             supportingContent = { Text(stringResource(R.string.models_count, models.size)) },
@@ -213,12 +214,12 @@ fun SettingsModelsPage(viewModel: ChatViewModel, onBack: () -> Unit) {
                                 CardSurface(shape = modelShape, addTopGap = false) {
                                     val isEnabled = enabledModels.contains(model)
                                     val alias = modelAliases[model]
-                                    val cleanId = com.newoether.agora.model.ModelId.parse(model).modelName
-                                    val displayName = alias ?: cleanId.removePrefix("models/")
+                                    val parsed = com.newoether.agora.model.ModelId.parse(model)
+                                    val displayName = alias ?: parsed.apiModelName
 
                                     SettingsItem(
                                         headlineContent = { Text(displayName) },
-                                        supportingContent = if (alias != null) { { Text(cleanId.removePrefix("models/")) } } else null,
+                                        supportingContent = if (alias != null) { { Text(parsed.apiModelName) } } else null,
                                         trailingContent = {
                                             Row(verticalAlignment = Alignment.CenterVertically) {
                                                 IconButton(onClick = { showModelAliasDialog = model }) {
@@ -257,9 +258,9 @@ fun SettingsModelsPage(viewModel: ChatViewModel, onBack: () -> Unit) {
                 LazyColumn(modifier = Modifier.fillMaxWidth()) {
                     items(enabledModels.toList()) { model ->
                         val alias = modelAliases[model]
-                        val cleanId = com.newoether.agora.model.ModelId.parse(model).modelName
-                        val displayName = alias ?: cleanId.removePrefix("models/")
-                        val providerName = com.newoether.agora.model.ModelId.parse(model).providerName
+                        val parsed = com.newoether.agora.model.ModelId.parse(model)
+                        val displayName = alias ?: parsed.apiModelName
+                        val providerName = parsed.providerName
 
                         SettingsItem(
                             headlineContent = {
@@ -299,8 +300,9 @@ fun SettingsModelsPage(viewModel: ChatViewModel, onBack: () -> Unit) {
             title = { Text(stringResource(R.string.models_rename), fontWeight = FontWeight.Bold) },
             text = {
                 val fm = LocalFocusManager.current
+                val parsed = com.newoether.agora.model.ModelId.parse(model)
                 Column(Modifier.fillMaxWidth().clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) { fm.clearFocus() }) {
-                    Text(stringResource(R.string.models_rename_current, model.removePrefix("models/")), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(stringResource(R.string.models_rename_current, parsed.apiModelName), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Spacer(modifier = Modifier.height(8.dp))
                     Box(modifier = Modifier.noOpBringIntoView()) {
                         OutlinedTextField(
@@ -308,7 +310,7 @@ fun SettingsModelsPage(viewModel: ChatViewModel, onBack: () -> Unit) {
                             label = { Text(stringResource(R.string.models_alias_hint)) },
                             shape = RoundedCornerShape(16.dp),
                             modifier = Modifier.fillMaxWidth(),
-                            placeholder = { Text(model.removePrefix("models/")) }
+                            placeholder = { Text(parsed.apiModelName) }
                         )
                     }
                 }

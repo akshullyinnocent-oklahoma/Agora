@@ -12,6 +12,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.res.stringResource
 import com.newoether.agora.R
+import com.newoether.agora.util.Constants
 import com.newoether.agora.viewmodel.ChatViewModel
 import kotlinx.coroutines.launch
 
@@ -100,7 +101,7 @@ internal fun AddRemoteEmbeddingDialog(
                                             state.selectedProviderIdx = idx
                                             state.baseUrl = p.baseUrl
                                             if (idx == 0 && state.apiKeys[0].isBlank()) {
-                                                state.apiKeys[0] = viewModel.resolveEmbeddingKeyForProviderExact("OpenAI")?.key ?: ""
+                                                state.apiKeys[0] = viewModel.resolveEmbeddingKeyForProviderExact(Constants.PROVIDER_OPENAI)?.key ?: ""
                                             }
                                             if (p.models.isNotEmpty()) {
                                                 state.modelName = p.models.first()

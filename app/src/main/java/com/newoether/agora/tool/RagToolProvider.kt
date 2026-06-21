@@ -106,7 +106,7 @@ class RagToolProvider(
 
         return try {
             // Step 1: Search — normalize to List<Pair<MessageEntity, Float>>
-            val scoredResults: List<Pair<MessageEntity, Float>> = if (ctx.modelSearchMethod == "rag" && ctx.activeEmbeddingConfig != null) {
+            val scoredResults: List<Pair<MessageEntity, Float>> = if (ctx.modelSearchMethod == Constants.SEARCH_METHOD_RAG && ctx.activeEmbeddingConfig != null) {
                 semanticSearch(query, limit, ctx)
                     .filter { it.second >= ctx.ragThreshold }
             } else {

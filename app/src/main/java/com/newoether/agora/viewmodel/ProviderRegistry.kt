@@ -12,6 +12,7 @@ import com.newoether.agora.api.openai.OpenRouterProvider
 import com.newoether.agora.api.openai.QwenProvider
 import com.newoether.agora.data.repository.SettingsRepository
 import com.newoether.agora.model.ModelId
+import com.newoether.agora.util.Constants
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
@@ -35,14 +36,14 @@ class ProviderRegistry(
     private val scope: CoroutineScope,
 ) {
     private val builtInProviders: Map<String, LlmProvider> = mapOf(
-        "Google" to GeminiProvider(),
-        "OpenAI" to OpenAiProvider(),
-        "Anthropic" to AnthropicProvider(),
-        "DeepSeek" to DeepSeekProvider(),
-        "Qwen" to QwenProvider(),
-        "Ollama" to OllamaProvider(),
-        "Open Router" to OpenRouterProvider(),
-        "Local" to localProvider
+        Constants.PROVIDER_GOOGLE to GeminiProvider(),
+        Constants.PROVIDER_OPENAI to OpenAiProvider(),
+        Constants.PROVIDER_ANTHROPIC to AnthropicProvider(),
+        Constants.PROVIDER_DEEPSEEK to DeepSeekProvider(),
+        Constants.PROVIDER_QWEN to QwenProvider(),
+        Constants.PROVIDER_OLLAMA to OllamaProvider(),
+        Constants.PROVIDER_OPEN_ROUTER to OpenRouterProvider(),
+        Constants.PROVIDER_LOCAL to localProvider
     )
 
     // Declared as MutableMap so `in`/`contains` keep Map (containsKey) semantics (KT-18053).
@@ -60,9 +61,9 @@ class ProviderRegistry(
             ?: if (!isBuiltIn(providerName)) getInstance(providerName).defaultBaseUrl else null
 
     fun isConfigured(providerName: String, activeKey: String): Boolean = when {
-        providerName == "Unknown" -> false
-        providerName == "Local" -> true
-        !isBuiltIn(providerName) || providerName == "Ollama" -> !getEffectiveBaseUrl(providerName).isNullOrBlank()
+        providerName == Constants.PROVIDER_UNKNOWN -> false
+        providerName == Constants.PROVIDER_LOCAL -> true
+        !isBuiltIn(providerName) || providerName == Constants.PROVIDER_OLLAMA -> !getEffectiveBaseUrl(providerName).isNullOrBlank()
         else -> activeKey.isNotBlank()
     }
 
@@ -110,7 +111,7 @@ class ProviderRegistry(
      * sync this carries no global side effects (no snackbar, no syncing flag).
      */
     suspend fun fetchModelsForProvider(name: String): List<String> {
-        if (name == "Local") return emptyList()
+        if (name == Constants.PROVIDER_LOCAL) return emptyList()
         ensureCustomProvidersRegistered()
         val provider = providers[name] ?: return emptyList()
         val activeKey = settings.apiKeys.value.find { it.id == settings.activeApiKeyIds.value[name] }?.key ?: ""
@@ -120,7 +121,7 @@ class ProviderRegistry(
         } else {
             settings.providerBaseUrls.value[name]
         }
-        val raw = withTimeout(10_000L) { provider.fetchModels(activeKey, baseUrl) }
+        val raw = withTimeout(Constants.MODEL_FETCH_TIMEOUT_MS) { provider.fetchModels(activeKey, baseUrl) }
         val prefixed = raw.map { "$name:${it.removePrefix("models/")}" }
         if (prefixed.isNotEmpty()) settings.saveAvailableModels(name, prefixed)
         return prefixed

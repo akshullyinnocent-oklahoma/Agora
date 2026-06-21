@@ -18,6 +18,8 @@ import androidx.compose.ui.res.stringResource
 import com.newoether.agora.R
 import com.newoether.agora.model.ChatMessage
 import com.newoether.agora.model.Participant
+import com.newoether.agora.model.apiModelName
+import com.newoether.agora.util.Constants
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -33,8 +35,8 @@ internal fun MessageInfoDialog(
     val dateString = sdf.format(Date(message.timestamp))
     val modelDisplay = if (message.modelName != null) {
         val parsed = message.modelName?.let { com.newoether.agora.model.ModelId.parse(it) }
-        val modelId = parsed?.modelName?.removePrefix("models/") ?: message.modelName
-        val provider = parsed?.providerName ?: "Unknown"
+        val modelId = parsed?.apiModelName ?: message.modelName
+        val provider = parsed?.providerName ?: Constants.PROVIDER_UNKNOWN
         modelAliases[message.modelName] ?: ("$modelId ($provider)")
     } else stringResource(R.string.unknown)
 

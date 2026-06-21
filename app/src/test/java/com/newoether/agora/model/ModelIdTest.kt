@@ -83,11 +83,11 @@ class ModelIdTest {
         assertEquals("completely-unknown-model-xyz", id.modelName)
     }
 
-    // ── create() factory ─────────────────────────────────────
+    // ── construction ─────────────────────────────────────────
 
     @Test
-    fun `create builds correct prefixed string`() {
-        val id = ModelId.create("Anthropic", "claude-3-opus")
+    fun `constructor builds correct prefixed string`() {
+        val id = ModelId("Anthropic", "claude-3-opus")
         assertEquals("Anthropic:claude-3-opus", id.prefixed)
     }
 

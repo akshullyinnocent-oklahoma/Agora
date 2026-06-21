@@ -2,6 +2,7 @@ package com.newoether.agora.viewmodel
 
 import com.newoether.agora.data.LocalChatModelConfig
 import com.newoether.agora.data.repository.SettingsRepository
+import com.newoether.agora.util.Constants
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
@@ -46,11 +47,11 @@ class ModelManager(
             }
             val models = settings.localChatModels.value.filter { it.id != uuid }
             settings.saveLocalChatModels(models)
-            val modelPrefixedId = "Local:${model?.modelId ?: uuid}"
+            val modelPrefixedId = "${Constants.PROVIDER_LOCAL}:${model?.modelId ?: uuid}"
             settings.setEnabledModels(settings.enabledModels.value - modelPrefixedId)
             val updatedAvailable = settings.availableModels.first().toMutableMap()
-            updatedAvailable["Local"] = models.map { "Local:${it.modelId}" }
-            settings.saveAvailableModels("Local", updatedAvailable["Local"] ?: emptyList())
+            updatedAvailable[Constants.PROVIDER_LOCAL] = models.map { "${Constants.PROVIDER_LOCAL}:${it.modelId}" }
+            settings.saveAvailableModels(Constants.PROVIDER_LOCAL, updatedAvailable[Constants.PROVIDER_LOCAL] ?: emptyList())
             settings.saveModelAliases(settings.modelAliases.value - modelPrefixedId)
         }
     }
@@ -72,15 +73,15 @@ class ModelManager(
             settings.saveLocalChatModels(models)
             // Update model references if modelId changed
             if (oldModel.modelId != newModelId) {
-                val oldPrefixed = "Local:${oldModel.modelId}"
-                val newPrefixed = "Local:$newModelId"
+                val oldPrefixed = "${Constants.PROVIDER_LOCAL}:${oldModel.modelId}"
+                val newPrefixed = "${Constants.PROVIDER_LOCAL}:$newModelId"
                 settings.setEnabledModels(settings.enabledModels.value - oldPrefixed + newPrefixed)
                 val avail = settings.availableModels.first().toMutableMap()
-                avail["Local"] = models.map { "Local:${it.modelId}" }
-                settings.saveAvailableModels("Local", avail["Local"] ?: emptyList())
+                avail[Constants.PROVIDER_LOCAL] = models.map { "${Constants.PROVIDER_LOCAL}:${it.modelId}" }
+                settings.saveAvailableModels(Constants.PROVIDER_LOCAL, avail[Constants.PROVIDER_LOCAL] ?: emptyList())
                 settings.saveModelAliases(settings.modelAliases.value - oldPrefixed + (newPrefixed to newAlias))
             } else {
-                settings.saveModelAliases(settings.modelAliases.value + ("Local:$newModelId" to newAlias))
+                settings.saveModelAliases(settings.modelAliases.value + ("${Constants.PROVIDER_LOCAL}:$newModelId" to newAlias))
             }
         }
     }

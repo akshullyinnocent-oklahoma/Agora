@@ -329,7 +329,7 @@ class RagManager(
     fun resolveEmbeddingApiKey(): String? {
         val keys = settings.apiKeys.value
         for (entry in keys) {
-            if (entry.provider == "OpenAI" || entry.provider == "DeepSeek" || entry.provider == "Qwen" || entry.provider == "Open Router") {
+            if (ProviderDefaults.isOpenAiCompatibleEmbedding(entry.provider)) {
                 return entry.key
             }
         }
@@ -337,7 +337,7 @@ class RagManager(
     }
 
     fun resolveEmbeddingBaseUrl(): String {
-        return settings.providerBaseUrls.value["OpenAI"] ?: ProviderDefaults.OPENAI_BASE_URL
+        return ProviderDefaults.openAiCompatibleBaseUrl(settings.providerBaseUrls.value)
     }
 
     data class EmbeddingKeyInfo(val provider: String, val key: String, val baseUrl: String)

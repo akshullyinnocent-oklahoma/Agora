@@ -157,7 +157,7 @@ class EmbeddingCacheWorker(
     private suspend fun resolveApiKey(settingsManager: SettingsManager): String? {
         val keys = settingsManager.apiKeys.first()
         for (entry in keys) {
-            if (entry.provider in listOf("OpenAI", "DeepSeek", "Qwen", "Open Router")) {
+            if (ProviderDefaults.isOpenAiCompatibleEmbedding(entry.provider)) {
                 return entry.key
             }
         }
@@ -165,6 +165,6 @@ class EmbeddingCacheWorker(
     }
 
     private suspend fun resolveBaseUrl(settingsManager: SettingsManager): String {
-        return settingsManager.providerBaseUrls.first()["OpenAI"] ?: ProviderDefaults.OPENAI_BASE_URL
+        return ProviderDefaults.openAiCompatibleBaseUrl(settingsManager.providerBaseUrls.first())
     }
 }

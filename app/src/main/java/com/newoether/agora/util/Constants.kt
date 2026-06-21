@@ -15,6 +15,21 @@ object Constants {
     const val MAX_WEB_FETCH_HTML_LENGTH = 80_000
     /** Max characters per tool result (prevents CursorWindow 2MB overflow) */
     const val MAX_TOOL_RESULT_LENGTH = 100_000
+    /** Timeout for fetching available models from a single provider (ms) */
+    const val MODEL_FETCH_TIMEOUT_MS = 10_000L
+    /** Search method identifier for RAG (vector/embedding) search */
+    const val SEARCH_METHOD_RAG = "rag"
+
+    // ── Provider name constants ────────────────────────────────
+    const val PROVIDER_LOCAL = "Local"
+    const val PROVIDER_OPENAI = "OpenAI"
+    const val PROVIDER_OLLAMA = "Ollama"
+    const val PROVIDER_GOOGLE = "Google"
+    const val PROVIDER_ANTHROPIC = "Anthropic"
+    const val PROVIDER_DEEPSEEK = "DeepSeek"
+    const val PROVIDER_QWEN = "Qwen"
+    const val PROVIDER_OPEN_ROUTER = "Open Router"
+    const val PROVIDER_UNKNOWN = "Unknown"
     /** Placeholder model ID used as StateFlow/DataStore cold-start fallback and
      *  template preview sample. NOT the real default model — it is overwritten
      *  as soon as the user selects a model or DataStore loads the persisted value. */

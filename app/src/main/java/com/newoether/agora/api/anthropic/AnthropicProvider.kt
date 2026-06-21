@@ -127,7 +127,7 @@ internal data class AnthropicUsage(
 )
 
 class AnthropicProvider : LlmProvider {
-    override val name: String = "Anthropic"
+    override val name: String = Constants.PROVIDER_ANTHROPIC
     override val defaultBaseUrl: String = "https://api.anthropic.com/v1"
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true; explicitNulls = false }
 

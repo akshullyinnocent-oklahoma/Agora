@@ -8,6 +8,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import com.newoether.agora.data.local.MessageEntity
+import com.newoether.agora.util.Constants
 import com.newoether.agora.viewmodel.ChatViewModel
 import kotlinx.coroutines.delay
 
@@ -33,7 +34,7 @@ internal class DrawerSearchState(
         } else {
             delay(200)
             if (query.isNotBlank()) {
-                results = if (method == "rag")
+                results = if (method == Constants.SEARCH_METHOD_RAG)
                     viewModel.semanticSearch(query)
                 else
                     viewModel.searchMessages(query).map { it to 0f }

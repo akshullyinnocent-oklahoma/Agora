@@ -95,6 +95,8 @@ import androidx.media3.ui.PlayerView
 import com.newoether.agora.R
 import com.newoether.agora.data.LocalChatModelConfig
 import com.newoether.agora.ui.components.providerIcon
+import com.newoether.agora.model.apiModelName
+import com.newoether.agora.util.Constants
 import com.newoether.agora.viewmodel.ChatViewModel
 import kotlin.math.absoluteValue
 import kotlinx.coroutines.Dispatchers
@@ -134,14 +136,18 @@ fun WelcomeScreen(
     val context = LocalContext.current
 
     // ── Onboarding state ──
-    val builtInProviders = listOf("Google", "OpenAI", "Anthropic", "DeepSeek", "Qwen", "Ollama", "Open Router")
+    val builtInProviders = listOf(
+        Constants.PROVIDER_GOOGLE, Constants.PROVIDER_OPENAI, Constants.PROVIDER_ANTHROPIC,
+        Constants.PROVIDER_DEEPSEEK, Constants.PROVIDER_QWEN, Constants.PROVIDER_OLLAMA,
+        Constants.PROVIDER_OPEN_ROUTER
+    )
     val customProviders by viewModel.settings.customProviders.collectAsState()
-    val allProviders = (builtInProviders + customProviders.map { it.name } + "Custom" + "Local").distinct()
+    val allProviders = (builtInProviders + customProviders.map { it.name } + "Custom" + Constants.PROVIDER_LOCAL).distinct()
     var selectedProvider by remember { mutableStateOf<String?>(null) }
     // True for any user-defined OpenAI-compatible provider (the "Custom" slot or an
     // already-created custom provider) — these need both a base URL and an API key.
     val isCustomProvider = selectedProvider != null &&
-        selectedProvider != "Local" && selectedProvider != "Ollama" &&
+        selectedProvider != Constants.PROVIDER_LOCAL && selectedProvider != Constants.PROVIDER_OLLAMA &&
         selectedProvider !in builtInProviders
     var apiKeyText by remember { mutableStateOf("") }
     var baseUrlText by remember { mutableStateOf("") }
@@ -158,11 +164,11 @@ fun WelcomeScreen(
     LaunchedEffect(selectedProvider) {
         val p = selectedProvider ?: return@LaunchedEffect
         when {
-            p == "Ollama" -> {
-                val url = existingProviderUrls["Ollama"]
+            p == Constants.PROVIDER_OLLAMA -> {
+                val url = existingProviderUrls[Constants.PROVIDER_OLLAMA]
                 if (!url.isNullOrBlank()) apiKeyText = url
             }
-            p == "Local" -> { /* no pre-fill */ }
+            p == Constants.PROVIDER_LOCAL -> { /* no pre-fill */ }
             p != "Custom" && p !in builtInProviders -> {
                 // Existing custom provider: pre-fill both its URL and key.
                 existingProviderUrls[p]?.takeIf { it.isNotBlank() }?.let { baseUrlText = it }
@@ -257,8 +263,8 @@ fun WelcomeScreen(
     val saveProviderCredentials: () -> Unit = save@{
         val p = selectedProvider ?: return@save
         when {
-            p == "Local" -> { /* handled by GGUF import */ }
-            p == "Ollama" -> if (apiKeyText.isNotBlank()) viewModel.settings.setProviderBaseUrl("Ollama", apiKeyText)
+            p == Constants.PROVIDER_LOCAL -> { /* handled by GGUF import */ }
+            p == Constants.PROVIDER_OLLAMA -> if (apiKeyText.isNotBlank()) viewModel.settings.setProviderBaseUrl(Constants.PROVIDER_OLLAMA, apiKeyText)
             isCustomProvider -> {
                 if (baseUrlText.isNotBlank()) {
                     if (customProviders.none { it.name == p }) viewModel.addCustomProvider(p, baseUrlText)
@@ -287,7 +293,7 @@ fun WelcomeScreen(
         // on every entry with the latest key; cancel on leave so an in-flight request
         // never lands off-screen (no list jump) and a stale key's result never wins.
         fetchJob?.cancel()
-        if (pagerState.currentPage == PAGE_MODEL_CONFIG && selectedProvider != null && selectedProvider != "Local") {
+        if (pagerState.currentPage == PAGE_MODEL_CONFIG && selectedProvider != null && selectedProvider != Constants.PROVIDER_LOCAL) {
             isFetchingModels = true
             fetchJob = scope.launch {
                 try {
@@ -368,8 +374,8 @@ fun WelcomeScreen(
                                 )
                                 PAGE_MODEL_CONFIG -> {
                                     val pModels = if (selectedProvider != null) availableModels[selectedProvider] ?: emptyList() else emptyList()
-                                    val lModels = localChatModels.map { "Local:${it.modelId}" }
-                                    val models = if (selectedProvider == "Local") lModels else pModels
+                                    val lModels = localChatModels.map { "${Constants.PROVIDER_LOCAL}:${it.modelId}" }
+                                    val models = if (selectedProvider == Constants.PROVIDER_LOCAL) lModels else pModels
                                     val applyModel: (String) -> Unit = { id ->
                                         selectedModelId = id
                                         viewModel.settings.setSelectedModel(id)
@@ -411,14 +417,14 @@ fun WelcomeScreen(
                         Column(Modifier.fillMaxWidth().padding(horizontal = 32.dp).alpha(contentAlpha)) {
                             val page = pages[index]
                             val title = when {
-                                index == PAGE_API_KEY && selectedProvider == "Local" -> stringResource(R.string.onboarding_gguf_title)
-                                index == PAGE_API_KEY && selectedProvider == "Ollama" -> stringResource(R.string.onboarding_server_url_title)
+                                index == PAGE_API_KEY && selectedProvider == Constants.PROVIDER_LOCAL -> stringResource(R.string.onboarding_gguf_title)
+                                index == PAGE_API_KEY && selectedProvider == Constants.PROVIDER_OLLAMA -> stringResource(R.string.onboarding_server_url_title)
                                 index == PAGE_API_KEY && isCustomProvider -> stringResource(R.string.onboarding_custom_title)
                                 else -> page.title
                             }
                             val desc = when {
-                                index == PAGE_API_KEY && selectedProvider == "Local" -> stringResource(R.string.onboarding_gguf_desc)
-                                index == PAGE_API_KEY && selectedProvider == "Ollama" -> stringResource(R.string.onboarding_ollama_desc)
+                                index == PAGE_API_KEY && selectedProvider == Constants.PROVIDER_LOCAL -> stringResource(R.string.onboarding_gguf_desc)
+                                index == PAGE_API_KEY && selectedProvider == Constants.PROVIDER_OLLAMA -> stringResource(R.string.onboarding_ollama_desc)
                                 index == PAGE_API_KEY && isCustomProvider -> stringResource(R.string.onboarding_custom_desc)
                                 index == PAGE_API_KEY && selectedProvider != null -> stringResource(R.string.onboarding_api_key_for, selectedProvider!!)
                                 else -> page.description
@@ -456,7 +462,7 @@ fun WelcomeScreen(
                         else {
                             // Credentials are saved by the page-leave effect (covers both
                             // swipe and this button), so we only advance here.
-                            if (pagerState.currentPage == PAGE_PROVIDER && selectedProvider != null && selectedProvider != "Local") apiKeyText = ""
+                            if (pagerState.currentPage == PAGE_PROVIDER && selectedProvider != null && selectedProvider != Constants.PROVIDER_LOCAL) apiKeyText = ""
                             scope.launch { pagerState.animateScrollToPage(pagerState.currentPage + 1, animationSpec = tween<Float>(500, easing = CubicBezierEasing(0.2f, 0.0f, 0.0f, 1.0f))) }
                         }
                     }, Modifier.fillMaxWidth(), shape = RoundedCornerShape(50), enabled = showContent, colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)) {
@@ -518,7 +524,7 @@ private fun ProviderPage(providers: List<String>, selected: String?, onSelect: (
                     Spacer(Modifier.width(8.dp))
                     when {
                         iconRes != 0 -> Icon(painterResource(iconRes), null, tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.size(20.dp))
-                        p == "Local" -> Icon(Icons.Filled.AutoAwesome, null, tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.size(20.dp))
+                        p == Constants.PROVIDER_LOCAL -> Icon(Icons.Filled.AutoAwesome, null, tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.size(20.dp))
                         p == "Custom" -> Icon(Icons.Filled.Tune, null, tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.size(20.dp))
                         else -> Icon(Icons.Filled.Cloud, null, tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.size(20.dp))
                     }
@@ -546,7 +552,7 @@ private fun ApiKeyPage(
             Column(Modifier.padding(32.dp).fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(stringResource(R.string.onboarding_no_provider), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-        } else if (provider == "Local") {
+        } else if (provider == Constants.PROVIDER_LOCAL) {
             val label = if (isImporting) stringResource(R.string.onboarding_importing)
                 else localModels.lastOrNull()?.alias ?: stringResource(R.string.onboarding_import_gguf)
             Column(Modifier.padding(32.dp).fillMaxWidth()) {
@@ -560,7 +566,7 @@ private fun ApiKeyPage(
                     Text(label, modifier = Modifier.padding(vertical = 6.dp))
                 }
             }
-        } else if (provider == "Ollama") {
+        } else if (provider == Constants.PROVIDER_OLLAMA) {
             val fm = LocalFocusManager.current
             Column(Modifier.padding(32.dp).fillMaxWidth().clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) { fm.clearFocus() }) {
                 val iconRes = providerIcon(provider)
@@ -676,7 +682,7 @@ private fun ModelPage(models: List<String>, modelAliases: Map<String, String>, s
                 Column(Modifier.verticalScroll(scrollState)) {
                     Spacer(Modifier.height(10.dp))
                     models.forEach { m ->
-                        val name = modelAliases[m] ?: com.newoether.agora.model.ModelId.parse(m).modelName.removePrefix("models/")
+                        val name = modelAliases[m] ?: com.newoether.agora.model.ModelId.parse(m).apiModelName
                         Row(Modifier.fillMaxWidth().padding(start = 8.dp, end = 20.dp).clip(RoundedCornerShape(28.dp)).clickable { onSelect(m) }.padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                             RadioButton(selected = selectedId == m, onClick = { onSelect(m) })
                             Spacer(Modifier.width(8.dp))

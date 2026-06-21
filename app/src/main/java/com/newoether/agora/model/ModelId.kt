@@ -1,5 +1,7 @@
 package com.newoether.agora.model
 
+import com.newoether.agora.util.Constants
+
 /**
  * Typed wrapper for model identifiers in "ProviderName:modelId" format.
  *
@@ -26,17 +28,15 @@ data class ModelId(
             // Legacy / unprefixed model IDs — match the heuristics in
             // ChatViewModel.getProviderForModel().
             val provider = when {
-                prefixed.startsWith("gpt-") || prefixed.startsWith("o1") || prefixed.startsWith("o3") -> "OpenAI"
-                prefixed.startsWith("claude-") -> "Anthropic"
-                prefixed.contains("deepseek") -> "DeepSeek"
-                prefixed.contains("qwen") -> "Qwen"
-                prefixed.contains("models/") || prefixed.startsWith("gemini") -> "Google"
-                else -> "Unknown"
+                prefixed.startsWith("gpt-") || prefixed.startsWith("o1") || prefixed.startsWith("o3") -> Constants.PROVIDER_OPENAI
+                prefixed.startsWith("claude-") -> Constants.PROVIDER_ANTHROPIC
+                prefixed.contains("deepseek") -> Constants.PROVIDER_DEEPSEEK
+                prefixed.contains("qwen") -> Constants.PROVIDER_QWEN
+                prefixed.contains("models/") || prefixed.startsWith("gemini") -> Constants.PROVIDER_GOOGLE
+                else -> Constants.PROVIDER_UNKNOWN
             }
             return ModelId(provider, prefixed)
         }
-
-        fun create(providerName: String, modelName: String) = ModelId(providerName, modelName)
     }
 }
 

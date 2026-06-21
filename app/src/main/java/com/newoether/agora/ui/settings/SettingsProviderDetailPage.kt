@@ -36,6 +36,7 @@ import androidx.compose.ui.unit.dp
 import com.newoether.agora.R
 import com.newoether.agora.data.ApiKeyEntry
 import com.newoether.agora.data.LocalChatModelConfig
+import com.newoether.agora.util.Constants
 import com.newoether.agora.util.noOpBringIntoView
 import com.newoether.agora.viewmodel.ChatViewModel
 import kotlinx.coroutines.Dispatchers
@@ -55,7 +56,7 @@ fun SettingsProviderDetailPage(
     val customProviders by viewModel.settings.customProviders.collectAsState()
     val localChatModels by viewModel.settings.localChatModels.collectAsState()
 
-    val isLocal = providerName == "Local"
+    val isLocal = providerName == Constants.PROVIDER_LOCAL
     val isCustom = customProviders.any { it.name == providerName }
 
     val context = LocalContext.current
@@ -485,7 +486,7 @@ fun SettingsProviderDetailPage(
     if (showRenameProvider) {
         var renameValue by remember { mutableStateOf(providerName) }
         var renameError by remember { mutableStateOf(false) }
-        val allNames = listOf("Google", "OpenAI", "Anthropic", "DeepSeek", "Qwen", "Ollama", "Open Router") + customProviders.map { it.name }
+        val allNames = listOf(Constants.PROVIDER_GOOGLE, Constants.PROVIDER_OPENAI, Constants.PROVIDER_ANTHROPIC, Constants.PROVIDER_DEEPSEEK, Constants.PROVIDER_QWEN, Constants.PROVIDER_OLLAMA, Constants.PROVIDER_OPEN_ROUTER) + customProviders.map { it.name }
         AlertDialog(containerColor = MaterialTheme.colorScheme.surfaceContainer, onDismissRequest = { showRenameProvider = false }, title = { Text(stringResource(R.string.custom_provider_rename_title), fontWeight = FontWeight.Bold) }, text = {
             OutlinedTextField(value = renameValue, onValueChange = { renameValue = it; renameError = false }, label = { Text(stringResource(R.string.custom_provider_name_label)) }, isError = renameError, supportingText = if (renameError) {{ Text(stringResource(R.string.custom_provider_name_error)) }} else null, shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth(), singleLine = true)
         }, confirmButton = { TextButton(onClick = {

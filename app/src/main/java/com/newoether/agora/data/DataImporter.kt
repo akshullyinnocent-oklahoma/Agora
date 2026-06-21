@@ -10,6 +10,7 @@ import com.newoether.agora.model.AttachmentMeta
 import com.newoether.agora.model.MessageStatus
 import com.newoether.agora.model.Participant
 import com.newoether.agora.model.ThinkingLevels
+import com.newoether.agora.util.DebugLog
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
@@ -142,14 +143,14 @@ class DataImporter(
                 try {
                     val data = importJson.decodeFromString<ExportConversations>(json.decodeToString())
                     conversationCount = data.conversations.size
-                } catch (_: Exception) {}
+                } catch (e: Exception) { DebugLog.e("DataImporter", "Failed to parse conversations.json", e) }
             }
 
             entries["system_prompts.json"]?.let { json ->
                 try {
                     val data = importJson.decodeFromString<List<SystemPromptEntry>>(json.decodeToString())
                     systemPromptCount = data.size
-                } catch (_: Exception) {}
+                } catch (e: Exception) { DebugLog.e("DataImporter", "Failed to parse system_prompts.json", e) }
             }
 
             ImportPreview(
@@ -250,7 +251,7 @@ class DataImporter(
                                         if (item.type == "video") item.copy(originalUri = videoPath) else item
                                     }
                                     updated = updated.copy(attachmentMeta = Json.encodeToString(AttachmentMeta(items = adjustedItems)))
-                                } catch (_: Exception) {}
+                                } catch (e: Exception) { DebugLog.e("DataImporter", "Failed to parse attachment metadata", e) }
                             }
                             updated
                         }

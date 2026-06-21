@@ -25,7 +25,9 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.newoether.agora.R
 import com.newoether.agora.model.ModelId
+import com.newoether.agora.model.apiModelName
 import com.newoether.agora.ui.components.providerIcon
+import com.newoether.agora.util.Constants
 import com.newoether.agora.util.noOpBringIntoView
 import com.newoether.agora.viewmodel.ChatViewModel
 import kotlinx.coroutines.delay
@@ -116,7 +118,7 @@ fun SettingsImageGenPage(viewModel: ChatViewModel, onBack: () -> Unit) {
                     // Only a properly prefixed "Provider:modelId" counts as a real selection;
                     // legacy/bare ids (e.g. an old "gpt-image-1") render as "no model selected".
                     val parsed = selectedModel?.takeIf { it.contains(":") }?.let { ModelId.parse(it) }
-                    val displayName = parsed?.let { modelAliases[selectedModel] ?: it.modelName.removePrefix("models/") }
+                    val displayName = parsed?.let { modelAliases[selectedModel] ?: it.apiModelName }
                         ?: stringResource(R.string.image_gen_no_model)
                     val providerName = parsed?.providerName
                     val iconRes = providerName?.let { providerIcon(it) } ?: 0
@@ -130,7 +132,7 @@ fun SettingsImageGenPage(viewModel: ChatViewModel, onBack: () -> Unit) {
                         leadingContent = {
                             when {
                                 parsed == null -> Icon(Icons.Default.Chat, null, tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f))
-                                providerName.equals("Local", ignoreCase = true) -> Icon(Icons.Default.AutoAwesome, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp))
+                                providerName.equals(Constants.PROVIDER_LOCAL, ignoreCase = true) -> Icon(Icons.Default.AutoAwesome, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp))
                                 iconRes != 0 -> Icon(painterResource(iconRes), null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp))
                                 else -> Icon(Icons.Default.Cloud, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp))
                             }
@@ -209,7 +211,7 @@ fun SettingsImageGenPage(viewModel: ChatViewModel, onBack: () -> Unit) {
                         LazyColumn(modifier = Modifier.fillMaxWidth()) {
                             items(pickList) { model ->
                             val parsed = ModelId.parse(model)
-                            val displayName = modelAliases[model] ?: parsed.modelName.removePrefix("models/")
+                            val displayName = modelAliases[model] ?: parsed.apiModelName
                             SettingsItem(
                                 headlineContent = { Text(displayName, fontWeight = if (selectedModel == model) FontWeight.Bold else FontWeight.Normal) },
                                 supportingContent = { Text(parsed.providerName, style = MaterialTheme.typography.bodySmall) },
