@@ -195,177 +195,12 @@ fun ChatBottomBar(
 
             Column(modifier = Modifier.fillMaxWidth().then(if (isExpanded) Modifier.weight(1f) else Modifier).animateContentSize(tween(400))) {
         if (composer.selectedAttachments.isNotEmpty() && !isExpanded) {
-            val allMediaUrls = composer.selectedAttachments.filter {
-                it.type == "image" || it.type == "video"
-            }.map { it.uri }
-            androidx.compose.foundation.lazy.LazyRow(
-                modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp, start = 8.dp, end = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                items(composer.selectedAttachments.size) { index ->
-                    val attachment = composer.selectedAttachments[index]
-                    val uriStr = attachment.uri
-                    val isVideo = attachment.type == "video"
-                    val isPdf = attachment.type == "pdf"
-                    val isFile = attachment.type == "file"
-                    val isProcessing = uriStr in composer.processingStates
-                    val progress = composer.processingStates[uriStr] ?: 0f
-
-                    var videoThumb by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
-                    LaunchedEffect(uriStr, isVideo) {
-                        if (isVideo && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                            try {
-                                videoThumb = withContext(Dispatchers.IO) {
-                                    context.contentResolver.loadThumbnail(
-                                        Uri.parse(uriStr), android.util.Size(128, 128), null
-                                    )
-                                }
-                            } catch (_: Exception) {}
-                        }
-                    }
-
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier.width(64.dp).padding(top = 5.dp)
-                    ) {
-                        Box {
-                            val clickableMod = when {
-                                isFile -> {
-                                    if (onFileContentClick != null) Modifier.clickable {
-                                        val content = readFileContent(context, uriStr)
-                                        onFileContentClick(attachment.fileName ?: uriStr, content)
-                                    } else Modifier
-                                }
-                                isPdf -> {
-                                    if (onPdfPagesClick != null) Modifier.clickable {
-                                        val allPaths = attachment.preRenderedPaths ?: emptyList()
-                                        val sel = attachment.selectedPages
-                                        val paths = if (sel != null && allPaths.isNotEmpty()) {
-                                            allPaths.filterIndexed { i, _ -> i in sel }
-                                        } else allPaths
-                                        onPdfPagesClick(paths, 0)
-                                    } else Modifier
-                                }
-                                isVideo -> {
-                                    val mediaIndex = allMediaUrls.indexOf(uriStr).coerceAtLeast(0)
-                                    Modifier.combinedClickable(
-                                        onClick = { onAllMediaClick?.invoke(allMediaUrls, mediaIndex) },
-                                        onLongClick = { haptics.longPress() }
-                                    )
-                                }
-                                else -> {
-                                    val mediaIndex = allMediaUrls.indexOf(uriStr).coerceAtLeast(0)
-                                    Modifier.combinedClickable(
-                                        onClick = { onAllMediaClick?.invoke(allMediaUrls, mediaIndex) },
-                                        onLongClick = { haptics.longPress() }
-                                    )
-                                }
-                            }
-                            val thumbModifier = Modifier
-                                .size(64.dp)
-                                .clip(RoundedCornerShape(8.dp))
-                                .then(clickableMod)
-
-                            when {
-                                isVideo && videoThumb != null -> {
-                                    Image(
-                                        bitmap = videoThumb!!.asImageBitmap(),
-                                        contentDescription = stringResource(R.string.video_thumbnail),
-                                        modifier = thumbModifier,
-                                        contentScale = androidx.compose.ui.layout.ContentScale.Crop
-                                    )
-                                    Icon(
-                                        Icons.Default.PlayArrow,
-                                        contentDescription = stringResource(R.string.play),
-                                        tint = Color.White,
-                                        modifier = Modifier
-                                            .align(Alignment.Center)
-                                            .size(24.dp)
-                                            .background(Color.Black.copy(alpha = 0.5f), CircleShape)
-                                            .padding(4.dp)
-                                    )
-                                }
-                                isVideo -> {
-                                    Box(
-                                        modifier = thumbModifier
-                                            .background(MaterialTheme.colorScheme.surfaceVariant),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Icon(
-                                            Icons.Default.Videocam,
-                                            stringResource(R.string.video),
-                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            modifier = Modifier.size(28.dp)
-                                        )
-                                    }
-                                }
-                                isPdf -> {
-                                    FileThumbnail(fileName = null, isPdf = true, modifier = thumbModifier)
-                                }
-                                isFile -> {
-                                    FileThumbnail(fileName = attachment.fileName ?: uriStr, isPdf = false, modifier = thumbModifier)
-                                }
-                                else -> {
-                                    coil.compose.AsyncImage(
-                                        model = uriStr,
-                                        contentDescription = null,
-                                        modifier = thumbModifier,
-                                        contentScale = androidx.compose.ui.layout.ContentScale.Crop
-                                    )
-                                }
-                            }
-
-                            // Processing indicator overlay
-                            if (isProcessing) {
-                                Box(
-                                    modifier = Modifier
-                                        .matchParentSize()
-                                        .clip(RoundedCornerShape(8.dp))
-                                        .background(Color.Black.copy(alpha = 0.4f)),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    CircularProgressIndicator(
-                                        progress = { progress },
-                                        modifier = Modifier.size(24.dp),
-                                        strokeWidth = 2.dp,
-                                        color = Color.White
-                                    )
-                                }
-                            }
-
-                            Box(
-                                modifier = Modifier
-                                    .align(Alignment.TopEnd)
-                                    .offset(x = 5.dp, y = (-5).dp)
-                                .size(18.dp)
-                                .background(Color.Black.copy(alpha = 0.8f), CircleShape)
-                                .clip(RoundedCornerShape(18.dp))
-                                .clickable {
-                                    composer.removeAttachmentAt(index)
-                                },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Close,
-                                contentDescription = stringResource(R.string.remove),
-                                tint = Color.White,
-                                modifier = Modifier.size(10.dp)
-                            )
-                        }
-                        }
-                        if ((isFile || isPdf) && attachment.fileName != null) {
-                            Text(
-                                text = attachment.fileName,
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.padding(top = 2.dp)
-                            )
-                        }
-                    }
-                }
-            }
+            AttachmentPreviewRow(
+                composer = composer,
+                onAllMediaClick = onAllMediaClick,
+                onFileContentClick = onFileContentClick,
+                onPdfPagesClick = onPdfPagesClick,
+            )
         }
 
         Box(modifier = Modifier.fillMaxWidth().then(if (isExpanded) Modifier.weight(1f) else Modifier).noOpBringIntoView()) {
@@ -731,68 +566,16 @@ fun ChatBottomBar(
                     }
                 }
             }
-            // Pending send: wait for processing to finish, then auto-send
-            val anyProcessing = composer.processingStates.isNotEmpty()
-            LaunchedEffect(composer.pendingSend, anyProcessing) {
-                if (composer.pendingSend && !anyProcessing) {
-                    if (onSendMessage(textFieldState.text.toString(), composer.selectedAttachments)) {
-                        composer.clearAttachments()
-                        textFieldState.edit { replace(0, length, "") }
-                        onCollapse()
-                    }
-                    composer.pendingSend = false
-                }
-            }
-            val canSend = (textFieldState.text.isNotBlank() || composer.selectedAttachments.isNotEmpty()) && !isLoading && isModelValid && !isSwitching
-            val isActionable = (isLoading || canSend || composer.pendingSend) && !isSwitching
-            FloatingActionButton(
-                onClick = {
-                    if (isSwitching) return@FloatingActionButton
-                    if (isLoading) onStopGeneration()
-                    else if (composer.pendingSend) {
-                        haptics.selection()
-                        composer.pendingSend = false
-                    }
-                    else if (canSend) {
-                        if (anyProcessing) {
-                            haptics.action()
-                            composer.pendingSend = true
-                        } else {
-                            if (onSendMessage(textFieldState.text.toString(), composer.selectedAttachments)) {
-                                composer.clearAttachments()
-                                textFieldState.edit { replace(0, length, "") }
-                                onCollapse()
-                            }
-                        }
-                    }
-                },
-                containerColor = animateColorAsState(if (isActionable) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant, tween(400), label = "fabContainer").value,
-                contentColor = animateColorAsState(if (isActionable) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant, tween(400), label = "fabContent").value,
-                modifier = Modifier.size(46.dp),
-                shape = CircleShape,
-                elevation = FloatingActionButtonDefaults.elevation(0.dp, 0.dp, 0.dp, 0.dp)
-            ) {
-                val fabIcon = when {
-                    composer.pendingSend -> "pending"
-                    isLoading -> "stop"
-                    else -> "send"
-                }
-                AnimatedContent(
-                    targetState = fabIcon,
-                    transitionSpec = { fadeIn(tween(200)) togetherWith fadeOut(tween(200)) },
-                    label = "fabIcon"
-                ) { state ->
-                    when (state) {
-                        "pending" -> CircularProgressIndicator(
-                            modifier = Modifier.size(24.dp),
-                            strokeWidth = 2.dp,
-                            color = MaterialTheme.colorScheme.onPrimary
-                        )
-                        "stop" -> Icon(Icons.Default.Stop, stringResource(R.string.action), modifier = Modifier.size(24.dp))
-                        else -> Icon(Icons.Default.ArrowUpward, stringResource(R.string.action), modifier = Modifier.size(24.dp))
-                    }
-                }
-            }
+            ComposerSendButton(
+                textFieldState = textFieldState,
+                composer = composer,
+                isLoading = isLoading,
+                isSwitching = isSwitching,
+                isModelValid = isModelValid,
+                onSendMessage = onSendMessage,
+                onStopGeneration = onStopGeneration,
+                onCollapse = onCollapse,
+            )
         }
         }
         AnimatedVisibility(
