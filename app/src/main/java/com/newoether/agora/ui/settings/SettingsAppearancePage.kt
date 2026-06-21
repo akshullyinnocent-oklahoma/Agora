@@ -60,32 +60,69 @@ fun SettingsAppearancePage(viewModel: ChatViewModel, onBack: () -> Unit) {
                 // ── Theme Mode ──
                 SettingsGroup(
                     title = stringResource(R.string.theme_mode),
-                    items = listOf(
-                        {
-                            ThemeModeOption(
-                                label = stringResource(R.string.theme_mode_light),
-                                icon = Icons.Default.LightMode,
-                                selected = themeMode == "LIGHT",
-                                onClick = { viewModel.settings.setThemeMode("LIGHT") }
-                            )
-                        },
-                        {
-                            ThemeModeOption(
-                                label = stringResource(R.string.theme_mode_dark),
-                                icon = Icons.Default.DarkMode,
-                                selected = themeMode == "DARK",
-                                onClick = { viewModel.settings.setThemeMode("DARK") }
-                            )
-                        },
-                        {
-                            ThemeModeOption(
-                                label = stringResource(R.string.theme_mode_follow_device),
-                                icon = Icons.Default.SettingsBrightness,
-                                selected = themeMode != "LIGHT" && themeMode != "DARK",
-                                onClick = { viewModel.settings.setThemeMode("FOLLOW_DEVICE") }
-                            )
+                    items = listOf {
+                        var expanded by remember { mutableStateOf(false) }
+                        val selectedLabel = when (themeMode) {
+                            "LIGHT" -> stringResource(R.string.theme_mode_light)
+                            "DARK" -> stringResource(R.string.theme_mode_dark)
+                            else -> stringResource(R.string.theme_mode_follow_device)
                         }
-                    )
+                        val selectedIcon = when (themeMode) {
+                            "LIGHT" -> Icons.Default.LightMode
+                            "DARK" -> Icons.Default.DarkMode
+                            else -> Icons.Default.SettingsBrightness
+                        }
+                        val options = listOf(
+                            "LIGHT" to Pair(stringResource(R.string.theme_mode_light), Icons.Default.LightMode),
+                            "DARK" to Pair(stringResource(R.string.theme_mode_dark), Icons.Default.DarkMode),
+                            "FOLLOW_DEVICE" to Pair(stringResource(R.string.theme_mode_follow_device), Icons.Default.SettingsBrightness)
+                        )
+                        SettingsItem(
+                            headlineContent = { Text(stringResource(R.string.theme_mode)) },
+                            supportingContent = { Text(selectedLabel) },
+                            leadingContent = {
+                                Icon(selectedIcon, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp))
+                            },
+                            trailingContent = {
+                                Box {
+                                    Text(
+                                        selectedLabel,
+                                        style = MaterialTheme.typography.labelLarge,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.width(88.dp).padding(end = 4.dp),
+                                        textAlign = TextAlign.End,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    DropdownMenu(
+                                        expanded = expanded,
+                                        onDismissRequest = { expanded = false },
+                                        containerColor = MaterialTheme.colorScheme.surfaceContainer,
+                                        tonalElevation = 16.dp,
+                                        shape = RoundedCornerShape(12.dp)
+                                    ) {
+                                        options.forEach { (mode, pair) ->
+                                            val (label, icon) = pair
+                                            val isSelected = when (mode) {
+                                                "LIGHT" -> themeMode == "LIGHT"
+                                                "DARK" -> themeMode == "DARK"
+                                                else -> themeMode != "LIGHT" && themeMode != "DARK"
+                                            }
+                                            DropdownMenuItem(
+                                                text = { Text(label) },
+                                                leadingIcon = {
+                                                    if (isSelected) Icon(Icons.Default.Check, null, tint = MaterialTheme.colorScheme.primary)
+                                                },
+                                                trailingIcon = { Icon(icon, null) },
+                                                onClick = { viewModel.settings.setThemeMode(mode); expanded = false }
+                                            )
+                                        }
+                                    }
+                                }
+                            },
+                            modifier = Modifier.clickable { expanded = true }
+                        )
+                    }
                 )
 
                 // ── Interface ──
@@ -147,8 +184,8 @@ fun SettingsAppearancePage(viewModel: ChatViewModel, onBack: () -> Unit) {
                                             selectedLabel,
                                             style = MaterialTheme.typography.labelLarge,
                                             color = MaterialTheme.colorScheme.primary,
-                                            modifier = Modifier.width(96.dp),
-                                            textAlign = TextAlign.Center,
+                                            modifier = Modifier.width(88.dp).padding(end = 4.dp),
+                                            textAlign = TextAlign.End,
                                             maxLines = 1,
                                             overflow = TextOverflow.Ellipsis
                                         )
@@ -198,87 +235,110 @@ fun SettingsAppearancePage(viewModel: ChatViewModel, onBack: () -> Unit) {
                 val schemeAlpha = if (dynamicColor && isDynamicAvailable) 0.38f else 1f
                 SettingsGroup(
                     title = stringResource(R.string.color_scheme),
-                    items = ColorSchemePreset.entries.map { preset ->
-                        {
-                            val presetPrimary = remember(preset, currentStyle, isDark) {
-                                colorSchemeForPreset(preset, currentStyle, isDark).primary
-                            }
-                            SettingsItem(
-                                headlineContent = {
-                                    Text(
-                                        text = presetDisplayName(preset),
-                                        fontWeight = if (preset == currentPreset) FontWeight.Bold else FontWeight.Normal
-                                    )
-                                },
-                                leadingContent = {
-                                    RadioButton(
-                                        selected = preset == currentPreset,
-                                        onClick = { viewModel.settings.setColorScheme(preset.name) },
-                                        enabled = !dynamicColor || !isDynamicAvailable
-                                    )
-                                },
-                                trailingContent = {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(32.dp)
-                                            .clip(CircleShape)
-                                            .background(presetPrimary)
-                                    )
-                                },
-                                modifier = Modifier
-                                    .alpha(schemeAlpha)
-                                    .clickable(enabled = schemeAlpha > 0.5f) { viewModel.settings.setColorScheme(preset.name) },
-                                leadingSpacing = 8.dp
-                            )
+                    items = listOf {
+                        var expanded by remember { mutableStateOf(false) }
+                        val currentLabel = presetDisplayName(currentPreset)
+                        val currentPrimary = remember(currentPreset, currentStyle, isDark) {
+                            colorSchemeForPreset(currentPreset, currentStyle, isDark).primary
                         }
+                        SettingsItem(
+                            headlineContent = { Text(stringResource(R.string.color_scheme)) },
+                            supportingContent = { Text(currentLabel) },
+                            leadingContent = {
+                                Box(
+                                    modifier = Modifier
+                                        .size(24.dp)
+                                        .clip(CircleShape)
+                                        .background(currentPrimary)
+                                )
+                            },
+                            trailingContent = {
+                                Box {
+                                    Text(
+                                        currentLabel,
+                                        style = MaterialTheme.typography.labelLarge,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.width(88.dp).padding(end = 4.dp),
+                                        textAlign = TextAlign.End,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    DropdownMenu(
+                                        expanded = expanded,
+                                        onDismissRequest = { expanded = false },
+                                        containerColor = MaterialTheme.colorScheme.surfaceContainer,
+                                        tonalElevation = 16.dp,
+                                        shape = RoundedCornerShape(12.dp)
+                                    ) {
+                                        ColorSchemePreset.entries.forEach { preset ->
+                                            val presetPrimary = remember(preset, currentStyle, isDark) {
+                                                colorSchemeForPreset(preset, currentStyle, isDark).primary
+                                            }
+                                            DropdownMenuItem(
+                                                text = { Text(presetDisplayName(preset)) },
+                                                leadingIcon = {
+                                                    if (preset == currentPreset) Icon(Icons.Default.Check, null, tint = MaterialTheme.colorScheme.primary)
+                                                },
+                                                trailingIcon = {
+                                                    Box(modifier = Modifier.size(20.dp).clip(CircleShape).background(presetPrimary))
+                                                },
+                                                onClick = { viewModel.settings.setColorScheme(preset.name); expanded = false }
+                                            )
+                                        }
+                                    }
+                                }
+                            },
+                            modifier = Modifier.alpha(schemeAlpha).clickable(enabled = schemeAlpha > 0.5f) { expanded = true }
+                        )
                     }
                 )
 
                 // ── Scheme Style ──
                 SettingsGroup(
                     title = stringResource(R.string.scheme_style),
-                items = SchemeStyle.entries.map { style ->
-                    {
+                    items = listOf {
+                        var expanded by remember { mutableStateOf(false) }
+                        val currentLabel = styleDisplayName(currentStyle)
                         SettingsItem(
-                            headlineContent = {
-                                Text(
-                                    text = styleDisplayName(style),
-                                    fontWeight = if (style == currentStyle) FontWeight.Bold else FontWeight.Normal
-                                )
+                            headlineContent = { Text(stringResource(R.string.scheme_style)) },
+                            supportingContent = { Text(currentLabel) },
+                            trailingContent = {
+                                Box {
+                                    Text(
+                                        currentLabel,
+                                        style = MaterialTheme.typography.labelLarge,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.width(88.dp).padding(end = 4.dp),
+                                        textAlign = TextAlign.End,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    DropdownMenu(
+                                        expanded = expanded,
+                                        onDismissRequest = { expanded = false },
+                                        containerColor = MaterialTheme.colorScheme.surfaceContainer,
+                                        tonalElevation = 16.dp,
+                                        shape = RoundedCornerShape(12.dp)
+                                    ) {
+                                        SchemeStyle.entries.forEach { style ->
+                                            DropdownMenuItem(
+                                                text = { Text(styleDisplayName(style)) },
+                                                leadingIcon = {
+                                                    if (style == currentStyle) Icon(Icons.Default.Check, null, tint = MaterialTheme.colorScheme.primary)
+                                                },
+                                                onClick = { viewModel.settings.setSchemeStyle(style.name); expanded = false }
+                                            )
+                                        }
+                                    }
+                                }
                             },
-                            leadingContent = {
-                                RadioButton(
-                                    selected = style == currentStyle,
-                                    onClick = { viewModel.settings.setSchemeStyle(style.name) },
-                                    enabled = !dynamicColor || !isDynamicAvailable
-                                )
-                            },
-                            modifier = Modifier
-                                .alpha(schemeAlpha)
-                                .clickable(enabled = schemeAlpha > 0.5f) { viewModel.settings.setSchemeStyle(style.name) },
-                            leadingSpacing = 8.dp
+                            modifier = Modifier.alpha(schemeAlpha).clickable(enabled = schemeAlpha > 0.5f) { expanded = true }
                         )
                     }
-                }
-            )
+                )
             }
             if (showDocFab) { Spacer(modifier = Modifier.height(80.dp)) }
     }
-}
-
-@Composable
-private fun ThemeModeOption(label: String, icon: androidx.compose.ui.graphics.vector.ImageVector, selected: Boolean, onClick: () -> Unit) {
-    SettingsItem(
-        headlineContent = { Text(label, fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal) },
-        leadingContent = {
-            RadioButton(selected = selected, onClick = onClick)
-        },
-        trailingContent = {
-            Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-        },
-        modifier = Modifier.clickable { onClick() },
-        leadingSpacing = 8.dp
-    )
 }
 
 @Composable

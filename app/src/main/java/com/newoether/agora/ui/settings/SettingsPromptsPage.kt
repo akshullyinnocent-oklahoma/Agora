@@ -211,7 +211,8 @@ private fun PromptList(
                                     }
                                 }
                             },
-                            modifier = Modifier.clickable { onSelectPrompt(entry.id) }.padding(start = 16.dp)
+                            leadingSpacing = 16.dp,
+                            modifier = Modifier.clickable { onSelectPrompt(entry.id) }.padding(start = 8.dp)
                         )
                     }
                 }

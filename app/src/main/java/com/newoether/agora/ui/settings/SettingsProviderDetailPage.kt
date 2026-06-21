@@ -14,6 +14,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
@@ -190,6 +191,14 @@ fun SettingsProviderDetailPage(
                                 SettingsItem(
                                     modifier = Modifier.clickable { showEditModelDialog = model },
                                     headlineContent = { Text(model.alias, fontWeight = FontWeight.Medium) },
+                                    leadingContent = {
+                                        Icon(
+                                            Icons.Default.AutoAwesome,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(24.dp)
+                                        )
+                                    },
                                     supportingContent = {
                                         Row(
                                             horizontalArrangement = Arrangement.spacedBy(6.dp),
