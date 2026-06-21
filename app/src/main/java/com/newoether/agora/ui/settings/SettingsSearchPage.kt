@@ -78,7 +78,6 @@ fun SettingsSearchPage(viewModel: ChatViewModel, onBack: () -> Unit) {
     LaunchedEffect(ragThreshold) { localThreshold = ragThreshold }
     var renameText by remember { mutableStateOf("") }
     // Embedding provider presets
-    data class EmbeddingProviderPreset(val name: String, val baseUrl: String, val models: List<String>)
     val embeddingProviders = listOf(
         EmbeddingProviderPreset("OpenAI", ProviderDefaults.embeddingBaseUrl("OpenAI"), listOf("text-embedding-3-small", "text-embedding-3-large", "text-embedding-ada-002")),
         EmbeddingProviderPreset("Mistral", ProviderDefaults.embeddingBaseUrl("Mistral"), listOf("mistral-embed")),
@@ -87,21 +86,12 @@ fun SettingsSearchPage(viewModel: ChatViewModel, onBack: () -> Unit) {
         EmbeddingProviderPreset("Ollama", ProviderDefaults.embeddingBaseUrl("Ollama"), emptyList()),
         EmbeddingProviderPreset("Custom", "", emptyList())
     )
-    var remoteName by remember { mutableStateOf("") }
-    var selectedProviderIdx by remember { mutableIntStateOf(0) }
-    var remoteModelName by remember { mutableStateOf("") }
-    var remoteBaseUrl by remember { mutableStateOf("") }
-    val remoteApiKeys = remember { mutableStateListOf(*Array(embeddingProviders.size) { "" }) }
-    var remoteBatchSize by remember { mutableStateOf("8") }
-    var showRemoteModelDropdown by remember { mutableStateOf(false) }
-    var isCustomModel by remember { mutableStateOf(false) }
+    val remoteState = rememberRemoteEmbeddingDialogState(embeddingProviders.size)
     var localName by remember { mutableStateOf("") }
     var localFilePath by remember { mutableStateOf("") }
     var localBatchSize by remember { mutableStateOf("8") }
     var isImporting by remember { mutableStateOf(false) }
     var showGgufError by remember { mutableStateOf(false) }
-    var testStatus by remember { mutableStateOf<String?>(null) }
-    var isTesting by remember { mutableStateOf(false) }
 
     LaunchedEffect(embeddingModels.size) {
         showMenuForModel = null
@@ -347,16 +337,10 @@ fun SettingsSearchPage(viewModel: ChatViewModel, onBack: () -> Unit) {
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             TextButton(onClick = {
-                                remoteName = ""
-                                selectedProviderIdx = 0
-                                remoteModelName = embeddingProviders[0].models.firstOrNull() ?: ""
-                                remoteBaseUrl = embeddingProviders[0].baseUrl
-                                for (i in remoteApiKeys.indices) { remoteApiKeys[i] = "" }
-                                remoteApiKeys[0] = viewModel.resolveEmbeddingKeyForProviderExact("OpenAI")?.key ?: ""
-                                remoteBatchSize = "8"
-                                isCustomModel = false
-                                testStatus = null
-                                isTesting = false
+                                remoteState.prepareForNew(
+                                    embeddingProviders[0],
+                                    viewModel.resolveEmbeddingKeyForProviderExact("OpenAI")?.key ?: ""
+                                )
                                 showRemoteDialog = true
                             }) { Text(stringResource(R.string.add_remote_model)) }
                             TextButton(onClick = {
@@ -500,211 +484,11 @@ fun SettingsSearchPage(viewModel: ChatViewModel, onBack: () -> Unit) {
             if (showDocFab) { Spacer(modifier = Modifier.height(80.dp)) }
 
         if (showRemoteDialog) {
-            val provider = embeddingProviders[selectedProviderIdx]
-            AlertDialog(
-                containerColor = MaterialTheme.colorScheme.surfaceContainer,
-                onDismissRequest = { showRemoteDialog = false; testStatus = null },
-                title = { Text(stringResource(R.string.add_remote_model), fontWeight = FontWeight.Bold) },
-                text = {
-                    Column {
-                        // Provider selector
-                        var provExpanded by remember { mutableStateOf(false) }
-                        OutlinedTextField(
-                            value = provider.name,
-                            onValueChange = { },
-                            readOnly = true,
-                            label = { Text(stringResource(R.string.embedding_provider_label)) },
-                            trailingIcon = {
-                                Box {
-                                    IconButton(onClick = { provExpanded = true }) {
-                                        Icon(Icons.Default.ArrowDropDown, null)
-                                    }
-                                    DropdownMenu(
-                                        expanded = provExpanded,
-                                        onDismissRequest = { provExpanded = false },
-                                        containerColor = MaterialTheme.colorScheme.surfaceContainer,
-                                        shape = RoundedCornerShape(12.dp)
-                                    ) {
-                                        embeddingProviders.forEachIndexed { idx, p ->
-                                            DropdownMenuItem(
-                                                text = { Text(p.name) },
-                                                onClick = {
-                                                    selectedProviderIdx = idx
-                                                    remoteBaseUrl = p.baseUrl
-                                                    if (idx == 0 && remoteApiKeys[0].isBlank()) {
-                                                        remoteApiKeys[0] = viewModel.resolveEmbeddingKeyForProviderExact("OpenAI")?.key ?: ""
-                                                    }
-                                                    if (p.models.isNotEmpty()) {
-                                                        remoteModelName = p.models.first()
-                                                        isCustomModel = false
-                                                    } else {
-                                                        remoteModelName = ""
-                                                        isCustomModel = true
-                                                    }
-                                                    provExpanded = false
-                                                }
-                                            )
-                                        }
-                                    }
-                                }
-                            },
-                            singleLine = true,
-                            shape = RoundedCornerShape(16.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                        Spacer(modifier = Modifier.height(12.dp))
-                        // API Key
-                        val currentKey = remoteApiKeys[selectedProviderIdx]
-                        OutlinedTextField(
-                            value = currentKey,
-                            onValueChange = { remoteApiKeys[selectedProviderIdx] = it },
-                            label = { Text(stringResource(R.string.embedding_api_key)) },
-                            placeholder = { Text(stringResource(R.string.embedding_api_key_hint)) },
-                            visualTransformation = PasswordVisualTransformation(),
-                            singleLine = true,
-                            shape = RoundedCornerShape(16.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                        Spacer(modifier = Modifier.height(12.dp))
-                        // Base URL
-                        OutlinedTextField(
-                            value = remoteBaseUrl,
-                            onValueChange = { remoteBaseUrl = it },
-                            readOnly = !isCustomModel,
-                            label = { Text(stringResource(R.string.embedding_base_url_label)) },
-                            singleLine = true,
-                            shape = RoundedCornerShape(16.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                        Spacer(modifier = Modifier.height(12.dp))
-                        // Model selector (always shows dropdown)
-                        OutlinedTextField(
-                            value = if (isCustomModel) stringResource(R.string.embedding_custom) else remoteModelName,
-                            onValueChange = { },
-                            readOnly = true,
-                            label = { Text(stringResource(R.string.embedding_model_label)) },
-                            trailingIcon = {
-                                Box {
-                                    IconButton(onClick = { showRemoteModelDropdown = true }) {
-                                        Icon(Icons.Default.ArrowDropDown, null)
-                                    }
-                                    DropdownMenu(
-                                        expanded = showRemoteModelDropdown,
-                                        onDismissRequest = { showRemoteModelDropdown = false },
-                                        containerColor = MaterialTheme.colorScheme.surfaceContainer,
-                                        shape = RoundedCornerShape(12.dp)
-                                    ) {
-                                        provider.models.forEach { model ->
-                                            DropdownMenuItem(
-                                                text = { Text(model) },
-                                                onClick = {
-                                                    remoteModelName = model
-                                                    isCustomModel = false
-                                                    showRemoteModelDropdown = false
-                                                }
-                                            )
-                                        }
-                                        DropdownMenuItem(
-                                            text = { Text(stringResource(R.string.embedding_custom)) },
-                                            onClick = {
-                                                remoteModelName = ""
-                                                isCustomModel = true
-                                                showRemoteModelDropdown = false
-                                            }
-                                        )
-                                    }
-                                }
-                            },
-                            singleLine = true,
-                            shape = RoundedCornerShape(16.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                        if (isCustomModel) {
-                            Spacer(modifier = Modifier.height(8.dp))
-                            OutlinedTextField(
-                                value = remoteModelName,
-                                onValueChange = { remoteModelName = it },
-                                placeholder = { Text("model-name") },
-                                supportingText = { Text(stringResource(R.string.embedding_custom_model_desc)) },
-                                singleLine = true,
-                                shape = RoundedCornerShape(16.dp),
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                        }
-                        Spacer(modifier = Modifier.height(12.dp))
-                        // Display name
-                        OutlinedTextField(
-                            value = remoteName,
-                            onValueChange = { remoteName = it },
-                            label = { Text(stringResource(R.string.model_name_label)) },
-                            placeholder = { Text(remoteModelName) },
-                            singleLine = true,
-                            shape = RoundedCornerShape(16.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                        Spacer(modifier = Modifier.height(12.dp))
-                        // Batch Size
-                        OutlinedTextField(
-                            value = remoteBatchSize,
-                            onValueChange = { remoteBatchSize = it.filter { c -> c.isDigit() } },
-                            label = { Text(stringResource(R.string.embedding_batch_size)) },
-                            supportingText = { Text(stringResource(R.string.embedding_batch_size_desc)) },
-                            singleLine = true,
-                            shape = RoundedCornerShape(16.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                        testStatus?.let { status ->
-                            Spacer(modifier = Modifier.height(16.dp))
-                            Text(
-                                text = status,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = if (status.startsWith("OK")) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
-                            )
-                        }
-                    }
-                },
-                confirmButton = {
-                    val scope = rememberCoroutineScope()
-                    TextButton(
-                        onClick = {
-                            if (remoteName.isBlank() && remoteModelName.isBlank()) return@TextButton
-                            val finalName = remoteName.ifBlank { remoteModelName }
-                            val finalModel = remoteModelName.ifBlank { remoteName }
-                            if (finalModel.isBlank()) return@TextButton
-                            isTesting = true
-                            testStatus = null
-                            scope.launch {
-                                val result = viewModel.testRemoteEmbedding(finalModel, remoteBaseUrl, remoteApiKeys[selectedProviderIdx])
-                                if (result != null && result.startsWith("OK")) {
-                                    viewModel.addEmbeddingModel(
-                                        com.newoether.agora.data.EmbeddingModelConfig(
-                                            name = finalName,
-                                            type = com.newoether.agora.data.EmbeddingModelType.REMOTE,
-                                            remoteModelName = finalModel,
-                                            remoteBaseUrl = remoteBaseUrl,
-                                            remoteApiKey = remoteApiKeys[selectedProviderIdx],
-                                            batchSize = remoteBatchSize.toIntOrNull() ?: 8
-                                        )
-                                    )
-                                    showRemoteDialog = false
-                                } else {
-                                    testStatus = result ?: "Failed"
-                                }
-                                isTesting = false
-                            }
-                        },
-                        enabled = !isTesting && remoteName.isNotBlank() && remoteModelName.isNotBlank()
-                    ) {
-                        if (isTesting) {
-                            CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
-                            Spacer(modifier = Modifier.width(8.dp))
-                        }
-                        Text(stringResource(R.string.add))
-                    }
-                },
-                dismissButton = {
-                    TextButton(onClick = { showRemoteDialog = false }) { Text(stringResource(R.string.cancel)) }
-                }
+            AddRemoteEmbeddingDialog(
+                state = remoteState,
+                providers = embeddingProviders,
+                viewModel = viewModel,
+                onDismiss = { showRemoteDialog = false },
             )
         }
 
