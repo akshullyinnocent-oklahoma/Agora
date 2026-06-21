@@ -62,9 +62,10 @@ fun SettingsClaudeImportPage(
         onBack = onBack
     ) {
             // File selection card
-            SettingsGroup(
-                title = stringResource(R.string.claude_import_title),
-                items = buildList {
+            SettingsGroupColumn {
+                SettingsGroup(
+                    title = stringResource(R.string.claude_import_title),
+                    items = buildList {
                     add {
                         SettingsItem(
                             headlineContent = { Text(stringResource(R.string.claude_import_select_file)) },
@@ -113,6 +114,7 @@ fun SettingsClaudeImportPage(
                     }
                 }
             )
+            }
     }
 
     // Import strategy dialog

@@ -88,25 +88,26 @@ fun SettingsSearchPage(viewModel: ChatViewModel, onBack: () -> Unit) {
         onBack = onBack,
         floatingActionButton = { if (showDocFab) DocumentationFab("search.md") }
     ) {
-            SettingsGroup(
-                title = stringResource(R.string.memory_access_title),
-                items = listOf(
-                    {
-                        SettingsItem(
-                            headlineContent = { Text(stringResource(R.string.memory_access_past)) },
-                            supportingContent = { Text(stringResource(R.string.memory_access_past_desc)) },
-                            leadingContent = { Icon(Icons.Default.Chat, null, tint = MaterialTheme.colorScheme.primary) },
-                            trailingContent = {
-                                Switch(checked = accessPastConversations, onCheckedChange = { viewModel.settings.setAccessPastConversations(it) })
-                            },
-                            modifier = Modifier.clickable { viewModel.settings.setAccessPastConversations(!accessPastConversations) }
-                        )
-                    }
+            SettingsGroupColumn {
+                SettingsGroup(
+                    title = stringResource(R.string.memory_access_title),
+                    items = listOf(
+                        {
+                            SettingsItem(
+                                headlineContent = { Text(stringResource(R.string.memory_access_past)) },
+                                supportingContent = { Text(stringResource(R.string.memory_access_past_desc)) },
+                                leadingContent = { Icon(Icons.Default.Chat, null, tint = MaterialTheme.colorScheme.primary) },
+                                trailingContent = {
+                                    Switch(checked = accessPastConversations, onCheckedChange = { viewModel.settings.setAccessPastConversations(it) })
+                                },
+                                modifier = Modifier.clickable { viewModel.settings.setAccessPastConversations(!accessPastConversations) }
+                            )
+                        }
+                    )
                 )
-            )
 
-            SettingsGroup(
-                title = stringResource(R.string.auto_cache_title),
+                SettingsGroup(
+                    title = stringResource(R.string.auto_cache_title),
                 items = listOf(
                     {
                         SettingsItem(
@@ -465,7 +466,7 @@ fun SettingsSearchPage(viewModel: ChatViewModel, onBack: () -> Unit) {
                     }
                 )
             )
-
+            }
             if (showDocFab) { Spacer(modifier = Modifier.height(80.dp)) }
 
         if (showRemoteDialog) {

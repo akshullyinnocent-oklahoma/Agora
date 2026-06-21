@@ -123,8 +123,9 @@ fun SettingsProviderDetailPage(
             }
         }
     ) {
-            // Base URL (non-Local only)
-            if (!isLocal) {
+            SettingsGroupColumn {
+                // Base URL (non-Local only)
+                if (!isLocal) {
                 val providerInstance = viewModel.getProviderInstance(providerName)
                 val savedUrl = providerBaseUrls[providerName]
                 // Don't key remember on savedUrl — that causes TextFieldState to be recreated
@@ -328,6 +329,7 @@ fun SettingsProviderDetailPage(
                         }
                     )
                 }
+            }
             }
     }
 

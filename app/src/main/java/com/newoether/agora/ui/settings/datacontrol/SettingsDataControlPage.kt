@@ -28,6 +28,7 @@ import com.newoether.agora.R
 import com.newoether.agora.ui.settings.CollapsingSettingsScaffold
 import com.newoether.agora.ui.settings.DocumentationFab
 import com.newoether.agora.ui.settings.SettingsGroup
+import com.newoether.agora.ui.settings.SettingsGroupColumn
 import com.newoether.agora.ui.settings.SettingsItem
 import com.newoether.agora.data.DataExporter
 import com.newoether.agora.data.DataImporter
@@ -156,7 +157,8 @@ fun SettingsDataControlPage(viewModel: ChatViewModel, onBack: () -> Unit) {
             floatingActionButton = { if (showDocFab) DocumentationFab("import-export.md") }
         ) {
                 // Import/Export group
-                SettingsGroup(title = stringResource(R.string.settings_data_control), items = listOf(
+                SettingsGroupColumn {
+                    SettingsGroup(title = stringResource(R.string.settings_data_control), items = listOf(
                     {
                         SettingsItem(
                             headlineContent = { Text(stringResource(R.string.data_import_title)) },
@@ -207,6 +209,7 @@ fun SettingsDataControlPage(viewModel: ChatViewModel, onBack: () -> Unit) {
                 // Auto Backup group
                 // ═══════════════════════════════════════════════
                 AutoBackupSection(viewModel)
+                }
 
                 // Show Claude import dialog when preview is loaded
                 LaunchedEffect(claudeImportPreview) {

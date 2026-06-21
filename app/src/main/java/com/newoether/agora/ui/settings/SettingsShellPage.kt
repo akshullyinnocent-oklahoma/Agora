@@ -71,7 +71,8 @@ fun SettingsShellPage(viewModel: ChatViewModel, onBack: () -> Unit) {
                 scrollState = scrollState,
                 floatingActionButton = { if (showDocFab) DocumentationFab("shell.md") }
             ) {
-            SettingsGroup(title = stringResource(R.string.shell_title), items = buildList {
+            SettingsGroupColumn {
+                SettingsGroup(title = stringResource(R.string.shell_title), items = buildList {
                 add {
                     SettingsItem(
                         headlineContent = { Text(stringResource(R.string.shell_enable)) },
@@ -132,6 +133,7 @@ fun SettingsShellPage(viewModel: ChatViewModel, onBack: () -> Unit) {
                         }
                     }
                 })
+            }
             }
 
             // ── Delete confirm dialog ──

@@ -51,42 +51,43 @@ fun SettingsTranscriptionPage(viewModel: ChatViewModel, onBack: () -> Unit) {
         onBack = onBack,
         floatingActionButton = { if (showDocFab) DocumentationFab("transcription.md") }
     ) {
-            SettingsGroup(
-                title = stringResource(R.string.transcription_model),
-                items = listOf({
-                    val displayName = transcriptionModel?.let {
-                        val parsed = com.newoether.agora.model.ModelId.parse(it)
-                        val alias = modelAliases[it]
-                        alias ?: parsed.apiModelName
-                    } ?: stringResource(R.string.transcription_no_model)
-                    val selectedProvider = transcriptionModel?.let { com.newoether.agora.model.ModelId.parse(it).providerName }
-                    val selectedIconRes = selectedProvider?.let { providerIcon(it) } ?: 0
-                    val isSelectedLocal = selectedProvider.equals(Constants.PROVIDER_LOCAL, ignoreCase = true)
-                    SettingsItem(
-                        headlineContent = {
-                            Text(
-                                displayName,
-                                color = if (transcriptionModel == null) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface
-                            )
-                        },
-                        supportingContent = if (transcriptionModel != null) {
-                            { Text(selectedProvider ?: "", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)) }
-                        } else null,
-                        leadingContent = {
-                            when {
-                                transcriptionModel == null -> Icon(Icons.Default.Chat, null, tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f))
-                                isSelectedLocal -> Icon(Icons.Default.AutoAwesome, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp))
-                                selectedIconRes != 0 -> Icon(painterResource(selectedIconRes), null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp))
-                                else -> Icon(Icons.Default.Cloud, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp))
-                            }
-                        },
-                        modifier = Modifier.heightIn(min = 64.dp).clickable(enabled = enabledModels.isNotEmpty()) { showModelDialog = true }
-                    )
-                })
-            )
+            SettingsGroupColumn {
+                SettingsGroup(
+                    title = stringResource(R.string.transcription_model),
+                    items = listOf({
+                        val displayName = transcriptionModel?.let {
+                            val parsed = com.newoether.agora.model.ModelId.parse(it)
+                            val alias = modelAliases[it]
+                            alias ?: parsed.apiModelName
+                        } ?: stringResource(R.string.transcription_no_model)
+                        val selectedProvider = transcriptionModel?.let { com.newoether.agora.model.ModelId.parse(it).providerName }
+                        val selectedIconRes = selectedProvider?.let { providerIcon(it) } ?: 0
+                        val isSelectedLocal = selectedProvider.equals(Constants.PROVIDER_LOCAL, ignoreCase = true)
+                        SettingsItem(
+                            headlineContent = {
+                                Text(
+                                    displayName,
+                                    color = if (transcriptionModel == null) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface
+                                )
+                            },
+                            supportingContent = if (transcriptionModel != null) {
+                                { Text(selectedProvider ?: "", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)) }
+                            } else null,
+                            leadingContent = {
+                                when {
+                                    transcriptionModel == null -> Icon(Icons.Default.Chat, null, tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f))
+                                    isSelectedLocal -> Icon(Icons.Default.AutoAwesome, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp))
+                                    selectedIconRes != 0 -> Icon(painterResource(selectedIconRes), null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp))
+                                    else -> Icon(Icons.Default.Cloud, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp))
+                                }
+                            },
+                            modifier = Modifier.heightIn(min = 64.dp).clickable(enabled = enabledModels.isNotEmpty()) { showModelDialog = true }
+                        )
+                    })
+                )
 
-            SettingsGroup(
-                title = stringResource(R.string.transcription_enabled_models),
+                SettingsGroup(
+                    title = stringResource(R.string.transcription_enabled_models),
                 items = buildList {
                     if (transcriptionEnabledModels.isEmpty()) {
                         add {
@@ -225,6 +226,7 @@ fun SettingsTranscriptionPage(viewModel: ChatViewModel, onBack: () -> Unit) {
                     }
                 }
             )
+            }
             if (showDocFab) { Spacer(modifier = Modifier.height(80.dp)) }
     }
 

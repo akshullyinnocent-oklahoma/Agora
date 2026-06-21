@@ -57,58 +57,59 @@ fun SettingsMemoryPage(viewModel: ChatViewModel, onBack: () -> Unit) {
         onBack = onBack,
         floatingActionButton = { if (showDocFab) DocumentationFab("memory.md") }
     ) {
-            SettingsGroup(
-                title = stringResource(R.string.memory_access_title),
-                items = listOf(
-                    {
-                        SettingsItem(
-                            headlineContent = { Text(stringResource(R.string.memory_access_saved)) },
-                            supportingContent = { Text(stringResource(R.string.memory_access_saved_desc)) },
-                            leadingContent = { Icon(Icons.Default.Description, null, tint = MaterialTheme.colorScheme.primary) },
-                            trailingContent = {
-                                Switch(checked = accessSavedMemories, onCheckedChange = { viewModel.settings.setAccessSavedMemories(it) })
-                            },
-                            modifier = Modifier.clickable { viewModel.settings.setAccessSavedMemories(!accessSavedMemories) }
-                        )
-                    },
-                    {
-                        SettingsItem(
-                            headlineContent = { Text(stringResource(R.string.memory_access_active)) },
-                            supportingContent = { Text(stringResource(R.string.memory_access_active_desc)) },
-                            leadingContent = { Icon(Icons.Default.Memory, null, tint = MaterialTheme.colorScheme.primary) },
-                            trailingContent = {
-                                Switch(checked = accessActiveMemory, onCheckedChange = { viewModel.settings.setAccessActiveMemory(it) })
-                            },
-                            modifier = Modifier.clickable { viewModel.settings.setAccessActiveMemory(!accessActiveMemory) }
-                        )
-                    }
+            SettingsGroupColumn {
+                SettingsGroup(
+                    title = stringResource(R.string.memory_access_title),
+                    items = listOf(
+                        {
+                            SettingsItem(
+                                headlineContent = { Text(stringResource(R.string.memory_access_saved)) },
+                                supportingContent = { Text(stringResource(R.string.memory_access_saved_desc)) },
+                                leadingContent = { Icon(Icons.Default.Description, null, tint = MaterialTheme.colorScheme.primary) },
+                                trailingContent = {
+                                    Switch(checked = accessSavedMemories, onCheckedChange = { viewModel.settings.setAccessSavedMemories(it) })
+                                },
+                                modifier = Modifier.clickable { viewModel.settings.setAccessSavedMemories(!accessSavedMemories) }
+                            )
+                        },
+                        {
+                            SettingsItem(
+                                headlineContent = { Text(stringResource(R.string.memory_access_active)) },
+                                supportingContent = { Text(stringResource(R.string.memory_access_active_desc)) },
+                                leadingContent = { Icon(Icons.Default.Memory, null, tint = MaterialTheme.colorScheme.primary) },
+                                trailingContent = {
+                                    Switch(checked = accessActiveMemory, onCheckedChange = { viewModel.settings.setAccessActiveMemory(it) })
+                                },
+                                modifier = Modifier.clickable { viewModel.settings.setAccessActiveMemory(!accessActiveMemory) }
+                            )
+                        }
+                    )
                 )
-            )
 
-            SettingsGroup(
-                title = stringResource(R.string.memory_active_title),
-                items = listOf(
-                    {
-                        SettingsItem(
-                            headlineContent = { Text(stringResource(R.string.memory_active_context)) },
-                            supportingContent = {
-                                Text(
-                                    if (activeMemoryContent.isBlank()) stringResource(R.string.memory_active_empty)
-                                    else activeMemoryContent.take(100) + if (activeMemoryContent.length > 100) "..." else ""
-                                )
-                            },
-                            leadingContent = { Icon(Icons.Default.Memory, null, tint = MaterialTheme.colorScheme.primary) },
-                            modifier = Modifier.clickable {
-                                showFileEditor = "ACTIVE_MEMORY"
-                                fileEditorContent = activeMemoryContent
-                            }
-                        )
-                    }
+                SettingsGroup(
+                    title = stringResource(R.string.memory_active_title),
+                    items = listOf(
+                        {
+                            SettingsItem(
+                                headlineContent = { Text(stringResource(R.string.memory_active_context)) },
+                                supportingContent = {
+                                    Text(
+                                        if (activeMemoryContent.isBlank()) stringResource(R.string.memory_active_empty)
+                                        else activeMemoryContent.take(100) + if (activeMemoryContent.length > 100) "..." else ""
+                                    )
+                                },
+                                leadingContent = { Icon(Icons.Default.Memory, null, tint = MaterialTheme.colorScheme.primary) },
+                                modifier = Modifier.clickable {
+                                    showFileEditor = "ACTIVE_MEMORY"
+                                    fileEditorContent = activeMemoryContent
+                                }
+                            )
+                        }
+                    )
                 )
-            )
 
-            SettingsGroup(
-                title = stringResource(R.string.memory_saved_title),
+                SettingsGroup(
+                    title = stringResource(R.string.memory_saved_title),
                 items = buildList {
                     if (memoryFiles.isEmpty()) {
                         add {
@@ -185,7 +186,7 @@ fun SettingsMemoryPage(viewModel: ChatViewModel, onBack: () -> Unit) {
                     }
                 }
             )
-
+            }
             if (showDocFab) { Spacer(modifier = Modifier.height(80.dp)) }
     }
 

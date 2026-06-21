@@ -38,13 +38,36 @@ import com.newoether.agora.R
 import com.newoether.agora.ui.settings.datacontrol.SettingsDataControlPage
 import com.newoether.agora.viewmodel.ChatViewModel
 
+/** When true, [SettingsGroup] inside a [SettingsGroupColumn] suppresses its own bottom padding
+ *  (spacing is handled by the column's [Arrangement.spacedBy] instead). */
+val LocalSettingsGroupSpacing = staticCompositionLocalOf { false }
+
+/** Settings page content container: uniform 24dp spacing between groups (and any other elements),
+ *  with zero trailing after the last element. */
+@Composable
+fun SettingsGroupColumn(
+    modifier: Modifier = Modifier,
+    spacing: Dp = 24.dp,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    CompositionLocalProvider(LocalSettingsGroupSpacing provides true) {
+        Column(
+            modifier = modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(spacing),
+            content = content
+        )
+    }
+}
+
 @Composable
 fun SettingsGroup(
     title: String,
     modifier: Modifier = Modifier,
+    bottomPadding: androidx.compose.ui.unit.Dp = 24.dp,
     items: List<@Composable () -> Unit>
 ) {
-    Column(modifier = modifier.fillMaxWidth().padding(bottom = 24.dp)) {
+    val effectiveBottom = if (LocalSettingsGroupSpacing.current) 0.dp else bottomPadding
+    Column(modifier = modifier.fillMaxWidth().padding(bottom = effectiveBottom)) {
         Text(
             text = title,
             style = MaterialTheme.typography.labelLarge,

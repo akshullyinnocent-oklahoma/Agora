@@ -56,186 +56,187 @@ fun SettingsAppearancePage(viewModel: ChatViewModel, onBack: () -> Unit) {
         onBack = onBack,
         floatingActionButton = { if (showDocFab) DocumentationFab("appearance.md") }
     ) {
-            // ── Theme Mode ──
-            SettingsGroup(
-                title = stringResource(R.string.theme_mode),
-                items = listOf(
-                    {
-                        ThemeModeOption(
-                            label = stringResource(R.string.theme_mode_light),
-                            icon = Icons.Default.LightMode,
-                            selected = themeMode == "LIGHT",
-                            onClick = { viewModel.settings.setThemeMode("LIGHT") }
-                        )
-                    },
-                    {
-                        ThemeModeOption(
-                            label = stringResource(R.string.theme_mode_dark),
-                            icon = Icons.Default.DarkMode,
-                            selected = themeMode == "DARK",
-                            onClick = { viewModel.settings.setThemeMode("DARK") }
-                        )
-                    },
-                    {
-                        ThemeModeOption(
-                            label = stringResource(R.string.theme_mode_follow_device),
-                            icon = Icons.Default.SettingsBrightness,
-                            selected = themeMode != "LIGHT" && themeMode != "DARK",
-                            onClick = { viewModel.settings.setThemeMode("FOLLOW_DEVICE") }
-                        )
-                    }
+            SettingsGroupColumn {
+                // ── Theme Mode ──
+                SettingsGroup(
+                    title = stringResource(R.string.theme_mode),
+                    items = listOf(
+                        {
+                            ThemeModeOption(
+                                label = stringResource(R.string.theme_mode_light),
+                                icon = Icons.Default.LightMode,
+                                selected = themeMode == "LIGHT",
+                                onClick = { viewModel.settings.setThemeMode("LIGHT") }
+                            )
+                        },
+                        {
+                            ThemeModeOption(
+                                label = stringResource(R.string.theme_mode_dark),
+                                icon = Icons.Default.DarkMode,
+                                selected = themeMode == "DARK",
+                                onClick = { viewModel.settings.setThemeMode("DARK") }
+                            )
+                        },
+                        {
+                            ThemeModeOption(
+                                label = stringResource(R.string.theme_mode_follow_device),
+                                icon = Icons.Default.SettingsBrightness,
+                                selected = themeMode != "LIGHT" && themeMode != "DARK",
+                                onClick = { viewModel.settings.setThemeMode("FOLLOW_DEVICE") }
+                            )
+                        }
+                    )
                 )
-            )
 
-            // ── Interface ──
-            SettingsGroup(
-                title = stringResource(R.string.appearance_interface),
-                items = buildList {
-                    if (isDynamicAvailable) {
+                // ── Interface ──
+                SettingsGroup(
+                    title = stringResource(R.string.appearance_interface),
+                    items = buildList {
+                        if (isDynamicAvailable) {
+                            add {
+                                SettingsItem(
+                                    headlineContent = { Text(stringResource(R.string.dynamic_color)) },
+                                    supportingContent = { Text(stringResource(R.string.dynamic_color_desc)) },
+                                    trailingContent = {
+                                        Switch(
+                                            checked = dynamicColor,
+                                            onCheckedChange = { viewModel.settings.setDynamicColor(it) }
+                                        )
+                                    },
+                                    modifier = Modifier.clickable { viewModel.settings.setDynamicColor(!dynamicColor) }
+                                )
+                            }
+                        }
                         add {
                             SettingsItem(
-                                headlineContent = { Text(stringResource(R.string.dynamic_color)) },
-                                supportingContent = { Text(stringResource(R.string.dynamic_color_desc)) },
+                                headlineContent = { Text(stringResource(R.string.blur_effects)) },
+                                supportingContent = { Text(stringResource(R.string.blur_effects_desc)) },
                                 trailingContent = {
                                     Switch(
-                                        checked = dynamicColor,
-                                        onCheckedChange = { viewModel.settings.setDynamicColor(it) }
+                                        checked = blurEffectsEnabled,
+                                        onCheckedChange = { viewModel.settings.setBlurEffectsEnabled(it) }
                                     )
                                 },
-                                modifier = Modifier.clickable { viewModel.settings.setDynamicColor(!dynamicColor) }
+                                modifier = Modifier.clickable { viewModel.settings.setBlurEffectsEnabled(!blurEffectsEnabled) }
+                            )
+                        }
+                        add {
+                            var expanded by remember { mutableStateOf(false) }
+                            val normalizedToolCallDisplayMode = ToolCallDisplayModes.normalize(toolCallDisplayMode)
+                            val selectedLabel = when (normalizedToolCallDisplayMode) {
+                                ToolCallDisplayModes.GROUPED_TIMELINE -> stringResource(R.string.tool_call_display_mode_grouped_timeline)
+                                ToolCallDisplayModes.COMPACT -> stringResource(R.string.tool_call_display_mode_compact)
+                                else -> stringResource(R.string.tool_call_display_mode_timeline)
+                            }
+                            val selectedDescription = when (normalizedToolCallDisplayMode) {
+                                ToolCallDisplayModes.GROUPED_TIMELINE -> stringResource(R.string.tool_call_display_mode_grouped_timeline_desc)
+                                ToolCallDisplayModes.COMPACT -> stringResource(R.string.tool_call_display_mode_compact_desc)
+                                else -> stringResource(R.string.tool_call_display_mode_timeline_desc)
+                            }
+                            val options = listOf(
+                                ToolCallDisplayModes.TIMELINE to stringResource(R.string.tool_call_display_mode_timeline),
+                                ToolCallDisplayModes.GROUPED_TIMELINE to stringResource(R.string.tool_call_display_mode_grouped_timeline),
+                                ToolCallDisplayModes.COMPACT to stringResource(R.string.tool_call_display_mode_compact)
+                            )
+                            SettingsItem(
+                                headlineContent = { Text(stringResource(R.string.tool_call_display_mode)) },
+                                supportingContent = { Text(selectedDescription) },
+                                trailingContent = {
+                                    Box {
+                                        Text(
+                                            selectedLabel,
+                                            style = MaterialTheme.typography.labelLarge,
+                                            color = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.width(96.dp),
+                                            textAlign = TextAlign.Center,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                        DropdownMenu(
+                                            containerColor = MaterialTheme.colorScheme.surfaceContainer,
+                                            tonalElevation = 16.dp,
+                                            expanded = expanded,
+                                            onDismissRequest = { expanded = false },
+                                            shape = RoundedCornerShape(12.dp)
+                                        ) {
+                                            options.forEach { (mode, label) ->
+                                                DropdownMenuItem(
+                                                    text = { Text(label) },
+                                                    leadingIcon = {
+                                                        if (normalizedToolCallDisplayMode == mode) {
+                                                            Icon(Icons.Default.Check, null, tint = MaterialTheme.colorScheme.primary)
+                                                        }
+                                                    },
+                                                    onClick = {
+                                                        viewModel.settings.setToolCallDisplayMode(mode)
+                                                        expanded = false
+                                                    }
+                                                )
+                                            }
+                                        }
+                                    }
+                                },
+                                modifier = Modifier.clickable { expanded = true }
+                            )
+                        }
+                        add {
+                            SettingsItem(
+                                headlineContent = { Text(stringResource(R.string.haptic_feedback)) },
+                                supportingContent = { Text(stringResource(R.string.haptic_feedback_desc)) },
+                                trailingContent = {
+                                    Switch(
+                                        checked = hapticsEnabled,
+                                        onCheckedChange = { viewModel.settings.setHapticsEnabled(it) }
+                                    )
+                                },
+                                modifier = Modifier.clickable { viewModel.settings.setHapticsEnabled(!hapticsEnabled) }
                             )
                         }
                     }
-                    add {
-                        SettingsItem(
-                            headlineContent = { Text(stringResource(R.string.blur_effects)) },
-                            supportingContent = { Text(stringResource(R.string.blur_effects_desc)) },
-                            trailingContent = {
-                                Switch(
-                                    checked = blurEffectsEnabled,
-                                    onCheckedChange = { viewModel.settings.setBlurEffectsEnabled(it) }
-                                )
-                            },
-                            modifier = Modifier.clickable { viewModel.settings.setBlurEffectsEnabled(!blurEffectsEnabled) }
-                        )
-                    }
-                    add {
-                        var expanded by remember { mutableStateOf(false) }
-                        val normalizedToolCallDisplayMode = ToolCallDisplayModes.normalize(toolCallDisplayMode)
-                        val selectedLabel = when (normalizedToolCallDisplayMode) {
-                            ToolCallDisplayModes.GROUPED_TIMELINE -> stringResource(R.string.tool_call_display_mode_grouped_timeline)
-                            ToolCallDisplayModes.COMPACT -> stringResource(R.string.tool_call_display_mode_compact)
-                            else -> stringResource(R.string.tool_call_display_mode_timeline)
-                        }
-                        val selectedDescription = when (normalizedToolCallDisplayMode) {
-                            ToolCallDisplayModes.GROUPED_TIMELINE -> stringResource(R.string.tool_call_display_mode_grouped_timeline_desc)
-                            ToolCallDisplayModes.COMPACT -> stringResource(R.string.tool_call_display_mode_compact_desc)
-                            else -> stringResource(R.string.tool_call_display_mode_timeline_desc)
-                        }
-                        val options = listOf(
-                            ToolCallDisplayModes.TIMELINE to stringResource(R.string.tool_call_display_mode_timeline),
-                            ToolCallDisplayModes.GROUPED_TIMELINE to stringResource(R.string.tool_call_display_mode_grouped_timeline),
-                            ToolCallDisplayModes.COMPACT to stringResource(R.string.tool_call_display_mode_compact)
-                        )
-                        SettingsItem(
-                            headlineContent = { Text(stringResource(R.string.tool_call_display_mode)) },
-                            supportingContent = { Text(selectedDescription) },
-                            trailingContent = {
-                                Box {
+                )
+
+                val schemeAlpha = if (dynamicColor && isDynamicAvailable) 0.38f else 1f
+                SettingsGroup(
+                    title = stringResource(R.string.color_scheme),
+                    items = ColorSchemePreset.entries.map { preset ->
+                        {
+                            val presetPrimary = remember(preset, currentStyle, isDark) {
+                                colorSchemeForPreset(preset, currentStyle, isDark).primary
+                            }
+                            SettingsItem(
+                                headlineContent = {
                                     Text(
-                                        selectedLabel,
-                                        style = MaterialTheme.typography.labelLarge,
-                                        color = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.width(96.dp),
-                                        textAlign = TextAlign.Center,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
+                                        text = presetDisplayName(preset),
+                                        fontWeight = if (preset == currentPreset) FontWeight.Bold else FontWeight.Normal
                                     )
-                                    DropdownMenu(
-                                        containerColor = MaterialTheme.colorScheme.surfaceContainer,
-                                        tonalElevation = 16.dp,
-                                        expanded = expanded,
-                                        onDismissRequest = { expanded = false },
-                                        shape = RoundedCornerShape(12.dp)
-                                    ) {
-                                        options.forEach { (mode, label) ->
-                                            DropdownMenuItem(
-                                                text = { Text(label) },
-                                                leadingIcon = {
-                                                    if (normalizedToolCallDisplayMode == mode) {
-                                                        Icon(Icons.Default.Check, null, tint = MaterialTheme.colorScheme.primary)
-                                                    }
-                                                },
-                                                onClick = {
-                                                    viewModel.settings.setToolCallDisplayMode(mode)
-                                                    expanded = false
-                                                }
-                                            )
-                                        }
-                                    }
-                                }
-                            },
-                            modifier = Modifier.clickable { expanded = true }
-                        )
-                    }
-                    add {
-                        SettingsItem(
-                            headlineContent = { Text(stringResource(R.string.haptic_feedback)) },
-                            supportingContent = { Text(stringResource(R.string.haptic_feedback_desc)) },
-                            trailingContent = {
-                                Switch(
-                                    checked = hapticsEnabled,
-                                    onCheckedChange = { viewModel.settings.setHapticsEnabled(it) }
-                                )
-                            },
-                            modifier = Modifier.clickable { viewModel.settings.setHapticsEnabled(!hapticsEnabled) }
-                        )
-                    }
-                }
-            )
-
-            val schemeAlpha = if (dynamicColor && isDynamicAvailable) 0.38f else 1f
-            SettingsGroup(
-                title = stringResource(R.string.color_scheme),
-                items = ColorSchemePreset.entries.map { preset ->
-                    {
-                        val presetPrimary = remember(preset, currentStyle, isDark) {
-                            colorSchemeForPreset(preset, currentStyle, isDark).primary
+                                },
+                                leadingContent = {
+                                    RadioButton(
+                                        selected = preset == currentPreset,
+                                        onClick = { viewModel.settings.setColorScheme(preset.name) },
+                                        enabled = !dynamicColor || !isDynamicAvailable
+                                    )
+                                },
+                                trailingContent = {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(32.dp)
+                                            .clip(CircleShape)
+                                            .background(presetPrimary)
+                                    )
+                                },
+                                modifier = Modifier
+                                    .alpha(schemeAlpha)
+                                    .clickable(enabled = schemeAlpha > 0.5f) { viewModel.settings.setColorScheme(preset.name) },
+                                leadingSpacing = 8.dp
+                            )
                         }
-                        SettingsItem(
-                            headlineContent = {
-                                Text(
-                                    text = presetDisplayName(preset),
-                                    fontWeight = if (preset == currentPreset) FontWeight.Bold else FontWeight.Normal
-                                )
-                            },
-                            leadingContent = {
-                                RadioButton(
-                                    selected = preset == currentPreset,
-                                    onClick = { viewModel.settings.setColorScheme(preset.name) },
-                                    enabled = !dynamicColor || !isDynamicAvailable
-                                )
-                            },
-                            trailingContent = {
-                                Box(
-                                    modifier = Modifier
-                                        .size(32.dp)
-                                        .clip(CircleShape)
-                                        .background(presetPrimary)
-                                )
-                            },
-                            modifier = Modifier
-                                .alpha(schemeAlpha)
-                                .clickable(enabled = schemeAlpha > 0.5f) { viewModel.settings.setColorScheme(preset.name) },
-                            leadingSpacing = 8.dp
-                        )
                     }
-                }
-            )
+                )
 
-            // ── Scheme Style ──
-            SettingsGroup(
-                title = stringResource(R.string.scheme_style),
+                // ── Scheme Style ──
+                SettingsGroup(
+                    title = stringResource(R.string.scheme_style),
                 items = SchemeStyle.entries.map { style ->
                     {
                         SettingsItem(
@@ -260,7 +261,7 @@ fun SettingsAppearancePage(viewModel: ChatViewModel, onBack: () -> Unit) {
                     }
                 }
             )
-
+            }
             if (showDocFab) { Spacer(modifier = Modifier.height(80.dp)) }
     }
 }

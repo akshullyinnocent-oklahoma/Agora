@@ -52,8 +52,9 @@ fun SettingsAboutPage(viewModel: ChatViewModel, onBack: () -> Unit) {
         title = stringResource(R.string.about_title),
         onBack = onBack
     ) {
-            // -- App Info --
-            SettingsGroup(title = stringResource(R.string.about_info), items = listOf({
+            SettingsGroupColumn {
+                // -- App Info --
+                SettingsGroup(title = stringResource(R.string.about_info), items = listOf({
                 SettingsItem(
                     headlineContent = { Text(stringResource(R.string.about_developer)) },
                     supportingContent = { Text(stringResource(R.string.about_developer_name)) },
@@ -156,28 +157,27 @@ fun SettingsAboutPage(viewModel: ChatViewModel, onBack: () -> Unit) {
                 )
             }))
 
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = stringResource(R.string.rating_category),
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
-            )
-
-            // -- Rating Section --
-            Surface(
-                shape = RoundedCornerShape(28.dp),
-                color = MaterialTheme.colorScheme.surface,
-                tonalElevation = 1.dp,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(
-                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 20.dp)
+            // -- Rating Section (title + card as one unit so the title stays tight to the card) --
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    text = stringResource(R.string.rating_category),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
+                )
+                Surface(
+                    shape = RoundedCornerShape(28.dp),
+                    color = MaterialTheme.colorScheme.surface,
+                    tonalElevation = 1.dp,
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    RatingForm()
+                    Column(
+                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 20.dp)
+                    ) {
+                        RatingForm()
+                    }
                 }
             }
-
-            Spacer(modifier = Modifier.height(32.dp))
+            }
     }
 }

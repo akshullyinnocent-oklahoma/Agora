@@ -38,49 +38,51 @@ fun SettingsTitleGenPage(viewModel: ChatViewModel, onBack: () -> Unit) {
         onBack = onBack,
         floatingActionButton = { if (showDocFab) DocumentationFab("title-generation.md") }
     ) {
-            SettingsGroup(
-                title = stringResource(R.string.settings_title_gen),
-                items = buildList {
-                    add {
-                        SettingsItem(
-                            headlineContent = { Text(stringResource(R.string.title_gen_auto)) },
-                            supportingContent = { Text(stringResource(R.string.title_gen_auto_desc)) },
-                            leadingContent = { Icon(Icons.Default.Edit, null, tint = MaterialTheme.colorScheme.primary) },
-                            trailingContent = {
-                                Switch(checked = titleGenEnabled, onCheckedChange = { viewModel.settings.setTitleGenerationEnabled(it) })
-                            },
-                            modifier = Modifier.clickable { viewModel.settings.setTitleGenerationEnabled(!titleGenEnabled) }
-                        )
-                    }
-                    if (titleGenEnabled) {
+            SettingsGroupColumn {
+                SettingsGroup(
+                    title = stringResource(R.string.settings_title_gen),
+                    items = buildList {
                         add {
                             SettingsItem(
-                                headlineContent = { Text(stringResource(R.string.title_gen_model)) },
-                                supportingContent = {
-                                    val displayName = if (titleGenModel == null) stringResource(R.string.title_gen_current_model) else {
-                                        val alias = modelAliases[titleGenModel!!]
-                                        alias ?: com.newoether.agora.model.ModelId.parse(titleGenModel!!).apiModelName
-                                    }
-                                    Text(displayName)
+                                headlineContent = { Text(stringResource(R.string.title_gen_auto)) },
+                                supportingContent = { Text(stringResource(R.string.title_gen_auto_desc)) },
+                                leadingContent = { Icon(Icons.Default.Edit, null, tint = MaterialTheme.colorScheme.primary) },
+                                trailingContent = {
+                                    Switch(checked = titleGenEnabled, onCheckedChange = { viewModel.settings.setTitleGenerationEnabled(it) })
                                 },
-                                leadingContent = { Icon(Icons.Default.Chat, null, tint = MaterialTheme.colorScheme.primary) },
-                                modifier = Modifier.clickable { showTitleModelDialog = true }
+                                modifier = Modifier.clickable { viewModel.settings.setTitleGenerationEnabled(!titleGenEnabled) }
                             )
                         }
+                        if (titleGenEnabled) {
+                            add {
+                                SettingsItem(
+                                    headlineContent = { Text(stringResource(R.string.title_gen_model)) },
+                                    supportingContent = {
+                                        val displayName = if (titleGenModel == null) stringResource(R.string.title_gen_current_model) else {
+                                            val alias = modelAliases[titleGenModel!!]
+                                            alias ?: com.newoether.agora.model.ModelId.parse(titleGenModel!!).apiModelName
+                                        }
+                                        Text(displayName)
+                                    },
+                                    leadingContent = { Icon(Icons.Default.Chat, null, tint = MaterialTheme.colorScheme.primary) },
+                                    modifier = Modifier.clickable { showTitleModelDialog = true }
+                                )
+                            }
+                        }
                     }
-                }
-            )
-            SettingsGroup(
-                title = stringResource(R.string.advanced_title),
-                items = listOf({
-                    PromptSettingItem(
-                        title = stringResource(R.string.title_gen_prompt),
-                        description = stringResource(R.string.title_gen_prompt_desc),
-                        prompt = titleGenPrompt,
-                        onClick = { showPromptDialog = true }
-                    )
-                })
-            )
+                )
+                SettingsGroup(
+                    title = stringResource(R.string.advanced_title),
+                    items = listOf({
+                        PromptSettingItem(
+                            title = stringResource(R.string.title_gen_prompt),
+                            description = stringResource(R.string.title_gen_prompt_desc),
+                            prompt = titleGenPrompt,
+                            onClick = { showPromptDialog = true }
+                        )
+                    })
+                )
+            }
             if (showDocFab) { Spacer(modifier = Modifier.height(80.dp)) }
     }
 

@@ -233,6 +233,8 @@ private fun PromptList(
                     }
                 }
             }
-            SettingsGroup(title = stringResource(R.string.prompts_title), items = promptItems)
+            SettingsGroupColumn {
+                SettingsGroup(title = stringResource(R.string.prompts_title), items = promptItems)
+            }
     }
 }

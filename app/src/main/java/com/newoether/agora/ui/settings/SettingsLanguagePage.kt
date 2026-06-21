@@ -60,9 +60,10 @@ fun SettingsLanguagePage(viewModel: ChatViewModel, onBack: () -> Unit) {
                 }
             }
 
-            SettingsGroup(
-                title = stringResource(R.string.language_title),
-                items = languages.map { lang ->
+            SettingsGroupColumn {
+                SettingsGroup(
+                    title = stringResource(R.string.language_title),
+                    items = languages.map { lang ->
                     {
                         Row(
                             modifier = Modifier
@@ -85,5 +86,6 @@ fun SettingsLanguagePage(viewModel: ChatViewModel, onBack: () -> Unit) {
                     }
                 }
             )
+            }
     }
 }

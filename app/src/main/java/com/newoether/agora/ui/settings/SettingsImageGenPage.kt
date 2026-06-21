@@ -101,91 +101,93 @@ fun SettingsImageGenPage(viewModel: ChatViewModel, onBack: () -> Unit) {
         onBack = onBack,
         floatingActionButton = { if (showDocFab) DocumentationFab("image-generation.md") }
     ) {
-            SettingsGroup(title = stringResource(R.string.settings_image_gen), items = listOf({
-                SettingsItem(
-                    headlineContent = { Text(stringResource(R.string.image_gen_enable)) },
-                    supportingContent = { Text(stringResource(R.string.image_gen_enable_desc)) },
-                    leadingContent = { Icon(Icons.Default.AddPhotoAlternate, null, tint = MaterialTheme.colorScheme.primary) },
-                    trailingContent = {
-                        Switch(checked = enabled, onCheckedChange = { viewModel.settings.setImageGenEnabled(it) })
-                    },
-                    modifier = Modifier.clickable { viewModel.settings.setImageGenEnabled(!enabled) }
-                )
-            }))
-
-            if (enabled) {
-                SettingsGroup(title = stringResource(R.string.image_gen_model), items = listOf({
-                    // Only a properly prefixed "Provider:modelId" counts as a real selection;
-                    // legacy/bare ids (e.g. an old "gpt-image-1") render as "no model selected".
-                    val parsed = selectedModel?.takeIf { it.contains(":") }?.let { ModelId.parse(it) }
-                    val displayName = parsed?.let { modelAliases[selectedModel] ?: it.apiModelName }
-                        ?: stringResource(R.string.image_gen_no_model)
-                    val providerName = parsed?.providerName
-                    val iconRes = providerName?.let { providerIcon(it) } ?: 0
+            SettingsGroupColumn {
+                SettingsGroup(title = stringResource(R.string.settings_image_gen), items = listOf({
                     SettingsItem(
-                        headlineContent = {
-                            Text(displayName, color = if (parsed == null) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface)
+                        headlineContent = { Text(stringResource(R.string.image_gen_enable)) },
+                        supportingContent = { Text(stringResource(R.string.image_gen_enable_desc)) },
+                        leadingContent = { Icon(Icons.Default.AddPhotoAlternate, null, tint = MaterialTheme.colorScheme.primary) },
+                        trailingContent = {
+                            Switch(checked = enabled, onCheckedChange = { viewModel.settings.setImageGenEnabled(it) })
                         },
-                        supportingContent = if (providerName != null) {
-                            { Text(providerName, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)) }
-                        } else null,
-                        leadingContent = {
-                            when {
-                                parsed == null -> Icon(Icons.Default.Chat, null, tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f))
-                                providerName.equals(Constants.PROVIDER_LOCAL, ignoreCase = true) -> Icon(Icons.Default.AutoAwesome, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp))
-                                iconRes != 0 -> Icon(painterResource(iconRes), null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp))
-                                else -> Icon(Icons.Default.Cloud, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp))
-                            }
-                        },
-                        modifier = Modifier.heightIn(min = 64.dp).clickable { showModelDialog = true }
+                        modifier = Modifier.clickable { viewModel.settings.setImageGenEnabled(!enabled) }
                     )
                 }))
 
-                // Default size — width × height
-                SettingsGroup(title = stringResource(R.string.image_gen_size), items = listOf({
-                    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 16.dp)) {
-                        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
-                            Icon(Icons.Default.AspectRatio, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(top = 2.dp))
-                            Spacer(modifier = Modifier.width(16.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(stringResource(R.string.image_gen_size), style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Medium), color = MaterialTheme.colorScheme.onSurface)
-                                val parts = remember { size.split("x", "X", limit = 2) }
-                                val wState = remember { TextFieldState(parts.getOrNull(0)?.trim().orEmpty().ifEmpty { "1024" }) }
-                                val hState = remember { TextFieldState(parts.getOrNull(1)?.trim().orEmpty().ifEmpty { "1024" }) }
-                                LaunchedEffect(wState.text, hState.text) {
-                                    delay(500)
-                                    val w = wState.text.toString().trim()
-                                    val h = hState.text.toString().trim()
-                                    if (w.isNotEmpty() && h.isNotEmpty()) viewModel.settings.setImageGenSize("${w}x${h}")
+                if (enabled) {
+                    SettingsGroup(title = stringResource(R.string.image_gen_model), items = listOf({
+                        // Only a properly prefixed "Provider:modelId" counts as a real selection;
+                        // legacy/bare ids (e.g. an old "gpt-image-1") render as "no model selected".
+                        val parsed = selectedModel?.takeIf { it.contains(":") }?.let { ModelId.parse(it) }
+                        val displayName = parsed?.let { modelAliases[selectedModel] ?: it.apiModelName }
+                            ?: stringResource(R.string.image_gen_no_model)
+                        val providerName = parsed?.providerName
+                        val iconRes = providerName?.let { providerIcon(it) } ?: 0
+                        SettingsItem(
+                            headlineContent = {
+                                Text(displayName, color = if (parsed == null) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface)
+                            },
+                            supportingContent = if (providerName != null) {
+                                { Text(providerName, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)) }
+                            } else null,
+                            leadingContent = {
+                                when {
+                                    parsed == null -> Icon(Icons.Default.Chat, null, tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f))
+                                    providerName.equals(Constants.PROVIDER_LOCAL, ignoreCase = true) -> Icon(Icons.Default.AutoAwesome, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp))
+                                    iconRes != 0 -> Icon(painterResource(iconRes), null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp))
+                                    else -> Icon(Icons.Default.Cloud, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp))
                                 }
-                                Row(
-                                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp).noOpBringIntoView(),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    OutlinedTextField(
-                                        state = wState,
-                                        placeholder = { Text("1024") },
-                                        lineLimits = TextFieldLineLimits.SingleLine,
-                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                        shape = RoundedCornerShape(16.dp),
-                                        modifier = Modifier.weight(1f),
-                                        textStyle = MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                    )
-                                    Text("×", style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Medium), color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(horizontal = 12.dp))
-                                    OutlinedTextField(
-                                        state = hState,
-                                        placeholder = { Text("1024") },
-                                        lineLimits = TextFieldLineLimits.SingleLine,
-                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                        shape = RoundedCornerShape(16.dp),
-                                        modifier = Modifier.weight(1f),
-                                        textStyle = MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                    )
+                            },
+                            modifier = Modifier.heightIn(min = 64.dp).clickable { showModelDialog = true }
+                        )
+                    }))
+
+                    // Default size — width × height
+                    SettingsGroup(title = stringResource(R.string.image_gen_size), items = listOf({
+                        Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 16.dp)) {
+                            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
+                                Icon(Icons.Default.AspectRatio, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(top = 2.dp))
+                                Spacer(modifier = Modifier.width(16.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(stringResource(R.string.image_gen_size), style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Medium), color = MaterialTheme.colorScheme.onSurface)
+                                    val parts = remember { size.split("x", "X", limit = 2) }
+                                    val wState = remember { TextFieldState(parts.getOrNull(0)?.trim().orEmpty().ifEmpty { "1024" }) }
+                                    val hState = remember { TextFieldState(parts.getOrNull(1)?.trim().orEmpty().ifEmpty { "1024" }) }
+                                    LaunchedEffect(wState.text, hState.text) {
+                                        delay(500)
+                                        val w = wState.text.toString().trim()
+                                        val h = hState.text.toString().trim()
+                                        if (w.isNotEmpty() && h.isNotEmpty()) viewModel.settings.setImageGenSize("${w}x${h}")
+                                    }
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp).noOpBringIntoView(),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        OutlinedTextField(
+                                            state = wState,
+                                            placeholder = { Text("1024") },
+                                            lineLimits = TextFieldLineLimits.SingleLine,
+                                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                            shape = RoundedCornerShape(16.dp),
+                                            modifier = Modifier.weight(1f),
+                                            textStyle = MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        )
+                                        Text("×", style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Medium), color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(horizontal = 12.dp))
+                                        OutlinedTextField(
+                                            state = hState,
+                                            placeholder = { Text("1024") },
+                                            lineLimits = TextFieldLineLimits.SingleLine,
+                                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                            shape = RoundedCornerShape(16.dp),
+                                            modifier = Modifier.weight(1f),
+                                            textStyle = MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        )
+                                    }
                                 }
                             }
                         }
-                    }
-                }))
+                    }))
+                }
             }
     }
 
