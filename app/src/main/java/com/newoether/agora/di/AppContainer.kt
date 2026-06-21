@@ -86,7 +86,7 @@ class AppContainer(private val appContext: Context) {
 
     fun chatViewModelFactory(): ChatViewModelFactory =
         ChatViewModelFactory(
-            application, settingsManager, chatDao, memoryManager, appContext, sandboxManagerFactory,
+            application, chatDao, settingsManager, memoryManager, appContext, sandboxManagerFactory,
             autoBackupManager, conversationRepository, settingsRepository
         )
 }

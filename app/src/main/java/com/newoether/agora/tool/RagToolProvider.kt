@@ -8,8 +8,8 @@ import com.newoether.agora.api.ToolFunction
 import com.newoether.agora.api.ToolParameters
 import com.newoether.agora.api.ToolProperty
 import com.newoether.agora.data.EmbeddingIndexer
-import com.newoether.agora.data.local.ChatDao
 import com.newoether.agora.data.local.MessageEntity
+import com.newoether.agora.data.repository.ConversationRepository
 import com.newoether.agora.model.Participant
 import com.newoether.agora.util.Constants
 import com.newoether.agora.util.DebugLog
@@ -27,12 +27,11 @@ import kotlinx.serialization.json.putJsonArray
  * Conversation-history tools: search / list / read past conversations.
  *
  * Owns both the tool definitions AND their execution (semantic + keyword search,
- * branch reconstruction, pagination). Execution depends on [ChatDao] and embedding
- * search, which is why this provider is constructed with a `chatDao` rather than
- * reading everything from [GenerationContext].
+ * branch reconstruction, pagination). Execution depends on [ConversationRepository]
+ * and embedding search.
  */
 class RagToolProvider(
-    private val chatDao: ChatDao
+    private val conversations: ConversationRepository
 ) : ToolProvider {
 
     override fun definitions(ctx: GenerationContext): List<ToolDefinition> {
@@ -111,7 +110,7 @@ class RagToolProvider(
                 semanticSearch(query, limit, ctx)
                     .filter { it.second >= ctx.ragThreshold }
             } else {
-                chatDao.searchMessages(query, limit).map { it to 1.0f }
+                conversations.searchMessages(query, limit).map { it to 1.0f }
             }
             if (scoredResults.isEmpty())
                 return buildJsonObject { put("type", "search_conversations"); put("query", query); put("error", "no_results") }.toString()
@@ -128,8 +127,8 @@ class RagToolProvider(
             val allWindows = mutableListOf<SearchWindow>()
 
             for ((convId, matchIds) in matchesByConv) {
-                val conversation = chatDao.getConversation(convId) ?: continue
-                val allMsgs = chatDao.getMessagesForConversation(convId).first()
+                val conversation = conversations.getConversation(convId) ?: continue
+                val allMsgs = conversations.getMessagesForConversation(convId).first()
                     .filter { it.participant in listOf(Participant.USER, Participant.MODEL) && it.text.isNotEmpty() }
 
                 // Build selected branch as indexed list
@@ -247,7 +246,7 @@ class RagToolProvider(
         val offset = ((args["offset"] as? kotlinx.serialization.json.JsonPrimitive)?.content?.toIntOrNull() ?: 0).coerceAtLeast(0)
 
         return try {
-            val allConversations = chatDao.getAllConversationsList()
+            val allConversations = conversations.getAllConversationsList()
             val sorted = if (order == "desc") allConversations.reversed() else allConversations
             val total = sorted.size
             val page = if (offset < total) {
@@ -297,14 +296,14 @@ class RagToolProvider(
         val offset = ((args["offset"] as? kotlinx.serialization.json.JsonPrimitive)?.content?.toIntOrNull() ?: 0).coerceAtLeast(0)
 
         return try {
-            val conversation = chatDao.getConversation(conversationId)
+            val conversation = conversations.getConversation(conversationId)
                 ?: return buildJsonObject {
                     put("type", "read_conversation")
                     put("conversation_id", conversationId)
                     put("error", "not_found")
                 }.toString()
 
-            val allMessages = chatDao.getMessagesForConversation(conversationId).first()
+            val allMessages = conversations.getMessagesForConversation(conversationId).first()
                 .filter { it.participant in listOf(Participant.USER, Participant.MODEL) }
             // buildSelectedBranch needs all intermediate nodes to walk the tree without gaps;
             // text emptiness check is deferred: tool-only MODEL msgs must stay as parent-chain links.
@@ -411,7 +410,7 @@ class RagToolProvider(
             return@withContext emptyList()
         }
 
-        val all = chatDao.getEmbeddingsByModel(config.id)
+        val all = conversations.getEmbeddingsByModel(config.id)
         DebugLog.d("AgoraVM", "GM RAG: ${all.size} stored embeddings, query dim=${queryEmbedding.size}")
         if (all.isEmpty()) return@withContext emptyList()
 
@@ -422,7 +421,7 @@ class RagToolProvider(
         val best = scored.maxOfOrNull { it.second } ?: 0f
         DebugLog.d("AgoraVM", "GM RAG: best cosine = ${"%.4f".format(best)}")
         val aboveThreshold = scored.filter { it.second > ctx.ragThreshold }
-        val messagesById = chatDao.getMessagesByIds(aboveThreshold.map { it.first.messageId }).associateBy { it.id }
+        val messagesById = conversations.getMessagesByIds(aboveThreshold.map { it.first.messageId }).associateBy { it.id }
         val filtered = aboveThreshold
             .filter { (messagesById[it.first.messageId]?.text?.length ?: 0) >= 10 }
             .sortedByDescending { it.second }

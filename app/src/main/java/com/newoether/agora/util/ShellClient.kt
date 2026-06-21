@@ -1,9 +1,11 @@
 package com.newoether.agora.util
 
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.put
 
 class ShellClient(
     private val serverUrl: String,
@@ -138,18 +140,13 @@ class ShellClient(
     fun getSessionKey(): ByteArray? = currentAesKey
 
     private fun buildJsonBody(command: String, timeoutMs: Int, workdir: String): String {
-        val sb = StringBuilder()
-        sb.append("{\"command\":\"")
-        sb.append(escapeJson(command))
-        sb.append("\",\"timeout_ms\":")
-        sb.append(timeoutMs)
-        if (workdir.isNotBlank()) {
-            sb.append(",\"workdir\":\"")
-            sb.append(escapeJson(workdir))
-            sb.append("\"")
-        }
-        sb.append("}")
-        return sb.toString()
+        return buildJsonObject {
+            put("command", command)
+            put("timeout_ms", timeoutMs)
+            if (workdir.isNotBlank()) {
+                put("workdir", workdir)
+            }
+        }.toString()
     }
 
     // --- File API ---
@@ -271,46 +268,23 @@ class ShellClient(
     }
 
     private fun buildJsonBodyFileMixed(params: Map<String, Any>): String {
-        val sb = StringBuilder()
-        sb.append("{")
-        var first = true
-        for ((key, value) in params) {
-            if (!first) sb.append(",")
-            sb.append("\"${escapeJson(key)}\":")
-            when (value) {
-                is Long, is Int -> sb.append(value.toString())
-                else -> {
-                    sb.append("\"")
-                    sb.append(escapeJson(value.toString()))
-                    sb.append("\"")
+        return buildJsonObject {
+            for ((key, value) in params) {
+                when (value) {
+                    is Long -> put(key, value)
+                    is Int -> put(key, value)
+                    else -> put(key, value.toString())
                 }
             }
-            first = false
-        }
-        sb.append("}")
-        return sb.toString()
+        }.toString()
     }
 
     private fun buildJsonBodyFile(params: Map<String, String>): String {
-        val sb = StringBuilder()
-        sb.append("{")
-        var first = true
-        for ((key, value) in params) {
-            if (!first) sb.append(",")
-            sb.append("\"${escapeJson(key)}\":\"")
-            sb.append(escapeJson(value))
-            sb.append("\"")
-            first = false
-        }
-        sb.append("}")
-        return sb.toString()
+        return buildJsonObject {
+            for ((key, value) in params) {
+                put(key, value)
+            }
+        }.toString()
     }
 
-    private fun escapeJson(s: String): String {
-        return s.replace("\\", "\\\\")
-            .replace("\"", "\\\"")
-            .replace("\n", "\\n")
-            .replace("\r", "\\r")
-            .replace("\t", "\\t")
-    }
 }

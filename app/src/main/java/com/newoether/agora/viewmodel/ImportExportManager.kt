@@ -34,11 +34,17 @@ private inline fun <reified T : Enum<T>> safeValueOf(name: String): T? =
  * the [DataExporter] / [DataImporter] / [ClaudeChatImporter] / [GptChatImporter]
  * engines. Extracted out of [ChatViewModel] (Phase E5); the ViewModel keeps thin
  * delegating wrappers and supplies [onDataChanged] to refresh its own data counts.
+ *
+ * NOTE: [chatDao] and [settingsManager] are retained here (not replaced by repos)
+ * because they are passed directly to [DataExporter] / [DataImporter], which perform
+ * bulk read/write operations across conversations, messages, and settings in a single
+ * transaction — these data-layer utilities genuinely need raw DAO/DataStore access.
+ * All other managers use repositories uniformly.
  */
 class ImportExportManager(
     private val app: Application,
-    private val chatDao: ChatDao,
     private val conversations: ConversationRepository,
+    private val chatDao: ChatDao,
     private val settingsManager: SettingsManager,
     private val memoryManager: MemoryManager,
     private val scope: CoroutineScope,
@@ -229,14 +235,14 @@ class ImportExportManager(
                 }
 
                 if (strategy == ImportStrategy.REPLACE) {
-                    chatDao.deleteAllConversations()
+                    conversations.deleteAllConversations()
                     chatEntities.forEach { conversations.upsertConversation(it) }
                     messageEntities.forEach { conversations.upsertMessage(it) }
                     _claudeImportProgress.value = 0.8f
                     _claudeImportResult.value = ClaudeChatImporter.ImportResult(chatEntities.size, messageEntities.size)
                 } else {
                     val existingConvIds = conversations.getAllConversationsList().map { it.id }.toSet()
-                    val existingMsgIds = chatDao.findExistingMessageIds(messageEntities.map { it.id }).toSet()
+                    val existingMsgIds = conversations.findExistingMessageIds(messageEntities.map { it.id }).toSet()
                     val newCh = chatEntities.filterNot { it.id in existingConvIds }
                     val newMsgs = messageEntities.filterNot { it.id in existingMsgIds }
                     newCh.forEach { conversations.upsertConversation(it) }
@@ -337,14 +343,14 @@ class ImportExportManager(
 
                 val thoughtsCount = importData.messages.count { it.thoughts != null && it.thoughts.isNotBlank() }
                 if (strategy == ImportStrategy.REPLACE) {
-                    chatDao.deleteAllConversations()
+                    conversations.deleteAllConversations()
                     chatEntities.forEach { conversations.upsertConversation(it) }
                     messageEntities.forEach { conversations.upsertMessage(it) }
                     _gptImportProgress.value = 0.8f
                     _gptImportResult.value = GptChatImporter.ImportResult(chatEntities.size, messageEntities.size, thoughtsCount)
                 } else {
                     val existingConvIds = conversations.getAllConversationsList().map { it.id }.toSet()
-                    val existingMsgIds = chatDao.findExistingMessageIds(messageEntities.map { it.id }).toSet()
+                    val existingMsgIds = conversations.findExistingMessageIds(messageEntities.map { it.id }).toSet()
                     val newCh = chatEntities.filterNot { it.id in existingConvIds }
                     val newMsgs = messageEntities.filterNot { it.id in existingMsgIds }
                     val newThoughtsCount = newMsgs.count { it.thoughts != null && it.thoughts.isNotBlank() }

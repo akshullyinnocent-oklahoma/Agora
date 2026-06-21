@@ -6,7 +6,7 @@ import android.content.Context
 import com.newoether.agora.R
 import com.newoether.agora.util.DebugLog
 import com.newoether.agora.api.util.ThinkingParser
-import com.newoether.agora.data.SettingsManager
+import com.newoether.agora.data.repository.SettingsRepository
 import com.newoether.agora.model.ChatMessage
 import com.newoether.agora.model.Participant
 import com.newoether.agora.util.Constants
@@ -22,7 +22,7 @@ import kotlin.coroutines.coroutineContext
 
 class LocalProvider(
     private val context: Context,
-    private val settingsManager: SettingsManager
+    private val settings: SettingsRepository
 ) : LlmProvider {
 
     companion object {
@@ -40,7 +40,7 @@ class LocalProvider(
         messages: List<ChatMessage>,
         config: ProviderConfig
     ): Flow<StreamEvent> = flow {
-        val chatModels = settingsManager.localChatModels.first()
+        val chatModels = settings.localChatModels.first()
         val modelConfig = chatModels.find { it.modelId == config.modelId }
         if (modelConfig == null) {
             emit(StreamEvent.Error(GenerationError.LocalModel("Local model not found: ${config.modelId}")))
@@ -282,7 +282,7 @@ class LocalProvider(
     }
 
     override suspend fun fetchModels(apiKey: String, baseUrl: String?): List<String> {
-        return settingsManager.localChatModels.first().map { it.modelId }
+        return settings.localChatModels.first().map { it.modelId }
     }
 
     fun close() {

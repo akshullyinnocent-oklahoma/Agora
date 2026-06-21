@@ -6,8 +6,8 @@ import com.newoether.agora.api.LlmProvider
 import com.newoether.agora.api.ProviderConfig
 import com.newoether.agora.api.StreamEvent
 import com.newoether.agora.data.BuiltInPrompts
-import com.newoether.agora.data.local.ChatDao
 import com.newoether.agora.data.local.MessageEntity
+import com.newoether.agora.data.repository.ConversationRepository
 import com.newoether.agora.model.AttachmentMeta
 import com.newoether.agora.model.AttachmentItem
 import com.newoether.agora.model.ChatMessage
@@ -35,7 +35,7 @@ import java.io.File
  */
 class TranscriptionManager(
     private val providers: Map<String, LlmProvider>,
-    private val chatDao: ChatDao,
+    private val conversations: ConversationRepository,
     private val context: Context
 ) {
     data class TranscriptionTarget(
@@ -53,7 +53,7 @@ class TranscriptionManager(
         conversationId: String,
         parentId: String?
     ): List<TranscriptionTarget> {
-        val allMessages = chatDao.getMessagesForConversation(conversationId).first()
+        val allMessages = conversations.getMessagesForConversationSnapshot(conversationId)
         val pathMessages = mutableListOf<MessageEntity>()
         var currentId = parentId
         while (currentId != null) {
@@ -119,7 +119,7 @@ class TranscriptionManager(
                     }
                 }
                 if (changed) {
-                    chatDao.upsertMessage(msg.copy(
+                    conversations.upsertMessage(msg.copy(
                         attachmentMeta = Json.encodeToString(
                             AttachmentMeta.serializer(),
                             AttachmentMeta(items = items)
@@ -159,7 +159,7 @@ class TranscriptionManager(
             thinkingEnabled = false,
             baseUrl = baseUrl
         )
-        val placeholder = chatDao.getMessagesForConversation(conversationId).first().find { it.id == modelMessageId }
+        val placeholder = conversations.getMessagesForConversationSnapshot(conversationId).find { it.id == modelMessageId }
         val parentId = placeholder?.parentId
         val results = mutableMapOf<String, MutableList<Pair<Int, String>>>()
         val transcriptionSegments = mutableListOf<MessageSegment>()
@@ -219,7 +219,7 @@ class TranscriptionManager(
 
         // Persist results back to message attachment metadata
         for ((messageId, updates) in results) {
-            val entity = chatDao.getMessagesForConversation(conversationId).first().find { it.id == messageId }
+            val entity = conversations.getMessagesForConversationSnapshot(conversationId).find { it.id == messageId }
             if (entity != null) {
                 val meta = entity.attachmentMeta?.let {
                     try { Json.decodeFromString<AttachmentMeta>(it) } catch (_: Exception) { null }
@@ -233,7 +233,7 @@ class TranscriptionManager(
                         items[index] = items[index].copy(transcription = joined)
                     }
                 }
-                chatDao.upsertMessage(entity.copy(
+                conversations.upsertMessage(entity.copy(
                     attachmentMeta = Json.encodeToString(AttachmentMeta.serializer(), AttachmentMeta(items = items))
                 ))
             }

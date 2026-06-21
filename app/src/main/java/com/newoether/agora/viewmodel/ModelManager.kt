@@ -1,7 +1,6 @@
 package com.newoether.agora.viewmodel
 
 import com.newoether.agora.data.LocalChatModelConfig
-import com.newoether.agora.data.SettingsManager
 import com.newoether.agora.data.repository.SettingsRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -13,14 +12,13 @@ import kotlinx.coroutines.launch
  * the surrounding bookkeeping (enabled-model list, model aliases, available-model
  * registry, and deletion of the backing model/mmproj files).
  *
- * Extracted out of [ChatViewModel] (Phase E5). Depends only on the settings layer;
+ * Extracted out of [ChatViewModel] (Phase E5). Depends only on [SettingsRepository];
  * ChatViewModel keeps thin delegating wrappers for the UI-facing API. Remote/provider
  * model fetching stays in ChatViewModel because it is bound to the live provider-instance
  * map.
  */
 class ModelManager(
     private val settings: SettingsRepository,
-    private val settingsManager: SettingsManager,
     private val scope: CoroutineScope,
 ) {
     fun isLocalModelIdTaken(modelId: String, excludeId: String? = null): Boolean {
@@ -32,10 +30,10 @@ class ModelManager(
             if (isLocalModelIdTaken(config.modelId)) return@launch
             val models = settings.localChatModels.value.toMutableList()
             models.add(config)
-            settingsManager.saveLocalChatModels(models)
+            settings.saveLocalChatModels(models)
             val modelPrefixedId = "Local:${config.modelId}"
             settings.setEnabledModels(settings.enabledModels.value + modelPrefixedId)
-            settingsManager.saveModelAliases(settings.modelAliases.value + (modelPrefixedId to config.alias))
+            settings.saveModelAliases(settings.modelAliases.value + (modelPrefixedId to config.alias))
         }
     }
 
@@ -47,13 +45,13 @@ class ModelManager(
                 if (model.mmprojPath.isNotBlank()) java.io.File(model.mmprojPath).delete()
             }
             val models = settings.localChatModels.value.filter { it.id != uuid }
-            settingsManager.saveLocalChatModels(models)
+            settings.saveLocalChatModels(models)
             val modelPrefixedId = "Local:${model?.modelId ?: uuid}"
             settings.setEnabledModels(settings.enabledModels.value - modelPrefixedId)
-            val updatedAvailable = settingsManager.availableModels.first().toMutableMap()
+            val updatedAvailable = settings.availableModels.first().toMutableMap()
             updatedAvailable["Local"] = models.map { "Local:${it.modelId}" }
-            settingsManager.saveAvailableModels("Local", updatedAvailable["Local"] ?: emptyList())
-            settingsManager.saveModelAliases(settings.modelAliases.value - modelPrefixedId)
+            settings.saveAvailableModels("Local", updatedAvailable["Local"] ?: emptyList())
+            settings.saveModelAliases(settings.modelAliases.value - modelPrefixedId)
         }
     }
 
@@ -71,18 +69,18 @@ class ModelManager(
                 if (it.id == uuid) it.copy(modelId = newModelId, alias = newAlias, nCtx = nCtx, temperature = temperature, topP = topP, maxTokens = maxTokens, mmprojPath = mmprojPath)
                 else it
             }
-            settingsManager.saveLocalChatModels(models)
+            settings.saveLocalChatModels(models)
             // Update model references if modelId changed
             if (oldModel.modelId != newModelId) {
                 val oldPrefixed = "Local:${oldModel.modelId}"
                 val newPrefixed = "Local:$newModelId"
                 settings.setEnabledModels(settings.enabledModels.value - oldPrefixed + newPrefixed)
-                val avail = settingsManager.availableModels.first().toMutableMap()
+                val avail = settings.availableModels.first().toMutableMap()
                 avail["Local"] = models.map { "Local:${it.modelId}" }
-                settingsManager.saveAvailableModels("Local", avail["Local"] ?: emptyList())
-                settingsManager.saveModelAliases(settings.modelAliases.value - oldPrefixed + (newPrefixed to newAlias))
+                settings.saveAvailableModels("Local", avail["Local"] ?: emptyList())
+                settings.saveModelAliases(settings.modelAliases.value - oldPrefixed + (newPrefixed to newAlias))
             } else {
-                settingsManager.saveModelAliases(settings.modelAliases.value + ("Local:$newModelId" to newAlias))
+                settings.saveModelAliases(settings.modelAliases.value + ("Local:$newModelId" to newAlias))
             }
         }
     }

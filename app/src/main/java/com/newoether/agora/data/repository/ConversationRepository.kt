@@ -2,6 +2,7 @@ package com.newoether.agora.data.repository
 
 import com.newoether.agora.data.local.ChatDao
 import com.newoether.agora.data.local.ChatEntity
+import com.newoether.agora.data.local.EmbeddingEntity
 import com.newoether.agora.data.local.MessageEntity
 import com.newoether.agora.model.AttachmentMeta
 import com.newoether.agora.model.ChatMessage
@@ -102,6 +103,24 @@ class ConversationRepository(
 
     suspend fun deleteOrphanedEmbeddings() =
         chatDao.deleteOrphanedEmbeddings()
+
+    suspend fun deleteEmbeddingsByModel(modelId: String) =
+        chatDao.deleteEmbeddingsByModel(modelId)
+
+    suspend fun getEmbeddedMessageIdsByModel(modelId: String): List<String> =
+        chatDao.getEmbeddedMessageIdsByModel(modelId)
+
+    suspend fun upsertEmbedding(entity: EmbeddingEntity) =
+        chatDao.upsertEmbedding(entity)
+
+    suspend fun deleteAllConversations() =
+        chatDao.deleteAllConversations()
+
+    suspend fun findExistingMessageIds(ids: List<String>): List<String> =
+        chatDao.findExistingMessageIds(ids)
+
+    suspend fun getEmbeddingsByModel(modelId: String): List<EmbeddingEntity> =
+        chatDao.getEmbeddingsByModel(modelId)
 
     suspend fun deleteEmbedding(messageId: String) =
         chatDao.deleteEmbedding(messageId)

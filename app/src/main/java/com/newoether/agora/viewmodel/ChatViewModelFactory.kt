@@ -14,8 +14,8 @@ import com.newoether.agora.sandbox.SandboxManagerFactory
 
 class ChatViewModelFactory(
     private val application: Application,
-    private val settingsManager: SettingsManager,
     private val chatDao: ChatDao,
+    private val settingsManager: SettingsManager,
     private val memoryManager: MemoryManager,
     private val context: Context,
     private val sandboxFactory: SandboxManagerFactory? = null,
@@ -27,7 +27,7 @@ class ChatViewModelFactory(
         if (modelClass.isAssignableFrom(ChatViewModel::class.java)) {
             @Suppress("UNCHECKED_CAST")
             return ChatViewModel(
-                application, settingsManager, chatDao, memoryManager, context, sandboxFactory,
+                application, chatDao, settingsManager, memoryManager, context, sandboxFactory,
                 autoBackupManager, conversationRepository, settingsRepository
             ) as T
         }

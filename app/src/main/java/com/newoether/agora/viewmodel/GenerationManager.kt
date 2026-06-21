@@ -7,7 +7,7 @@ import com.newoether.agora.api.ProviderConfig
 import com.newoether.agora.api.StreamEvent
 import com.newoether.agora.api.ToolDefinition
 import com.newoether.agora.data.MemoryManager
-import com.newoether.agora.data.local.ChatDao
+
 import com.newoether.agora.data.local.MessageEntity
 import com.newoether.agora.model.ChatMessage
 import com.newoether.agora.model.MessageSegment
@@ -131,7 +131,7 @@ data class GenerationCallbacks(
 
 class GenerationManager(
     private val app: Application,
-    private val chatDao: ChatDao,
+    private val conversations: com.newoether.agora.data.repository.ConversationRepository,
     private val memoryManager: MemoryManager,
     private val providers: Map<String, LlmProvider>,
     private val context: android.content.Context,
@@ -145,7 +145,7 @@ class GenerationManager(
 
     private val memoryToolProvider = MemoryToolProvider(memoryManager)
     private val webSearchToolProvider = WebSearchToolProvider()
-    private val ragToolProvider = RagToolProvider(chatDao)
+    private val ragToolProvider = RagToolProvider(conversations)
     private val imageGenToolProvider = ImageGenToolProvider(app)
     private val shellToolProvider = ShellToolProvider(sandboxFactory).also { stp ->
         // Forward to the ViewModel-provided gate at call time (read the var lazily).
@@ -158,7 +158,7 @@ class GenerationManager(
     fun buildImageGenTool(ctx: GenerationContext): List<ToolDefinition> =
         imageGenToolProvider.definitions(ctx)
 
-    private val transcriptionManager = TranscriptionManager(providers, chatDao, context)
+    private val transcriptionManager = TranscriptionManager(providers, conversations, context)
 
     companion object {
         private val FILE_TOOL_NAMES = setOf("file_read", "file_write", "file_edit", "file_glob", "file_grep")
@@ -266,7 +266,7 @@ class GenerationManager(
         config: GenerationConfig,
         ctx: GenerationContext
     ): Pair<List<ChatMessage>, ProviderConfig> {
-        val dbMessages = chatDao.getMessagesForConversation(conversationId).first()
+        val dbMessages = conversations.getMessagesForConversationSnapshot(conversationId)
         val pathEntities = mutableListOf<MessageEntity>()
         var currId: String? = parentId
         while (currId != null) {
@@ -418,7 +418,7 @@ class GenerationManager(
         var currentAnswerBuf = StringBuilder()
         var currentThoughtBuf = StringBuilder()
         var currentThoughtSignature: String? = null
-        val placeholder = chatDao.getMessagesForConversation(conversationId).first().find { it.id == modelMessageId }
+        val placeholder = conversations.getMessagesForConversationSnapshot(conversationId).find { it.id == modelMessageId }
         val parentId = placeholder?.parentId
         var toolPath = emptyList<ChatMessage>()
 
@@ -675,7 +675,7 @@ class GenerationManager(
                     ))
                     for ((_, msg) in resultMsgs) add(msg)
                 }
-                chatDao.upsertMessage(MessageEntity(
+                conversations.upsertMessage(MessageEntity(
                     id = toolMsgId, conversationId = conversationId, parentId = prevLastId,
                     text = "", thoughts = null, status = MessageStatus.SUCCESS,
                     participant = Participant.MODEL, timestamp = System.currentTimeMillis(),
@@ -683,7 +683,7 @@ class GenerationManager(
                 ))
                 for ((index, entry) in resultMsgs.withIndex()) {
                     val (rid, _) = entry
-                    chatDao.upsertMessage(MessageEntity(
+                    conversations.upsertMessage(MessageEntity(
                         id = rid, conversationId = conversationId, parentId = toolMsgId,
                         text = tcds[index].result, thoughts = null, status = MessageStatus.SUCCESS,
                         participant = Participant.USER, timestamp = System.currentTimeMillis(),
@@ -714,9 +714,9 @@ class GenerationManager(
 
             if (!isRegenerate && isLatestPersist()) for (msg in toolPath) {
                 if (msg.id.startsWith(Constants.TOOL_MSG_PREFIX) || msg.id.startsWith(Constants.RESULT_MSG_PREFIX)) {
-                    val exists = chatDao.getMessagesForConversation(conversationId).first().any { it.id == msg.id }
+                    val exists = conversations.getMessagesForConversationSnapshot(conversationId).any { it.id == msg.id }
                     if (!exists) {
-                        chatDao.upsertMessage(MessageEntity(
+                        conversations.upsertMessage(MessageEntity(
                             id = msg.id, conversationId = conversationId, parentId = msg.parentId,
                             text = msg.text, thoughts = null, status = msg.status,
                             participant = msg.participant, timestamp = System.currentTimeMillis(),
@@ -749,7 +749,7 @@ class GenerationManager(
             withContext(NonCancellable) {
                 try {
                     if (isLatestPersist()) {
-                        val conversationExists = chatDao.getConversation(conversationId) != null
+                        val conversationExists = conversations.getConversation(conversationId) != null
                         if (conversationExists) {
                             finishCurrentThoughtTiming()
                             val finalSegments = buildLiveSegments(
@@ -762,7 +762,7 @@ class GenerationManager(
                                 ?: segments.toList().ifEmpty { null }
                             val segmentsJson = finalSegments?.let { Json.encodeToString(it) }
                             val effectiveParentId = parentId
-                            chatDao.upsertMessage(MessageEntity(
+                            conversations.upsertMessage(MessageEntity(
                                 id = modelMessageId, conversationId = conversationId, parentId = effectiveParentId,
                                 text = totalText, images = generatedImages.toList(),
                                 thoughts = totalThoughts.ifBlank { null },

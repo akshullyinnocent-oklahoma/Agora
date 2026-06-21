@@ -23,9 +23,9 @@ import com.newoether.agora.data.EmbeddingModelConfig
 import com.newoether.agora.data.LocalChatModelConfig
 import com.newoether.agora.data.MemoryManager
 import com.newoether.agora.data.PredefinedVariables
-import com.newoether.agora.data.SettingsManager
+
 import com.newoether.agora.data.ShellDeviceConfig
-import com.newoether.agora.data.local.ChatDao
+
 import com.newoether.agora.data.local.ChatEntity
 import com.newoether.agora.data.local.MessageEntity
 import com.newoether.agora.data.repository.ConversationRepository
@@ -70,8 +70,11 @@ import java.util.UUID
 
 class ChatViewModel(
     application: Application,
-    private val settingsManager: SettingsManager,
-    private val chatDao: ChatDao,
+    // [chatDao] and [settingsManager] are retained ONLY to pass to ImportExportManager,
+    // which threads them into DataExporter/DataImporter (bulk data-layer utilities that
+    // genuinely need raw DAO/DataStore). All other managers use repositories uniformly.
+    private val chatDao: com.newoether.agora.data.local.ChatDao,
+    private val settingsManager: com.newoether.agora.data.SettingsManager,
     val memoryManager: MemoryManager,
     private val appContext: Context,
     private val sandboxFactory: SandboxManagerFactory? = null,
@@ -91,30 +94,32 @@ class ChatViewModel(
     val settings: SettingsRepository = settingsRepository
 
     /**
-     * Conversation/message persistence behind the repository layer. Revived from the
-     * previously-unused [ConversationRepository]; CRUD, cascade-delete, branch-selection
-     * and stuck-message logic live there instead of being hand-rolled against [chatDao].
-     * (Embedding writes / bulk import-export still go direct until later phases.)
+     * Conversation/message persistence behind the repository layer. CRUD, cascade-delete,
+     * branch-selection and stuck-message logic live in [ConversationRepository]; managers
+     * receive the repository (not raw DAO) for a uniform boundary.
      */
     private val convRepo: ConversationRepository = conversationRepository
 
-    private val localProvider = LocalProvider(appContext, settingsManager)
+    private val localProvider = LocalProvider(appContext, settings)
 
     /** Embedding subsystem: model CRUD + RAG cache + single-message indexing + key resolution. */
     val ragManager = RagManager(
-        chatDao = chatDao,
+        conversations = convRepo,
         settings = settings,
-        settingsManager = settingsManager,
         localProvider = localProvider,
         appContext = appContext,
         scope = viewModelScope,
     ) { _snackbarMessage.emit(it) }
 
-    /** Data export/import orchestration (native backup + Claude + GPT formats). */
+    /**
+     * Data export/import orchestration (native backup + Claude + GPT formats).
+     * [chatDao] and [settingsManager] are passed through to [DataExporter]/[DataImporter]
+     * which need raw DAO/DataStore for bulk cross-table operations.
+     */
     val importExport = ImportExportManager(
         app = getApplication(),
-        chatDao = chatDao,
         conversations = convRepo,
+        chatDao = chatDao,
         settingsManager = settingsManager,
         memoryManager = memoryManager,
         scope = viewModelScope,
@@ -123,7 +128,7 @@ class ChatViewModel(
     )
 
     /** Local (on-device) chat-model configuration CRUD. */
-    val modelManager = ModelManager(settings, settingsManager, viewModelScope)
+    val modelManager = ModelManager(settings, viewModelScope)
 
     /** Built-in + custom provider instances, resolution, and model discovery (see [ProviderRegistry]). */
     private val providerRegistry = ProviderRegistry(settings, localProvider, viewModelScope)
@@ -219,7 +224,7 @@ class ChatViewModel(
     private val generationManager by lazy {
         GenerationManager(
             app = application,
-            chatDao = chatDao,
+            conversations = convRepo,
             memoryManager = memoryManager,
             providers = providerRegistry.all,
             context = appContext,

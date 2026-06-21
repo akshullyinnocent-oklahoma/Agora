@@ -9,9 +9,8 @@ import com.newoether.agora.api.local.LocalProvider
 import com.newoether.agora.data.EmbeddingIndexer
 import com.newoether.agora.data.EmbeddingModelConfig
 import com.newoether.agora.data.EmbeddingModelType
-import com.newoether.agora.data.SettingsManager
-import com.newoether.agora.data.local.ChatDao
 import com.newoether.agora.data.local.EmbeddingEntity
+import com.newoether.agora.data.repository.ConversationRepository
 import com.newoether.agora.data.repository.SettingsRepository
 import com.newoether.agora.util.Constants
 import com.newoether.agora.util.DebugLog
@@ -44,9 +43,8 @@ import java.util.concurrent.ConcurrentHashMap
  * thin delegating wrappers for the UI-facing API.
  */
 class RagManager(
-    private val chatDao: ChatDao,
+    private val conversations: ConversationRepository,
     private val settings: SettingsRepository,
-    private val settingsManager: SettingsManager,
     private val localProvider: LocalProvider,
     private val appContext: Context,
     private val scope: CoroutineScope,
@@ -71,9 +69,9 @@ class RagManager(
     }
 
     private suspend fun refreshCacheCounts() {
-        val total = chatDao.getIndexableMessageCount()
+        val total = conversations.getIndexableMessageCount()
         val counts = settings.embeddingModels.value.associate { model ->
-            val cached = chatDao.getEmbeddingCountByModel(model.id).coerceAtMost(total)
+            val cached = conversations.getEmbeddingCountByModel(model.id).coerceAtMost(total)
             model.id to (cached to total)
         }
         _cacheCounts.value = counts
@@ -86,9 +84,9 @@ class RagManager(
             val wasEmpty = settings.embeddingModels.value.isEmpty()
             val models = settings.embeddingModels.value.toMutableList()
             models.add(config)
-            settingsManager.saveEmbeddingModels(models)
+            settings.saveEmbeddingModels(models)
             if (wasEmpty) {
-                settingsManager.setActiveEmbeddingModelId(config.id)
+                settings.setActiveEmbeddingModelId(config.id)
             }
             refreshCacheCounts()
         }
@@ -123,11 +121,11 @@ class RagManager(
                 if (model?.type == EmbeddingModelType.LOCAL && model.localFilePath.isNotBlank()) {
                     java.io.File(model.localFilePath).delete()
                 }
-                chatDao.deleteEmbeddingsByModel(id)
+                conversations.deleteEmbeddingsByModel(id)
                 val models = settings.embeddingModels.value.filter { it.id != id }
-                settingsManager.saveEmbeddingModels(models)
+                settings.saveEmbeddingModels(models)
                 if (settings.activeEmbeddingModelId.value == id && models.isNotEmpty()) {
-                    settingsManager.setActiveEmbeddingModelId(models.first().id)
+                    settings.setActiveEmbeddingModelId(models.first().id)
                 }
                 _cachingProgress.update { it - id }
                 refreshCacheCounts()
@@ -141,17 +139,17 @@ class RagManager(
             val models = settings.embeddingModels.value.map {
                 if (it.id == id) it.copy(name = newName, batchSize = batchSize ?: it.batchSize) else it
             }
-            settingsManager.saveEmbeddingModels(models)
+            settings.saveEmbeddingModels(models)
         }
     }
 
     fun setActiveEmbeddingModel(id: String) {
         if (id == settings.activeEmbeddingModelId.value) return
         scope.launch(Dispatchers.IO) {
-            settingsManager.setActiveEmbeddingModelId(id)
+            settings.setActiveEmbeddingModelId(id)
             val model = settings.embeddingModels.value.find { it.id == id } ?: return@launch
-            val total = chatDao.getAllMessagesForIndexing().count { it.text.isNotBlank() }
-            val cached = chatDao.getEmbeddingCountByModel(id)
+            val total = conversations.getAllMessagesForIndexing().count { it.text.isNotBlank() }
+            val cached = conversations.getEmbeddingCountByModel(id)
             val notCached = (total - cached).coerceAtLeast(0)
             if (notCached > 0) {
                 if (cachingProgress.value.containsKey(id)) {
@@ -188,16 +186,16 @@ class RagManager(
             mutex.withLock {
                 val model = settings.embeddingModels.value.find { it.id == modelId } ?: return@launch
                 if (recache) {
-                    chatDao.deleteEmbeddingsByModel(modelId)
+                    conversations.deleteEmbeddingsByModel(modelId)
                 }
-                val allMessages = chatDao.getAllMessagesForIndexing().filter { it.text.isNotBlank() }
+                val allMessages = conversations.getAllMessagesForIndexing().filter { it.text.isNotBlank() }
                 val total = allMessages.size
                 if (total == 0) {
                     if (!silent) emitSnackbar(SnackbarEvent(appContext.getString(R.string.no_messages_to_cache)))
                     refreshCacheCounts()
                     return@launch
                 }
-                val existingIds = chatDao.getEmbeddedMessageIdsByModel(modelId).toSet()
+                val existingIds = conversations.getEmbeddedMessageIdsByModel(modelId).toSet()
                 val toProcess = allMessages.filter { it.id !in existingIds }
                 if (toProcess.isEmpty()) {
                     if (!silent) emitSnackbar(SnackbarEvent(appContext.getString(R.string.all_messages_already_cached, total)))
@@ -224,7 +222,7 @@ class RagManager(
                             batch.zip(embeddings).forEach { (msg, embd) ->
                                 attempted++
                                 if (embd != null) {
-                                    chatDao.upsertEmbedding(EmbeddingEntity(
+                                    conversations.upsertEmbedding(EmbeddingEntity(
                                         messageId = msg.id, modelId = modelId,
                                         embedding = EmbeddingIndexer.floatsToBytes(embd),
                                         chunkText = msg.text.take(Constants.MAX_CHUNK_TEXT_LENGTH), dimension = embd.size
@@ -250,7 +248,7 @@ class RagManager(
                             batch.zip(embeddings).forEach { (msg, embd) ->
                                 attempted++
                                 if (embd != null) {
-                                    chatDao.upsertEmbedding(EmbeddingEntity(
+                                    conversations.upsertEmbedding(EmbeddingEntity(
                                         messageId = msg.id, modelId = modelId,
                                         embedding = EmbeddingIndexer.floatsToBytes(embd),
                                         chunkText = msg.text.take(Constants.MAX_CHUNK_TEXT_LENGTH), dimension = embd.size
@@ -275,7 +273,7 @@ class RagManager(
                         ) { cacheMessagesForModel(modelId) })
                     }
                 }
-                chatDao.deleteOrphanedEmbeddings()
+                conversations.deleteOrphanedEmbeddings()
                 refreshCacheCounts()
             }
         }
@@ -314,7 +312,7 @@ class RagManager(
                 EmbeddingClient.computeEmbedding(toEmbed, apiKey, model.remoteModelName, baseUrl)
             }
             if (embedding != null) {
-                chatDao.upsertEmbedding(EmbeddingEntity(
+                conversations.upsertEmbedding(EmbeddingEntity(
                     messageId = messageId,
                     modelId = model.id,
                     embedding = EmbeddingIndexer.floatsToBytes(embedding),
