@@ -51,6 +51,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.zIndex
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
@@ -658,16 +659,18 @@ fun MainNavigation(viewModel: ChatViewModel, settingsManager: SettingsManager) {
     }
 
     if (showRatingPrompt) {
-        AlertDialog(
-            containerColor = MaterialTheme.colorScheme.surfaceContainer,
+        Dialog(
             onDismissRequest = {
                 showRatingPrompt = false
                 ratingScope.launch {
                     settingsManager.saveRatingPromptDismissed(true)
                 }
-            },
-            title = { Text(stringResource(R.string.rating_title), fontWeight = FontWeight.Bold) },
-            text = {
+            }
+        ) {
+            Surface(
+                shape = RoundedCornerShape(28.dp),
+                color = MaterialTheme.colorScheme.surfaceContainer
+            ) {
                 RatingForm(
                     onSubmitted = {
                         showRatingPrompt = false
@@ -676,17 +679,8 @@ fun MainNavigation(viewModel: ChatViewModel, settingsManager: SettingsManager) {
                         }
                     }
                 )
-            },
-            confirmButton = { },
-            dismissButton = {
-                TextButton(onClick = {
-                    showRatingPrompt = false
-                    ratingScope.launch {
-                        settingsManager.saveRatingPromptDismissed(true)
-                    }
-                }) { Text(stringResource(R.string.cancel)) }
             }
-        )
+        }
     }
 
     // Sandbox events piped into the same global SnackbarHost.
