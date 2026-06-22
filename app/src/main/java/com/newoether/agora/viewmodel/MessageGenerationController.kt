@@ -511,7 +511,25 @@ class MessageGenerationController(
         viewModelScope.launch {
             onSnackbarSuspend(appContext.getString(R.string.snackbar_generating_title))
             val conversation = convRepo.getConversation(conversationId) ?: return@launch
-            val path = messages.value
+            // Resolve the TARGET conversation's own path — not messages.value, which
+            // is the currently-open conversation. Otherwise a long-press "regenerate
+            // title" on a background conversation would summarize the active one.
+            val entities = convRepo.getMessagesForConversationSnapshot(conversationId)
+            val path = ConversationUiState.resolvePath(
+                allMessages = entities.map {
+                    ChatMessage(
+                        id = it.id,
+                        parentId = it.parentId,
+                        text = it.text,
+                        participant = it.participant,
+                        timestamp = it.timestamp,
+                        status = it.status,
+                        modelName = it.modelName
+                    )
+                },
+                streamingMsg = null,
+                selectedChildren = emptyMap()
+            )
             val firstUserMsg = path.firstOrNull { it.participant == Participant.USER } ?: return@launch
             val firstModelMsg = path
                 .filter { it.participant == Participant.MODEL && it.text.isNotBlank() }
