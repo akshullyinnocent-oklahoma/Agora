@@ -69,9 +69,7 @@ fun SettingsLanguagePage(viewModel: ChatViewModel, onBack: () -> Unit) {
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clickable { changeLanguage(lang.code) }
-                                // RadioButton centres its 20dp circle in a 48dp touch target, so it
-                                // already carries ~14dp inset; a small 12dp start keeps it off the edge.
-                                .padding(start = 12.dp, end = 16.dp, top = 12.dp, bottom = 12.dp),
+                                .padding(horizontal = 16.dp, vertical = 12.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             RadioButton(
