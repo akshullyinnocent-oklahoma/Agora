@@ -2,9 +2,11 @@ package com.newoether.agora.ui.chat.message
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -123,7 +125,10 @@ internal fun AnimatedTimelineBlockAppearance(
         }
         AnimatedVisibility(
             visible = visible,
-            enter = fadeIn(tween(300)) + expandVertically(tween(300)),
+            // Fast-in, slow-out (decelerate) alpha + scale appearance. Gated by `animate`
+            // so it only plays for blocks first appearing during live generation.
+            enter = fadeIn(tween(350, easing = LinearOutSlowInEasing)) +
+                scaleIn(initialScale = 0.9f, animationSpec = tween(350, easing = LinearOutSlowInEasing)),
             exit = fadeOut(tween(200)) + shrinkVertically(tween(200))
         ) {
             content()
