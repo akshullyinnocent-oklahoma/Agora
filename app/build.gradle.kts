@@ -3,6 +3,8 @@ plugins {
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.ksp)
+    // Build-time bytecode fix for the Android 15 removeFirst()/removeLast() crash (see build-logic).
+    id("buildlogic.removefirstlast-fix")
 }
 
 import java.util.Properties
@@ -124,7 +126,7 @@ tasks.register<Copy>("copyFdroidApk") {
 }
 
 tasks.register<Copy>("copyPlayBundle") {
-    from("build/outputs/bundle/play/release")
+    from("build/outputs/bundle/playRelease")
     into("release")
     include("*.aab")
 }
