@@ -155,7 +155,7 @@
 
     <!-- Settings - Main -->
     <string name="settings_title">Ajustes</string>
-    <string name="settings_provider">Proveedor</string>
+    <string name="settings_provider">Proveedores</string>
     <string name="settings_provider_desc">Claves de API, URL base y selección de proveedor</string>
     <string name="settings_prompts">Instrucciones del sistema</string>
     <string name="settings_prompts_desc">Crea y gestiona instrucciones del sistema</string>

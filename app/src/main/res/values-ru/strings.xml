@@ -155,7 +155,7 @@
 
     <!-- Settings - Main -->
     <string name="settings_title">Настройки</string>
-    <string name="settings_provider">Провайдер</string>
+    <string name="settings_provider">Провайдеры</string>
     <string name="settings_provider_desc">API-ключи, базовый URL и выбор провайдера</string>
     <string name="settings_prompts">Системные промпты</string>
     <string name="settings_prompts_desc">Создание и управление системными инструкциями</string>

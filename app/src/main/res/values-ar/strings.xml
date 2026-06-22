@@ -155,7 +155,7 @@
 
     <!-- Settings - Main -->
     <string name="settings_title">الإعدادات</string>
-    <string name="settings_provider">المزوّد</string>
+    <string name="settings_provider">المزوّدون</string>
     <string name="settings_provider_desc">مفاتيح API وعنوان URL الأساسي واختيار المزوّد</string>
     <string name="settings_prompts">موجّهات النظام</string>
     <string name="settings_prompts_desc">إنشاء وإدارة تعليمات النظام</string>

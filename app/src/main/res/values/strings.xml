@@ -155,7 +155,7 @@
 
     <!-- Settings - Main -->
     <string name="settings_title">Settings</string>
-    <string name="settings_provider">Provider</string>
+    <string name="settings_provider">Providers</string>
     <string name="settings_provider_desc">API keys, base URL, and provider selection</string>
     <string name="settings_prompts">System Prompts</string>
     <string name="settings_prompts_desc">Create and manage system instructions</string>
