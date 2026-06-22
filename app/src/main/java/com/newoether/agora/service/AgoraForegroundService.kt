@@ -12,8 +12,10 @@ import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
+import android.app.ActivityManager
 import com.newoether.agora.MainActivity
 import com.newoether.agora.R
+import com.newoether.agora.util.CrashReporter
 import com.newoether.agora.util.DebugLog
 
 class AgoraForegroundService : Service() {
@@ -29,13 +31,23 @@ class AgoraForegroundService : Service() {
         fun start(context: Context) {
             val appContext = context.applicationContext
             val intent = Intent(appContext, AgoraForegroundService::class.java)
+            // Diagnostic trail for the unreproducible "did not start in time" crash:
+            // record process importance (foreground vs background) at start.
+            val state = try {
+                val info = ActivityManager.RunningAppProcessInfo()
+                ActivityManager.getMyMemoryState(info)
+                "importance=${info.importance} trim=${info.lastTrimLevel}"
+            } catch (e: Exception) { "importance=?" }
+            CrashReporter.note("FGS.start api=${Build.VERSION.SDK_INT} $state")
             try {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                     appContext.startForegroundService(intent)
                 } else {
                     appContext.startService(intent)
                 }
+                CrashReporter.note("FGS.startForegroundService ok")
             } catch (e: RuntimeException) {
+                CrashReporter.note("FGS.startForegroundService threw ${e.javaClass.simpleName}")
                 DebugLog.w(TAG, "Failed to start foreground service", e)
             }
         }
@@ -45,6 +57,7 @@ class AgoraForegroundService : Service() {
         }
 
         fun stop(context: Context) {
+            CrashReporter.note("FGS.stop foregroundStarted=${instance?.foregroundStarted}")
             val intent = Intent(context, AgoraForegroundService::class.java)
             context.stopService(intent)
         }
@@ -120,6 +133,7 @@ class AgoraForegroundService : Service() {
     override fun onCreate() {
         super.onCreate()
         instance = this
+        CrashReporter.note("FGS.onCreate")
         createChannel(this)
         val notification = buildGenerationNotification(currentText)
         // Must NOT catch exceptions here: if startForeground() fails, the real
@@ -134,6 +148,7 @@ class AgoraForegroundService : Service() {
             foregroundServiceType()
         )
         foregroundStarted = true
+        CrashReporter.note("FGS.startForeground ok")
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -179,6 +194,7 @@ class AgoraForegroundService : Service() {
     }
 
     override fun onTimeout(type: Int, reason: Int) {
+        CrashReporter.note("FGS.onTimeout type=$type reason=$reason")
         DebugLog.w(TAG, "Foreground service timed out: type=$type reason=$reason")
         stopSelf()
     }

@@ -400,6 +400,7 @@ class GenerationManager(
 
         onLoadingChange(true)
         onGeneratingIdChange(conversationId)
+        com.newoether.agora.util.CrashReporter.note("generate provider=${config.providerName} regen=$isRegenerate")
         withContext(Dispatchers.Main) { AgoraForegroundService.start(app) }
 
         var totalText = ""

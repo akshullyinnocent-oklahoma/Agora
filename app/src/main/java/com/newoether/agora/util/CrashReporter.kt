@@ -3,10 +3,12 @@ package com.newoether.agora.util
 import android.content.Context
 import android.os.Build
 import com.newoether.agora.api.HttpClient
+import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 import java.io.PrintWriter
 import java.io.StringWriter
+import java.util.concurrent.ConcurrentLinkedDeque
 
 /**
  * Anonymous, opt-in crash reporting.
@@ -31,6 +33,18 @@ object CrashReporter {
     private data class AppInfo(val versionName: String, val versionCode: Long)
 
     @Volatile private var appInfo: AppInfo = AppInfo("?", 0)
+
+    /** Rolling diagnostic trail attached to crash reports. Helps pin down crashes we can't
+     *  reproduce locally (e.g. the foreground-service start-in-time timeout) by recording
+     *  what happened just before, with timestamps. No user content — only coarse event tags. */
+    private const val MAX_BREADCRUMBS = 60
+    private val breadcrumbs = ConcurrentLinkedDeque<String>()
+
+    /** Append a timestamped breadcrumb to the diagnostic trail (thread-safe, bounded). */
+    fun note(message: String) {
+        breadcrumbs.addLast("${System.currentTimeMillis()} $message")
+        while (breadcrumbs.size > MAX_BREADCRUMBS) breadcrumbs.pollFirst()
+    }
 
     /**
      * Registers the global uncaught-exception handler. Call once, as early as possible
@@ -77,6 +91,7 @@ object CrashReporter {
             put("androidRelease", Build.VERSION.RELEASE)
             put("device", "${Build.MANUFACTURER} ${Build.MODEL}")
             put("ts", System.currentTimeMillis())
+            put("breadcrumbs", JSONArray(breadcrumbs.toList()))
         }
         val dir = File(context.filesDir, DIR).apply { mkdirs() }
         File(dir, FILE).writeText(json.toString())
