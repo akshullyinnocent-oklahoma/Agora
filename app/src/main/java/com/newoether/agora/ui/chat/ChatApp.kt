@@ -314,6 +314,13 @@ fun ChatApp(
     }
 
     LaunchedEffect(currentConversationId) {
+        // New chat's first send creates the conversation; its own scroll-to-message handles
+        // scrolling, so skip this conversation-open auto-scroll once to avoid a double scroll.
+        if (viewModel.suppressNextOpenScroll) {
+            viewModel.suppressNextOpenScroll = false
+            viewModel.setSwitching(false)
+            return@LaunchedEffect
+        }
         if (currentConversationId != null) {
             snapshotFlow { messages }.filter { it.isNotEmpty() }.first()
             val targetIndex = messages.indexOfLast { it.participant == Participant.USER }

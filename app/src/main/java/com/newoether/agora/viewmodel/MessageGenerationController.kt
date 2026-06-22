@@ -68,6 +68,10 @@ class MessageGenerationController(
     private val onSnackbar: (String) -> Unit,            // 替换 emitSnackbar(...)
     private val onSnackbarSuspend: suspend (String) -> Unit,  // generateTitle 内的顺序 emit(等价原版 _snackbarMessage.emit）
     private val onPersistSelectedChildren: suspend (String, Map<String?, String>) -> Unit,
+    // Called when sendMessage creates a NEW conversation, so the UI can suppress the
+    // conversation-open auto-scroll (the send's own scroll-to-message handles it) and
+    // avoid a double scroll on the first message of a new chat.
+    private val onConversationCreatedBySend: () -> Unit = {},
 ) {
     private val generationManager: GenerationManager get() = generationManagerProvider()
 
@@ -428,6 +432,8 @@ class MessageGenerationController(
             if (wasNewChat || currentId == null) {
                 val newId = UUID.randomUUID().toString()
                 convRepo.upsertConversation(ChatEntity(id = newId, title = appContext.getString(R.string.new_chat), modelId = currentActiveModel.value, systemPromptId = pendingSystemPromptId.value))
+                // Suppress the conversation-open auto-scroll BEFORE the id change triggers it.
+                onConversationCreatedBySend()
                 currentConversationId.value = newId
                 isNewChatMode.value = false
                 currentId = newId

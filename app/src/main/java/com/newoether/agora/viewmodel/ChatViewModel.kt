@@ -260,6 +260,12 @@ class ChatViewModel(
     private val _scrollToMessage = MutableSharedFlow<String?>(replay = 0)
     val scrollToMessage = _scrollToMessage.asSharedFlow()
 
+    /** One-shot: set when sendMessage creates a new conversation so the conversation-open
+     *  auto-scroll skips once (the send's scroll-to-message already handles it), preventing
+     *  a double scroll on the first message of a new chat. Consumed by ChatApp. */
+    @Volatile
+    var suppressNextOpenScroll: Boolean = false
+
     fun triggerScrollToMessage(messageId: String? = null) {
         viewModelScope.launch {
             _scrollToMessage.emit(messageId)
@@ -442,6 +448,7 @@ class ChatViewModel(
             onSnackbar = { msg -> emitSnackbar(msg) },
             onSnackbarSuspend = { msg -> _snackbarMessage.emit(SnackbarEvent(msg)) },
             onPersistSelectedChildren = { convId, map -> persistSelectedChildren(convId, map) },
+            onConversationCreatedBySend = { suppressNextOpenScroll = true },
         )
     }
 
