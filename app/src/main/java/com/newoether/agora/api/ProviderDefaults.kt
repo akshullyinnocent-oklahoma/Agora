@@ -17,8 +17,7 @@ object ProviderDefaults {
 
     /** Providers whose embedding APIs follow the OpenAI compatibility contract. */
     fun isOpenAiCompatibleEmbedding(name: String): Boolean =
-        name == Constants.PROVIDER_OPENAI || name == Constants.PROVIDER_DEEPSEEK ||
-        name == Constants.PROVIDER_QWEN || name == Constants.PROVIDER_OPEN_ROUTER
+        name == Constants.PROVIDER_OPENAI
 
     /** Resolves the base URL for OpenAI-compatible embedding, falling back to the default. */
     fun openAiCompatibleBaseUrl(baseUrls: Map<String, String>): String =
@@ -27,9 +26,6 @@ object ProviderDefaults {
     fun embeddingBaseUrl(provider: String): String = when (provider.lowercase()) {
         "openai" -> OPENAI_BASE_URL
         "mistral" -> "https://api.mistral.ai/v1"
-        "deepseek" -> "https://api.deepseek.com/v1"
-        "qwen" -> "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"
-        "open router", "openrouter" -> "https://openrouter.ai/api/v1"
         "voyage ai", "voyage" -> "https://api.voyageai.com/v1"
         "siliconflow" -> "https://api.siliconflow.cn/v1"
         "ollama" -> "http://localhost:11434/v1"
