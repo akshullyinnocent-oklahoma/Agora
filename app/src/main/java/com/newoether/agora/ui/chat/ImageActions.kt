@@ -1,5 +1,7 @@
 package com.newoether.agora.ui.chat
 
+import com.newoether.agora.ui.components.DialogWindowEdgeToEdge
+
 import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
@@ -133,6 +135,7 @@ fun ImageActionsSheet(url: String, onMessage: (String) -> Unit, onDismiss: () ->
     ) { granted -> if (granted) doSave() else onMessage(failMsg) }
 
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState, containerColor = MaterialTheme.colorScheme.surfaceContainer) {
+        DialogWindowEdgeToEdge()
         Column(modifier = Modifier.navigationBarsPadding().padding(bottom = 12.dp)) {
             ActionRow(Icons.Default.Download, stringResource(R.string.img_action_save)) {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) collapseThen { doSave() }

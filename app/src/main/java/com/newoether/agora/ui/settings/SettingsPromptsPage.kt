@@ -1,5 +1,7 @@
 package com.newoether.agora.ui.settings
 
+import com.newoether.agora.ui.components.DialogWindowEdgeToEdge
+
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
@@ -90,6 +92,7 @@ fun SettingsPromptsPage(viewModel: ChatViewModel, onBack: () -> Unit) {
             shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp),
             containerColor = MaterialTheme.colorScheme.surfaceContainer
         ) {
+            DialogWindowEdgeToEdge()
             Text(
                 text = stringResource(R.string.prompts_template_title),
                 style = MaterialTheme.typography.titleLarge,

@@ -51,6 +51,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.window.DialogWindowProvider
+import com.newoether.agora.ui.components.DialogWindowEdgeToEdge
 import com.newoether.agora.R
 import com.newoether.agora.model.ChatMessage
 import com.newoether.agora.ui.theme.ChatType
@@ -248,6 +249,7 @@ internal fun SegmentDetailSheet(
                 decorFitsSystemWindows = false
             )
         ) {
+            DialogWindowEdgeToEdge()
             val dialogWindow = (LocalView.current.parent as? DialogWindowProvider)?.window
             SideEffect { dialogWindowRef.value = dialogWindow }
 

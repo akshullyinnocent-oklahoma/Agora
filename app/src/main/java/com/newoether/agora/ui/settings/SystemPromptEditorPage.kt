@@ -39,6 +39,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.newoether.agora.R
+import com.newoether.agora.ui.components.DialogWindowEdgeToEdge
 import com.newoether.agora.data.PredefinedVariables
 import com.newoether.agora.data.PromptItemType
 import com.newoether.agora.data.PromptTemplateItem
@@ -290,6 +291,7 @@ fun SystemPromptEditorPage(
             shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp),
             containerColor = MaterialTheme.colorScheme.surfaceContainer
         ) {
+            DialogWindowEdgeToEdge()
             Text(
                 text = stringResource(R.string.template_variable_picker_title),
                 style = MaterialTheme.typography.titleLarge,

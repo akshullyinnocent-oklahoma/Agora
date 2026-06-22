@@ -1,5 +1,7 @@
 package com.newoether.agora.ui.chat.bottombar
 
+import com.newoether.agora.ui.components.DialogWindowEdgeToEdge
+
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import com.newoether.agora.model.apiModelName
@@ -546,6 +548,7 @@ fun ChatBottomBar(
             onDismissRequest = { showThinkingSheet = false },
             containerColor = MaterialTheme.colorScheme.surfaceContainer
         ) {
+            DialogWindowEdgeToEdge()
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
