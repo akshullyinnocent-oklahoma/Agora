@@ -31,10 +31,6 @@ import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -58,15 +54,16 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.newoether.agora.R
+import com.newoether.agora.ui.components.CircularBackButton
 
 // ── Shared geometry for the iOS-style collapsing large title, used by the
 //    Settings home page and every settings sub-page so the morph is identical. ──
 internal val SettingsBarHeight = 64.dp          // fixed top bar height (below the status bar)
-internal val SettingsTitleDockTop = 20.dp       // docked title's top inside the bar
+internal val SettingsTitleDockTop = 18.dp       // docked title's top inside the bar
 internal val SettingsTitleBottomInset = 70.dp   // big title's top-left, measured up from the header bottom
 internal val SettingsTitleAreaHeight = 90.dp    // big-title header room; taller = longer rise
 internal val SettingsTitleExpandedFont = 33.sp
-internal val SettingsTitleCollapsedFont = 19.sp
+internal val SettingsTitleCollapsedFont = 22.sp
 
 /** Gentle ease applied to the title's scale + horizontal tuck only — its vertical rise stays
  *  glued 1:1 to the scrolling header, so the shrink-and-dock follows a curve, not dead-linear. */
@@ -125,7 +122,7 @@ internal fun CollapsingSettingsTitleBar(
 
         val expandedY = statusBarTop + SettingsBarHeight + titleAreaHeight - SettingsTitleBottomInset
         val titleY = expandedY - titleTravel * fraction   // linear 1:1 with scroll → docks at expandedY − travel
-        val titleX = 24.dp + (56.dp - 24.dp) * eased       // eased shrink-and-tuck beside the back arrow
+        val titleX = 24.dp + (70.dp - 24.dp) * eased       // eased shrink-and-tuck beside the back arrow
 
         // Opaque bar (incl. the status-bar strip) hides list content scrolling underneath it.
         Box(
@@ -134,12 +131,11 @@ internal fun CollapsingSettingsTitleBar(
                 .height(statusBarTop + SettingsBarHeight)
                 .background(MaterialTheme.colorScheme.background)
         )
-        IconButton(
+        CircularBackButton(
             onClick = onBack,
-            modifier = Modifier.padding(start = 4.dp, top = statusBarTop + 8.dp)
-        ) {
-            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = backDescription)
-        }
+            contentDescription = backDescription,
+            modifier = Modifier.padding(start = 16.dp, top = statusBarTop + 12.dp)
+        )
         Row(
             modifier = Modifier
                 .align(Alignment.TopEnd)
