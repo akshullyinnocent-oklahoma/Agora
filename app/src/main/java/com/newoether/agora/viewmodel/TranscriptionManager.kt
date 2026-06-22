@@ -181,7 +181,10 @@ class TranscriptionManager(
                 participant = Participant.MODEL, status = MessageStatus.TRANSCRIBING, timestamp = startTime,
                 retryText = "${processed + 1}/$total",
                 thoughtTitle = "Image Transcription",
-                segments = transcriptionSegments.toList(),
+                // Trailing empty answer segment keeps the timeline renderer active during
+                // transcription (it keys on the presence of an "answer" segment), so the
+                // block morphs in place into the thought block instead of disappearing.
+                segments = transcriptionSegments.toList() + MessageSegment(type = "answer"),
             ))
 
             val promptMessages = listOf(ChatMessage(
@@ -202,7 +205,10 @@ class TranscriptionManager(
                             participant = Participant.MODEL, status = MessageStatus.TRANSCRIBING, timestamp = startTime,
                             retryText = "${processed + 1}/$total",
                             thoughtTitle = "Image Transcription",
-                            segments = transcriptionSegments.toList(),
+                            // Trailing empty answer segment keeps the timeline renderer active during
+                // transcription (it keys on the presence of an "answer" segment), so the
+                // block morphs in place into the thought block instead of disappearing.
+                segments = transcriptionSegments.toList() + MessageSegment(type = "answer"),
                         ))
                     }
                     is StreamEvent.Error -> { streamError = event.message }
