@@ -1,6 +1,11 @@
 package com.newoether.agora.ui.settings
 
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
@@ -78,10 +83,16 @@ internal fun AddRemoteEmbeddingDialog(
             Column {
                 // Provider selector
                 var provExpanded by remember { mutableStateOf(false) }
+                val provFocus = remember { FocusRequester() }
+                val focusManager = LocalFocusManager.current
+                // Defocus the field whenever its dropdown closes (item picked / dismissed / back).
+                LaunchedEffect(provExpanded) { if (!provExpanded) focusManager.clearFocus() }
+                Box {
                 OutlinedTextField(
                     value = provider.name,
                     onValueChange = { },
                     readOnly = true,
+                    modifier = Modifier.fillMaxWidth().focusRequester(provFocus),
                     label = { Text(stringResource(R.string.embedding_provider_label)) },
                     trailingIcon = {
                         Box {
@@ -118,9 +129,17 @@ internal fun AddRemoteEmbeddingDialog(
                         }
                     },
                     singleLine = true,
-                    shape = RoundedCornerShape(16.dp),
-                    modifier = Modifier.fillMaxWidth()
+                    shape = RoundedCornerShape(16.dp)
                 )
+                Box(
+                    Modifier
+                        .matchParentSize()
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) { provFocus.requestFocus(); provExpanded = true }
+                )
+                }
                 Spacer(modifier = Modifier.height(12.dp))
                 // API Key
                 val currentKey = state.apiKeys[state.selectedProviderIdx]
@@ -147,10 +166,14 @@ internal fun AddRemoteEmbeddingDialog(
                 )
                 Spacer(modifier = Modifier.height(12.dp))
                 // Model selector (always shows dropdown)
+                val modelFocus = remember { FocusRequester() }
+                LaunchedEffect(state.showModelDropdown) { if (!state.showModelDropdown) focusManager.clearFocus() }
+                Box {
                 OutlinedTextField(
                     value = if (state.isCustomModel) stringResource(R.string.embedding_custom) else state.modelName,
                     onValueChange = { },
                     readOnly = true,
+                    modifier = Modifier.fillMaxWidth().focusRequester(modelFocus),
                     label = { Text(stringResource(R.string.embedding_model_label)) },
                     trailingIcon = {
                         Box {
@@ -185,9 +208,17 @@ internal fun AddRemoteEmbeddingDialog(
                         }
                     },
                     singleLine = true,
-                    shape = RoundedCornerShape(16.dp),
-                    modifier = Modifier.fillMaxWidth()
+                    shape = RoundedCornerShape(16.dp)
                 )
+                Box(
+                    Modifier
+                        .matchParentSize()
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) { modelFocus.requestFocus(); state.showModelDropdown = true }
+                )
+                }
                 if (state.isCustomModel) {
                     Spacer(modifier = Modifier.height(8.dp))
                     OutlinedTextField(
