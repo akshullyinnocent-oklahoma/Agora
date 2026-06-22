@@ -5,11 +5,6 @@ import android.view.Surface
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.animateContentSize
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -69,8 +64,6 @@ private fun variableIcon(key: String): ImageVector = when (key) {
     else -> Icons.Default.Info
 }
 
-private val PromptTabCornerVisibilityThreshold = 0.01.dp
-private const val PromptTabWeightVisibilityThreshold = 0.001f
 
 @SuppressLint("UnusedContentLambdaTargetStateParameter")
 @OptIn(ExperimentalMaterial3Api::class)
@@ -164,80 +157,11 @@ fun SystemPromptEditorPage(
                 stringResource(R.string.template_tab_prepend_desc),
                 stringResource(R.string.template_tab_postpend_desc),
             )
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                tabLabels.forEachIndexed { index, label ->
-                    val isSelected = selectedTab == index
-                    val tabHeight = 44.dp
-                    val outerCorner = tabHeight / 2f
-                    val innerCorner = 8.dp
-                    val targetTopStart = if (isSelected || index == 0) outerCorner else innerCorner
-                    val targetBottomStart = if (isSelected || index == 0) outerCorner else innerCorner
-                    val targetTopEnd = if (isSelected || index == tabLabels.lastIndex) outerCorner else innerCorner
-                    val targetBottomEnd = if (isSelected || index == tabLabels.lastIndex) outerCorner else innerCorner
-                    val cornerSpec = spring<Dp>(
-                        dampingRatio = Spring.DampingRatioHighBouncy,
-                        stiffness = Spring.StiffnessMediumLow,
-                        visibilityThreshold = PromptTabCornerVisibilityThreshold
-                    )
-                    val topStart by animateDpAsState(targetTopStart, cornerSpec, label = "promptTabTopStart")
-                    val topEnd by animateDpAsState(targetTopEnd, cornerSpec, label = "promptTabTopEnd")
-                    val bottomStart by animateDpAsState(targetBottomStart, cornerSpec, label = "promptTabBottomStart")
-                    val bottomEnd by animateDpAsState(targetBottomEnd, cornerSpec, label = "promptTabBottomEnd")
-                    val safeTopStart = topStart.coerceIn(innerCorner, outerCorner)
-                    val safeTopEnd = topEnd.coerceIn(innerCorner, outerCorner)
-                    val safeBottomStart = bottomStart.coerceIn(innerCorner, outerCorner)
-                    val safeBottomEnd = bottomEnd.coerceIn(innerCorner, outerCorner)
-                    val containerColor by animateColorAsState(
-                        targetValue = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceContainerHigh,
-                        animationSpec = tween(220),
-                        label = "promptTabContainerColor"
-                    )
-                    val contentColor by animateColorAsState(
-                        targetValue = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
-                        animationSpec = tween(220),
-                        label = "promptTabContentColor"
-                    )
-                    val widthWeight by animateFloatAsState(
-                        targetValue = if (isSelected) 1.13f else 1f,
-                        animationSpec = spring(
-                            dampingRatio = Spring.DampingRatioHighBouncy,
-                            stiffness = Spring.StiffnessMediumLow,
-                            visibilityThreshold = PromptTabWeightVisibilityThreshold
-                        ),
-                        label = "promptTabWeight"
-                    )
-                    Surface(
-                        onClick = { selectedTab = index },
-                        modifier = Modifier.weight(widthWeight).height(tabHeight),
-                        shape = RoundedCornerShape(
-                            topStart = safeTopStart,
-                            topEnd = safeTopEnd,
-                            bottomStart = safeBottomStart,
-                            bottomEnd = safeBottomEnd
-                        ),
-                        color = containerColor,
-                        contentColor = contentColor
-                    ) {
-                        Box(
-                            modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = label,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                softWrap = false,
-                                textAlign = TextAlign.Center,
-                                style = MaterialTheme.typography.labelLarge,
-                                fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal
-                            )
-                        }
-                    }
-                }
-            }
+            PillTabSwitcher(
+                tabs = tabLabels,
+                selectedIndex = selectedTab,
+                onSelect = { selectedTab = it }
+            )
 
             Spacer(modifier = Modifier.height(12.dp))
 
