@@ -419,6 +419,7 @@ nav:
   - Local Models: local-model.md
   - PDF Import: pdf-import.md
   - Data Portability: import-export.md
+  - Network Proxy: proxy.md
   - Appearance & Language:
       - Appearance: appearance.md
       - Language: language.md
