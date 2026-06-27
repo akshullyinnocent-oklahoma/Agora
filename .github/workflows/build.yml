@@ -43,7 +43,7 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
 
       - name: Build Play Release APK
-        run: ./gradlew assemblePlayRelease
+        run: chmod +x ./gradlew && ./gradlew assemblePlayRelease
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
