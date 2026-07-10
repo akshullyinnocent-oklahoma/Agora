@@ -1,0 +1,40 @@
+name: Universal Android Debug Build
+
+on:
+  push:
+    branches: [ "**" ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build armv7a Debug APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      # Setting up Java AND enabling the native Gradle cache
+      # This is the secret sauce to dropping that 5-minute build time down on future runs
+      - name: Setup Java & Cache Gradle
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21' 
+          cache: 'gradle' 
+
+      - name: Make Gradle Executable
+        run: chmod +x ./gradlew
+
+      # 'assembleDebug' is the default task for 99% of Android apps.
+      # The -Pandroid.injected.abi flag keeps it locked to 32-bit ARM.
+      - name: Build APK (armeabi-v7a only)
+        run: ./gradlew assembleDebug -Pandroid.injected.abi=armeabi-v7a --stacktrace
+
+      # Glob patterns (**) mean GitHub will search all build directories 
+      # and grab whatever debug APK was generated, no matter the module layout.
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: debug-apk-output
+          path: "**/build/outputs/apk/**/*.apk"
