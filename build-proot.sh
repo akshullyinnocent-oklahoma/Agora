@@ -1,20 +1,21 @@
 #!/usr/bin/env bash
 set -euo pipefail
 # build-proot.sh - Build proot native binaries for the Agora Android app.
-# Invoked from build.ps1 / build-googleplay.ps1 / build_fdroid.ps1.
-# Must run inside WSL Arch (or any Linux with NDK 28.2.13676358).
+# Supports both arm64-v8a and armeabi-v7a via the first argument.
+# Must run on Linux with NDK installed (GitHub Actions runner or local WSL).
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "BASH_SOURCE[0]")" && pwd)"
 FORCE="${1:-}"
+TARGET_ARCH="${2:-arm64-v8a}"
 
 # ── NDK auto-detection ────────────────────────────────────────
-# Priority: ANDROID_NDK_HOME env var, then well-known paths
 if [ -n "${ANDROID_NDK_HOME:-}" ] && [ -d "$ANDROID_NDK_HOME" ]; then
     NDK="$ANDROID_NDK_HOME"
+elif [ -d "/usr/local/lib/android/sdk/ndk/28.2.13676358" ]; then
+    NDK="/usr/local/lib/android/sdk/ndk/28.2.13676358"
 elif [ -d "/home/newoether/android-sdk/ndk/28.2.13676358" ]; then
     NDK="/home/newoether/android-sdk/ndk/28.2.13676358"
 elif [ -n "${ANDROID_HOME:-}" ] && [ -d "$ANDROID_HOME/ndk" ]; then
-    # F-Droid buildserver: pick the latest installed NDK
     NDK=$(ls -d "$ANDROID_HOME/ndk/"*/ 2>/dev/null | sort -V | tail -1)
     NDK="${NDK%/}"
 else
@@ -22,31 +23,44 @@ else
     exit 1
 fi
 
-# Toolchain: NDK r28 on Linux uses llvm/prebuilt/linux-x86_64
+# ── Architecture-specific settings ────────────────────────────
 TC_PREFIX="$NDK/toolchains/llvm/prebuilt/linux-x86_64/bin"
-CROSS_PREFIX="aarch64-linux-android26"
+
+if [ "$TARGET_ARCH" = "armeabi-v7a" ]; then
+    CROSS_PREFIX="armv7a-linux-androideabi24"
+    JNILIBS="$SCRIPT_DIR/app/src/main/jniLibs/armeabi-v7a"
+    FDROID_JNILIBS="$SCRIPT_DIR/app/src/fdroid/jniLibs/armeabi-v7a"
+    BLD_DIR="$SCRIPT_DIR/.build-proot/build-proot-armeabi-v7a"
+    SYSROOT="$SCRIPT_DIR/.build-proot/sysroot/armeabi-v7a"
+elif [ "$TARGET_ARCH" = "arm64-v8a" ]; then
+    CROSS_PREFIX="aarch64-linux-android26"
+    JNILIBS="$SCRIPT_DIR/app/src/main/jniLibs/arm64-v8a"
+    FDROID_JNILIBS="$SCRIPT_DIR/app/src/fdroid/jniLibs/arm64-v8a"
+    BLD_DIR="$SCRIPT_DIR/.build-proot/build-proot-arm64-v8a"
+    SYSROOT="$SCRIPT_DIR/.build-proot/sysroot/arm64-v8a"
+else
+    echo "ERROR: Unknown architecture: $TARGET_ARCH (use arm64-v8a or armeabi-v7a)"
+    exit 1
+fi
+
 CC="${TC_PREFIX}/${CROSS_PREFIX}-clang"
 STRIP="${TC_PREFIX}/llvm-strip"
 export PATH="${TC_PREFIX}:$PATH"
 
-echo "=== build-proot.sh: NDK=$NDK ==="
+SYSROOT_LIB="$SYSROOT/lib"
+SYSROOT_INC="$SYSROOT/include"
+LOADER_OUT="$BLD_DIR/loader-out"
+
+echo "=== build-proot.sh: NDK=$NDK ARCH=$TARGET_ARCH ==="
 
 # ── Paths ──────────────────────────────────────────────────────
 TALLOC_SRC="$SCRIPT_DIR/thirdparty/talloc"
 PROOT_SRC="$SCRIPT_DIR/thirdparty/proot/src"
-BLD="$SCRIPT_DIR/.build-proot"
-SYSROOT="$BLD/sysroot/arm64-v8a"
-SYSROOT_LIB="$SYSROOT/lib"
-SYSROOT_INC="$SYSROOT/include"
-BLD_DIR="$BLD/build-proot-arm64-v8a"
-LOADER_OUT="$BLD_DIR/loader-out"
-JNILIBS="$SCRIPT_DIR/app/src/main/jniLibs/arm64-v8a"
-FDROID_JNILIBS="$SCRIPT_DIR/app/src/fdroid/jniLibs/arm64-v8a"
 
 # ── Ensure readelf is available (GNUmakefile needs it) ─────────
 if ! command -v readelf &>/dev/null; then
     if command -v llvm-readelf &>/dev/null; then
-        READELF_DIR="$BLD/.tmp-bin"
+        READELF_DIR="$SCRIPT_DIR/.build-proot/.tmp-bin"
         mkdir -p "$READELF_DIR"
         ln -sf "$(command -v llvm-readelf)" "$READELF_DIR/readelf"
         export PATH="$READELF_DIR:$PATH"
@@ -59,7 +73,6 @@ need_rebuild=false
 
 calc_hashes() {
     local hash=""
-    # Hash talloc source files
     hash+=$(md5sum "$TALLOC_SRC/talloc.c" 2>/dev/null | cut -d' ' -f1)
     hash+="-"
     hash+=$(md5sum "$TALLOC_SRC/talloc.h" 2>/dev/null | cut -d' ' -f1)
@@ -68,11 +81,11 @@ calc_hashes() {
     hash+="-"
     hash+=$(md5sum "$TALLOC_SRC/replace.h" 2>/dev/null | cut -d' ' -f1)
     hash+="-"
-    # Hash proot Makefile
     hash+=$(md5sum "$PROOT_SRC/GNUmakefile" 2>/dev/null | cut -d' ' -f1)
     hash+="-"
-    # Hash NDK path (rebuild if NDK changes)
     hash+=$(echo "$NDK" | md5sum | cut -d' ' -f1)
+    hash+="-"
+    hash+=$(echo "$TARGET_ARCH")
     echo "$hash"
 }
 
@@ -103,7 +116,7 @@ if [ "$need_rebuild" = false ]; then
     exit 0
 fi
 
-echo "=== build-proot.sh: Building proot binaries ==="
+echo "=== build-proot.sh: Building proot binaries for $TARGET_ARCH ==="
 
 # ── Create directories ─────────────────────────────────────────
 mkdir -p "$SYSROOT_LIB" "$SYSROOT_INC" "$LOADER_OUT" \
@@ -111,8 +124,6 @@ mkdir -p "$SYSROOT_LIB" "$SYSROOT_INC" "$LOADER_OUT" \
 
 # ── Step 1: Build talloc ───────────────────────────────────────
 echo "  [1/4] Building libtalloc.so..."
-# Build from source directory so __FILE__ expands to relative path (e.g.
-# "talloc.c:N") on both local and CI — avoids embedding the absolute build path.
 (
     cd "$TALLOC_SRC"
     "$CC" -fPIC -O2 -shared \
@@ -126,29 +137,17 @@ cp "$TALLOC_SRC/talloc.h" "$SYSROOT_INC/"
 echo "  [1/4] Done: $(stat -c%s "$SYSROOT_LIB/libtalloc.so") bytes"
 
 # ── Step 2: Build proot (in-tree inside the build dir) ─────────
-# The proot GNUmakefile only builds correctly in-tree: its compile
-# rule uses "$(SRC)$<", and an out-of-tree `make -f` invocation makes
-# VPATH resolve $< to an absolute path, so $(SRC) gets prepended twice
-# (e.g. .../proot/src//.../proot/src/cli/cli.c). Copy the sources into
-# the build dir and build there so SRC stays relative.
 echo "  [2/4] Building proot (GNUmakefile)..."
 PROOT_BLD="$BLD_DIR/src"
 rm -rf "$PROOT_BLD"
 mkdir -p "$PROOT_BLD"
 cp -r "$PROOT_SRC/." "$PROOT_BLD/"
-# Drop any stale build artifacts that may have been copied from the
-# source tree (keeps the tracked .check_*.c probe sources intact).
 find "$PROOT_BLD" -name '*.o' -delete
 find "$PROOT_BLD" -name '*.d' -delete
 find "$PROOT_BLD" -name '*.res' -delete
 rm -f "$PROOT_BLD/build.h" "$PROOT_BLD/proot" "$PROOT_BLD/loader/loader" \
       "$PROOT_BLD/.check_process_vm" "$PROOT_BLD/.check_seccomp_filter"
 # ── Cross-compilation source fixes ─────────────────────────────
-# The feature-detection probes are meant to compile/run on the build
-# host; when cross-compiling for Android that is meaningless, so stub
-# them to force the (Android-supported) features on. Also add a
-# <string.h> include that newer clang (NDK r28) rejects as an implicit
-# function declaration error (strcmp/memset).
 printf 'int main(void){return 0;}\n' > "$PROOT_BLD/.check_process_vm.c"
 printf 'int main(void){return 0;}\n' > "$PROOT_BLD/.check_seccomp_filter.c"
 ASHMEM_C="$PROOT_BLD/extension/ashmem_memfd/ashmem_memfd.c"
@@ -156,7 +155,6 @@ if [ -f "$ASHMEM_C" ] && ! grep -q '#include <string.h>' "$ASHMEM_C"; then
     sed -i '1i #include <string.h>' "$ASHMEM_C"
 fi
 # ── Patch loader-info.awk for POSIX awk (mawk) compatibility ───
-# F-Droid buildserver uses mawk; gawk-only strtonum and \y are not available.
 cat > "$PROOT_BLD/loader/loader-info.awk" <<'ENDAWK'
 function hextonum(hex,   i, n, c, idx) {
     hex = tolower(hex)
@@ -182,11 +180,6 @@ ENDAWK
     export CPPFLAGS="-I${SYSROOT_INC} -DSYS_SECCOMP=1"
     export LDFLAGS="-L${SYSROOT_LIB}"
     export CC="${TC_PREFIX}/${CROSS_PREFIX}-clang"
-    # GIT=/bin/true: suppress git-describe so VERSION is not set in build.h;
-    # both local and CI then fall back to proot.h's "5.1.0" — identical output.
-    # PROOT_UNBUNDLE_LOADER="loader-out": fixed relative string instead of the
-    # absolute build-dir path, so the embedded loader-path string is the same
-    # on every machine. (ProotSandboxManager always overrides via PROOT_LOADER.)
     make CROSS_COMPILE="${CROSS_PREFIX}-" \
         PROOT_UNBUNDLE_LOADER="loader-out" \
         GIT=/bin/true \
@@ -197,12 +190,10 @@ echo "  [2/4] Done: $(stat -c%s "$PROOT_BLD/proot") bytes"
 # ── Step 3: Strip and deploy binaries to jniLibs ───────────────
 echo "  [3/4] Stripping and deploying..."
 
-# proot PIE executable -> libproot_exec.so
 "$STRIP" --strip-all \
     "$BLD_DIR/src/proot" \
     -o "$JNILIBS/libproot_exec.so"
 
-# Loader (static ELF, already stripped by make) -> libproot_loader.so
 LOADER_SRC="$BLD_DIR/src/loader/loader"
 if [ ! -f "$LOADER_SRC" ]; then
     echo "ERROR: loader binary not found at $LOADER_SRC"
@@ -210,7 +201,6 @@ if [ ! -f "$LOADER_SRC" ]; then
 fi
 cp "$LOADER_SRC" "$JNILIBS/libproot_loader.so"
 
-# talloc -> jniLibs (strip)
 "$STRIP" --strip-all \
     "$SYSROOT_LIB/libtalloc.so" \
     -o "$JNILIBS/libtalloc.so"
@@ -229,4 +219,4 @@ cp "$JNILIBS/libtalloc.so" "$FDROID_JNILIBS/libtalloc.so"
 # ── Save hash for next incremental check ───────────────────────
 calc_hashes > "$HASH_FILE"
 
-echo "=== build-proot.sh: Complete ==="
+echo "=== build-proot.sh: Complete ($TARGET_ARCH) ==="

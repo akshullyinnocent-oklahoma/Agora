@@ -32,14 +32,14 @@ android {
 
 
         ndk {
-            abiFilters += listOf("arm64-v8a")
+            abiFilters += listOf("armeabi-v7a")
         }
 
         externalNativeBuild {
             cmake {
                 cppFlags += "-std=c++17"
                 arguments += listOf("-DANDROID_STL=c++_shared")
-                targets += listOf("agora_llama", "agora_proot")
+                targets += listOf("agora_proot")
             }
         }
     }
@@ -109,7 +109,7 @@ android {
 }
 
 // Proot binaries (libproot_exec.so, libproot_loader.so, libtalloc.so) are
-// built via GNUmakefile (see .build-proot/) and placed directly in jniLibs.
+// built via build-proot.sh (or GitHub Actions) and placed in jniLibs.
 // No CMake target is needed — the binaries are manually managed prebuilts.
 // talloc is built with SONAME=libtalloc.so (no version) so AGP packaging works.
 

@@ -1,40 +1,47 @@
-name: Universal Android Debug Build
+name: Build armeabi-v7a Debug APK
 
 on:
   push:
-    branches: [ "**" ]
+    branches: ["**"]
   workflow_dispatch:
 
 jobs:
   build:
-    name: Build armv7a Debug APK
+    name: Build armeabi-v7a Debug APK
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout Code
+      - name: Checkout Code (with submodules)
         uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
-      # Setting up Java AND enabling the native Gradle cache
-      # This is the secret sauce to dropping that 5-minute build time down on future runs
       - name: Setup Java & Cache Gradle
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
-          java-version: '21' 
-          cache: 'gradle' 
+          java-version: '21'
+          cache: 'gradle'
 
       - name: Make Gradle Executable
         run: chmod +x ./gradlew
 
-      # 'assembleDebug' is the default task for 99% of Android apps.
-      # The -Pandroid.injected.abi flag keeps it locked to 32-bit ARM.
-      - name: Build APK (armeabi-v7a only)
-        run: ./gradlew assembleDebug -Pandroid.injected.abi=armeabi-v7a --stacktrace
+      # ── Build proot + talloc native libs for armeabi-v7a ──
+      # The ubuntu runner has NDK 28.2.13676358 pre-installed.
+      # build-proot.sh auto-detects it via ANDROID_HOME/NDK paths.
+      - name: Build Proot Native Libraries (armeabi-v7a)
+        run: |
+          export ANDROID_NDK_HOME="/usr/local/lib/android/sdk/ndk/28.2.13676358"
+          chmod +x ./build-proot.sh
+          ./build-proot.sh --force armeabi-v7a
 
-      # Glob patterns (**) mean GitHub will search all build directories 
-      # and grab whatever debug APK was generated, no matter the module layout.
+      # ── Assemble the fdroid debug APK ──
+      # fdroid flavor has the full proot sandbox; play flavor is a stub.
+      - name: Build Debug APK
+        run: ./gradlew assembleFdroidDebug --stacktrace
+
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: debug-apk-output
+          name: agora-armeabi-v7a-debug-apk
           path: "**/build/outputs/apk/**/*.apk"
