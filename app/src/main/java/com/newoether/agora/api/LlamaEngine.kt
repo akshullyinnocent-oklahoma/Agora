@@ -1,24 +1,19 @@
 package com.newoether.agora.api
 
-import com.newoether.agora.util.DebugLog
-
 /**
- * Stubbed LlamaEngine — local llama.cpp support removed for armeabi-v7a build.
- * Embedding computation now handled exclusively via API providers.
- * All methods return null/empty; callers already handle null gracefully.
+ * Stub for the removed llama.cpp embedding engine.
+ *
+ * The native agora_llama library (llama.cpp) has been removed from the build
+ * for armeabi-v7a compatibility. Local GGUF model inference is no longer available.
+ * Use remote embedding providers (OpenAI, etc.) via [EmbeddingClient] instead.
  */
 object LlamaEngine {
-    private const val TAG = "LlamaEngine"
 
     fun isModelReady(modelPath: String): Boolean = false
 
-    fun computeEmbedding(text: String, modelPath: String, beforeLoad: (() -> Unit)? = null): FloatArray? {
-        DebugLog.d(TAG, "Local embeddings disabled (llama.cpp removed)")
-        return null
-    }
+    fun computeEmbedding(text: String, modelPath: String, beforeLoad: (() -> Unit)? = null): FloatArray? = null
 
     fun computeEmbeddings(texts: List<String>, modelPath: String, beforeLoad: (() -> Unit)? = null): List<FloatArray?> {
-        DebugLog.d(TAG, "Local embeddings disabled (llama.cpp removed)")
         return texts.map { null }
     }
 }

@@ -23,7 +23,7 @@ build*.ps1
 deploy.ps1
 logs/
 
-# Proot build artifacts (intermediate build dir only)
+# Proot build artifacts (keep jniLibs committed for CI)
 /.build-proot/
 app/src/fdroid/assets/alpine-minirootfs.tar.gz
 

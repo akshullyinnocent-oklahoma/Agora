@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.22)
-project("agora_proot" LANGUAGES C CXX)
+project("agora_native" LANGUAGES C CXX)
 
 add_compile_options(
     -ffile-prefix-map=${CMAKE_SOURCE_DIR}=.
@@ -9,17 +9,18 @@ add_compile_options(
 
 # ── Minimal JNI stub for proot ───────────────────────────
 # System.loadLibrary("agora_proot") triggers APK extraction of native libs.
-# Actual proot execution uses ProcessBuilder on libproot_exec.so (built via build-proot.sh).
+# Actual proot execution uses ProcessBuilder on libproot_exec.so (GNUmakefile-built).
 add_library(agora_proot SHARED proot_jni.cpp)
 target_link_options(agora_proot PRIVATE
     -Wl,--build-id=none -Wl,--hash-style=gnu -Wl,--icf=all
 )
 
-# ── Reproducible: strip .comment ─────────────────────────
+# ── objcopy for reproducible builds ──────────────────────
 find_program(LLVM_OBJCOPY llvm-objcopy
     HINTS ${ANDROID_NDK}/toolchains/llvm/prebuilt/*/bin NO_DEFAULT_PATH
 )
 
+# ── Reproducible: strip .comment ─────────────────────────
 if(DEFINED ENV{SOURCE_DATE_EPOCH})
     add_definitions(-DSOURCE_DATE_EPOCH=$ENV{SOURCE_DATE_EPOCH})
 endif()

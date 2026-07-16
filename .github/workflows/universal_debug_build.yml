@@ -11,10 +11,8 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout Code (with submodules)
+      - name: Checkout Code
         uses: actions/checkout@v4
-        with:
-          submodules: recursive
 
       - name: Setup Java & Cache Gradle
         uses: actions/setup-java@v4
@@ -26,17 +24,11 @@ jobs:
       - name: Make Gradle Executable
         run: chmod +x ./gradlew
 
-      # ── Build proot + talloc native libs for armeabi-v7a ──
-      # The ubuntu runner has NDK 28.2.13676358 pre-installed.
-      # build-proot.sh auto-detects it via ANDROID_HOME/NDK paths.
-      - name: Build Proot Native Libraries (armeabi-v7a)
-        run: |
-          export ANDROID_NDK_HOME="/usr/local/lib/android/sdk/ndk/28.2.13676358"
-          chmod +x ./build-proot.sh
-          ./build-proot.sh --force armeabi-v7a
-
-      # ── Assemble the fdroid debug APK ──
-      # fdroid flavor has the full proot sandbox; play flavor is a stub.
+      # Build the fdroid debug APK (fdroid flavor includes proot sandbox).
+      # The ubuntu runner has NDK 28 pre-installed at /usr/local/lib/android/sdk/ndk/28.2.13676358
+      # which handles the agora_proot CMake stub build.
+      # Prebuilt proot .so files (libproot_exec.so, libproot_loader.so, libtalloc.so)
+      # must be committed in app/src/main/jniLibs/armeabi-v7a/ and app/src/fdroid/jniLibs/armeabi-v7a/.
       - name: Build Debug APK
         run: ./gradlew assembleFdroidDebug --stacktrace
 

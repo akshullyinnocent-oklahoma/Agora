@@ -109,7 +109,7 @@ android {
 }
 
 // Proot binaries (libproot_exec.so, libproot_loader.so, libtalloc.so) are
-// built via build-proot.sh (or GitHub Actions) and placed in jniLibs.
+// built via GNUmakefile (see .build-proot/) and placed directly in jniLibs.
 // No CMake target is needed — the binaries are manually managed prebuilts.
 // talloc is built with SONAME=libtalloc.so (no version) so AGP packaging works.
 

@@ -1,17 +1,16 @@
 package com.newoether.agora.api
 
-import java.io.Closeable
-
 /**
- * Stubbed LlamaChatEngine — local llama.cpp chat support removed for armeabi-v7a build.
- * LocalProvider still references this class but its methods are no-ops.
+ * Stub for the removed llama.cpp chat engine.
+ *
+ * The native agora_llama library (llama.cpp) has been removed from the build
+ * for armeabi-v7a compatibility. On-device GGUF chat inference is no longer available.
+ * Use remote LLM providers (OpenAI, Gemini, Anthropic, Ollama, etc.) instead.
  */
-class ChatTemplateMessage(val role: String, val content: String)
-
 class LlamaChatEngine(
     val modelPath: String,
     val nCtx: Int = 2048
-) : Closeable {
+) : java.io.Closeable {
 
     fun isLoaded(): Boolean = false
 
@@ -19,10 +18,7 @@ class LlamaChatEngine(
 
     fun getChatTemplate(): String? = null
 
-    fun applyTemplate(
-        messages: List<ChatTemplateMessage>,
-        addAss: Boolean = true
-    ): String? = null
+    fun applyTemplate(messages: List<ChatTemplateMessage>, addAss: Boolean = true): String? = null
 
     fun generate(
         prompt: String,
@@ -30,7 +26,7 @@ class LlamaChatEngine(
         topP: Float = 0.9f,
         maxTokens: Int = 4096
     ): kotlinx.coroutines.flow.Flow<String> = kotlinx.coroutines.flow.flow {
-        throw RuntimeException("Local model inference disabled (llama.cpp removed)")
+        throw RuntimeException("Local model inference is not available (llama.cpp removed)")
     }
 
     fun loadMmproj(mmprojPath: String): Boolean = false
@@ -46,7 +42,7 @@ class LlamaChatEngine(
         topP: Float = 0.9f,
         maxTokens: Int = 4096
     ): kotlinx.coroutines.flow.Flow<String> = kotlinx.coroutines.flow.flow {
-        throw RuntimeException("Local model inference disabled (llama.cpp removed)")
+        throw RuntimeException("Local model inference is not available (llama.cpp removed)")
     }
 
     fun cancel() {}
