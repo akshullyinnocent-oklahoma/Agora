@@ -24,11 +24,7 @@ import java.util.concurrent.ConcurrentHashMap
  * ones — and all logic for resolving a model/provider to a concrete [LlmProvider]
  * instance, its effective base URL, and its configured/credentialed status.
  *
- * Extracted from [ChatViewModel] so provider lifecycle (registration, rename, delete,
- * credential reconciliation) and model discovery live in one cohesive place. The live
- * [all] map is shared by reference with the generation pipeline, so it is a
- * [ConcurrentHashMap]: mutated by the sync collectors while read on `Dispatchers.IO`
- * during generation.
+ * LocalProvider is still registered but its engine is stubbed (llama.cpp removed).
  */
 class ProviderRegistry(
     private val settings: SettingsRepository,
