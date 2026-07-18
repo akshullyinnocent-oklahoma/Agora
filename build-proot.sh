@@ -24,7 +24,7 @@ fi
 
 # Toolchain: NDK r28 on Linux uses llvm/prebuilt/linux-x86_64
 TC_PREFIX="$NDK/toolchains/llvm/prebuilt/linux-x86_64/bin"
-CROSS_PREFIX="aarch64-linux-android26"
+CROSS_PREFIX="armv7a-linux-androideabi"
 CC="${TC_PREFIX}/${CROSS_PREFIX}-clang"
 STRIP="${TC_PREFIX}/llvm-strip"
 export PATH="${TC_PREFIX}:$PATH"
@@ -35,13 +35,13 @@ echo "=== build-proot.sh: NDK=$NDK ==="
 TALLOC_SRC="$SCRIPT_DIR/thirdparty/talloc"
 PROOT_SRC="$SCRIPT_DIR/thirdparty/proot/src"
 BLD="$SCRIPT_DIR/.build-proot"
-SYSROOT="$BLD/sysroot/arm64-v8a"
+SYSROOT="$BLD/sysroot/armeabi-v7a"
 SYSROOT_LIB="$SYSROOT/lib"
 SYSROOT_INC="$SYSROOT/include"
-BLD_DIR="$BLD/build-proot-arm64-v8a"
+BLD_DIR="$BLD/build-proot-armeabi-v7a"
 LOADER_OUT="$BLD_DIR/loader-out"
-JNILIBS="$SCRIPT_DIR/app/src/main/jniLibs/arm64-v8a"
-FDROID_JNILIBS="$SCRIPT_DIR/app/src/fdroid/jniLibs/arm64-v8a"
+JNILIBS="$SCRIPT_DIR/app/src/main/jniLibs/armeabi-v7a"
+FDROID_JNILIBS="$SCRIPT_DIR/app/src/fdroid/jniLibs/armeabi-v7a"
 
 # ── Ensure readelf is available (GNUmakefile needs it) ─────────
 if ! command -v readelf &>/dev/null; then
