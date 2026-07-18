@@ -24,7 +24,7 @@ class ProotSandboxManager(private val context: Context) : SandboxManager {
     private val alpineMirror = "https://dl-cdn.alpinelinux.org/alpine/v3.21/main"
     // Base rootfs is fetched on-device at install time (not bundled in the APK), then verified
     // against this pinned SHA-256 before extraction. Stable v3.21 release URL.
-    private val rootfsUrl = "https://dl-cdn.alpinelinux.org/alpine/v3.21/releases/aarch64/alpine-minirootfs-3.21.0-aarch64.tar.gz"
+    private val rootfsUrl = "https://dl-cdn.alpinelinux.org/alpine/v3.21/releases/armhf/alpine-minirootfs-3.21.0-armhf.tar.gz"
     private val rootfsSha256 = "f31202c4070c4ef7de9e157e1bd01cb4da3a2150035d74ea5372c5e86f1efac1"
     private var sandboxScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val _terminalOutput = MutableStateFlow("")
@@ -101,14 +101,14 @@ class ProotSandboxManager(private val context: Context) : SandboxManager {
     override fun isAvailableSync(): Boolean {
         if (!rootfsDir.isDirectory) return false
         if (!File(rootfsDir, "bin/sh").exists()) return false
-        return listOf("lib/ld-musl-aarch64.so.1", "usr/lib/ld-musl-aarch64.so.1")
+        return listOf("lib/ld-musl-armhf.so.1", "usr/lib/ld-musl-armhf.so.1")
             .map { File(rootfsDir, it) }.any { it.exists() }
     }
 
     override suspend fun isAvailable(): Boolean = withContext(Dispatchers.IO) {
         if (!rootfsDir.isDirectory) { lastError = "rootfs not found: ${rootfsDir.absolutePath}"; return@withContext false }
         if (!ensureShell()) { lastError = "/bin/sh missing"; return@withContext false }
-        val linker = listOf("lib/ld-musl-aarch64.so.1", "usr/lib/ld-musl-aarch64.so.1").map { File(rootfsDir, it) }.any { it.exists() }
+        val linker = listOf("lib/ld-musl-armhf.so.1", "usr/lib/ld-musl-armhf.so.1").map { File(rootfsDir, it) }.any { it.exists() }
         if (!linker) { lastError = "musl linker missing"; return@withContext false }
         ensureSandboxMountTargets()
         ensurePackageMetadata()
@@ -444,7 +444,7 @@ class ProotSandboxManager(private val context: Context) : SandboxManager {
 
         // 1. Download + parse repo index
         onProgress("Fetching package index...")
-        val indexUrl = "$alpineMirror/aarch64/APKINDEX.tar.gz"
+        val indexUrl = "$alpineMirror/armhf/APKINDEX.tar.gz"
         val indexFile = File(context.filesDir, "APKINDEX.tar.gz")
         try {
             val conn = URL(indexUrl).openConnection() as HttpURLConnection
@@ -621,7 +621,7 @@ class ProotSandboxManager(private val context: Context) : SandboxManager {
 
         // 1. Download + parse APKINDEX
         onProgress("Fetching package index...")
-        val indexUrl = "$alpineMirror/aarch64/APKINDEX.tar.gz"
+        val indexUrl = "$alpineMirror/armhf/APKINDEX.tar.gz"
         val indexFile = File(context.filesDir, "APKINDEX_UPGRADE.tar.gz")
         try {
             val conn = URL(indexUrl).openConnection() as HttpURLConnection
